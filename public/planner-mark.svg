@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Planner">
+  <rect width="512" height="512" rx="128" fill="#1f2925"/>
+  <rect x="138" y="145" width="236" height="222" rx="28" fill="#f4f5f0"/>
+  <path d="M180 217h152M180 267h98M180 317h126" stroke="#1f2925" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="344" cy="317" r="42" fill="#ef6a52"/>
+</svg>
