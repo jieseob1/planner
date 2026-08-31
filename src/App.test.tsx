@@ -1,9 +1,46 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppRoutes } from './App';
+import { createDemoSnapshot } from './data/demo';
+import type { PlannerSnapshot } from './domain/types';
 import { PlannerProvider } from './state/PlannerProvider';
+
+const snapshotResponse = (snapshot: PlannerSnapshot, revision: number) => new Response(
+  JSON.stringify({ revision, snapshot }),
+  { status: 200, headers: { 'Content-Type': 'application/json', ETag: `"${revision}"` } }
+);
+
+const createStatefulApiMock = () => {
+  let snapshot: PlannerSnapshot | null = null;
+  let revision = 0;
+  return vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+    if (method === 'GET') {
+      return snapshot ? snapshotResponse(snapshot, revision) : new Response(null, { status: 404 });
+    }
+    if (method === 'PUT') {
+      snapshot = JSON.parse(String(init?.body)) as PlannerSnapshot;
+      revision += 1;
+      return snapshotResponse(snapshot, revision);
+    }
+    if (method === 'DELETE') {
+      snapshot = null;
+      return new Response(null, { status: 204 });
+    }
+    return new Response(null, { status: 405 });
+  });
+};
+
+beforeEach(() => {
+  Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+  vi.stubGlobal('fetch', createStatefulApiMock());
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function renderRoute(route: string) {
   return render(
@@ -65,16 +102,16 @@ describe('Planner frontend core flows', () => {
     await user.type(screen.getByLabelText('빠른 메모'), '초기화 전에 남길 작업{Enter}');
     await user.click(screen.getByRole('button', { name: '데모 초기화' }));
 
-    const firstDialog = screen.getByRole('dialog', { name: '데모 데이터를 초기화할까요?' });
+    const firstDialog = screen.getByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' });
     await user.click(within(firstDialog).getByRole('button', { name: '취소' }));
-    expect(screen.queryByRole('dialog', { name: '데모 데이터를 초기화할까요?' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' })).not.toBeInTheDocument();
 
     await openRouteFromNavigation(user, 'Planner');
     expect(screen.getByText('초기화 전에 남길 작업')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '데모 초기화' }));
-    const secondDialog = screen.getByRole('dialog', { name: '데모 데이터를 초기화할까요?' });
-    await user.click(within(secondDialog).getByRole('button', { name: '기기 데이터 초기화' }));
+    const secondDialog = screen.getByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' });
+    await user.click(within(secondDialog).getByRole('button', { name: '기기·서버 데이터 초기화' }));
 
     expect(screen.queryByText('초기화 전에 남길 작업')).not.toBeInTheDocument();
     expect(screen.getByText('세금계산서 발행')).toBeInTheDocument();
@@ -242,5 +279,240 @@ describe('Planner frontend core flows', () => {
     await user.click(within(group).getByRole('button', { name: '유지' }));
     expect(within(group).getByRole('button', { name: '유지' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('1/4 결정')).toBeInTheDocument();
+  });
+});
+
+describe('Planner API synchronization', () => {
+  it('shows local state immediately and claims server save only after bootstrap acknowledgement', async () => {
+    const localSnapshot = createDemoSnapshot();
+    localSnapshot.tasks = [
+      { ...localSnapshot.tasks[0], id: 'task-local-only', title: '로컬 우선 작업' },
+      ...localSnapshot.tasks.slice(1)
+    ];
+    window.localStorage.setItem('planner.mvp.snapshot.v1', JSON.stringify(localSnapshot));
+
+    let acknowledgePut: ((response: Response) => void) | undefined;
+    const pendingPut = new Promise<Response>((resolve) => {
+      acknowledgePut = resolve;
+    });
+    const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'GET') return new Response(null, { status: 404 });
+      if (init?.method === 'PUT') return pendingPut;
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal('fetch', apiMock);
+
+    renderRoute('/planner');
+    expect(screen.getByText('로컬 우선 작업')).toBeInTheDocument();
+    await waitFor(() => expect(apiMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('서버에 저장됨')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('로컬 우선 작업');
+
+    await act(async () => {
+      acknowledgePut?.(snapshotResponse(localSnapshot, 1));
+      await pendingPut;
+    });
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+
+    const putRequest = apiMock.mock.calls.find(([, init]) => init?.method === 'PUT');
+    expect(new Headers(putRequest?.[1]?.headers).get('If-None-Match')).toBe('*');
+    expect(new Headers(putRequest?.[1]?.headers).get('Idempotency-Key')).toBeTruthy();
+  });
+
+  it('hydrates the server snapshot when no local snapshot exists', async () => {
+    const serverSnapshot = createDemoSnapshot();
+    serverSnapshot.tasks = [
+      { ...serverSnapshot.tasks[0], id: 'task-from-server', title: '서버에서 불러온 작업' },
+      ...serverSnapshot.tasks.slice(1)
+    ];
+    const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (
+      (init?.method ?? 'GET') === 'GET'
+        ? snapshotResponse(serverSnapshot, 8)
+        : new Response(null, { status: 500 })
+    ));
+    vi.stubGlobal('fetch', apiMock);
+
+    renderRoute('/planner');
+
+    expect(await screen.findByText('서버에서 불러온 작업')).toBeInTheDocument();
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+    expect(apiMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('서버에서 불러온 작업');
+  });
+
+  it('writes local changes immediately and debounces a revision-checked server update', async () => {
+    const apiMock = createStatefulApiMock();
+    vi.stubGlobal('fetch', apiMock);
+    const user = userEvent.setup();
+    renderRoute('/today');
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('빠른 메모'), '서버 저장 확인 작업{Enter}');
+    expect(screen.getByText('서버에 저장 중')).toBeInTheDocument();
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('서버 저장 확인 작업');
+
+    await waitFor(() => {
+      const matchingPut = apiMock.mock.calls.find(([, init]) => (
+        init?.method === 'PUT' && String(init.body).includes('서버 저장 확인 작업')
+      ));
+      expect(matchingPut).toBeDefined();
+      expect(new Headers(matchingPut?.[1]?.headers).get('If-Match')).toBe('"1"');
+      expect(new Headers(matchingPut?.[1]?.headers).get('Idempotency-Key')).toBeTruthy();
+    });
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+  });
+
+  it('preserves changes in localStorage while offline and retries after reconnect', async () => {
+    Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
+    const apiMock = vi.fn();
+    vi.stubGlobal('fetch', apiMock);
+    const user = userEvent.setup();
+    renderRoute('/today');
+
+    await user.type(screen.getByLabelText('빠른 메모'), '오프라인 보존 작업{Enter}');
+    expect(screen.getByText('오프라인')).toBeInTheDocument();
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('오프라인 보존 작업');
+    expect(apiMock).not.toHaveBeenCalled();
+
+    const reconnectedApi = createStatefulApiMock();
+    vi.stubGlobal('fetch', reconnectedApi);
+    Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+    act(() => window.dispatchEvent(new Event('online')));
+
+    await waitFor(() => {
+      const matchingPut = reconnectedApi.mock.calls.find(([, init]) => (
+        init?.method === 'PUT' && String(init.body).includes('오프라인 보존 작업')
+      ));
+      expect(matchingPut).toBeDefined();
+    });
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+  });
+
+  it('surfaces a revision conflict without replacing the local change', async () => {
+    const serverSnapshot = createDemoSnapshot();
+    const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'GET') return snapshotResponse(serverSnapshot, 7);
+      if (init?.method === 'PUT') {
+        return new Response(JSON.stringify({
+          type: 'https://nowline.local/problems/revision-conflict',
+          title: 'Revision conflict',
+          status: 412,
+          detail: 'The planner has changed on another client.'
+        }), { status: 412, headers: { 'Content-Type': 'application/problem+json' } });
+      }
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal('fetch', apiMock);
+    const user = userEvent.setup();
+    renderRoute('/today');
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('빠른 메모'), '충돌에서도 지킬 작업{Enter}');
+
+    expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
+    expect(screen.getByText('기기 변경을 덮어쓰지 않고 보존했어요')).toBeInTheDocument();
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('충돌에서도 지킬 작업');
+    await openRouteFromNavigation(user, 'Planner');
+    expect(screen.getByText('충돌에서도 지킬 작업')).toBeInTheDocument();
+  });
+
+  it('resets against the latest server revision after a stale-write conflict', async () => {
+    const serverSnapshot = createDemoSnapshot();
+    let getCount = 0;
+    let putCount = 0;
+    const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (method === 'GET') {
+        getCount += 1;
+        return snapshotResponse(serverSnapshot, getCount === 1 ? 7 : 8);
+      }
+      if (method === 'PUT') {
+        putCount += 1;
+        if (putCount === 1) {
+          return new Response(JSON.stringify({
+            title: 'Revision conflict',
+            status: 412,
+            detail: 'The planner has changed on another client.'
+          }), { status: 412, headers: { 'Content-Type': 'application/problem+json' } });
+        }
+        return snapshotResponse(JSON.parse(String(init?.body)) as PlannerSnapshot, 10);
+      }
+      if (method === 'DELETE') return new Response(null, { status: 204 });
+      return new Response(null, { status: 405 });
+    });
+    vi.stubGlobal('fetch', apiMock);
+    const user = userEvent.setup();
+    renderRoute('/today');
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('빠른 메모'), '초기화할 충돌 작업{Enter}');
+    expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '데모 초기화' }));
+    const dialog = screen.getByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' });
+    await user.click(within(dialog).getByRole('button', { name: '기기·서버 데이터 초기화' }));
+
+    await waitFor(() => {
+      const deleteRequest = apiMock.mock.calls.find(([, init]) => init?.method === 'DELETE');
+      expect(deleteRequest).toBeDefined();
+      expect(new Headers(deleteRequest?.[1]?.headers).get('If-Match')).toBe('"8"');
+    });
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+    expect(screen.queryByText('초기화할 충돌 작업')).not.toBeInTheDocument();
+  });
+
+  it('does not hydrate over a local edit made while the initial GET is pending', async () => {
+    const serverSnapshot = createDemoSnapshot();
+    let resolveGet: ((response: Response) => void) | undefined;
+    const pendingGet = new Promise<Response>((resolve) => {
+      resolveGet = resolve;
+    });
+    const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (
+      (init?.method ?? 'GET') === 'GET'
+        ? pendingGet
+        : new Response(null, { status: 500 })
+    ));
+    vi.stubGlobal('fetch', apiMock);
+    const user = userEvent.setup();
+    renderRoute('/today');
+
+    await user.type(screen.getByLabelText('빠른 메모'), '초기 조회 중 작성한 작업{Enter}');
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('초기 조회 중 작성한 작업');
+
+    await act(async () => {
+      resolveGet?.(snapshotResponse(serverSnapshot, 4));
+      await pendingGet;
+    });
+
+    expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
+    await openRouteFromNavigation(user, 'Planner');
+    expect(screen.getByText('초기 조회 중 작성한 작업')).toBeInTheDocument();
+    expect(apiMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('reuses the idempotency key when a failed write is retried', async () => {
+    let putAttempts = 0;
+    const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'GET') return new Response(null, { status: 404 });
+      if (init?.method === 'PUT') {
+        putAttempts += 1;
+        if (putAttempts === 1) throw new TypeError('connection reset');
+        return snapshotResponse(JSON.parse(String(init.body)) as PlannerSnapshot, 1);
+      }
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal('fetch', apiMock);
+    const user = userEvent.setup();
+    renderRoute('/today');
+
+    expect(await screen.findByText('서버 연결 실패')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+
+    const putCalls = apiMock.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(putCalls).toHaveLength(2);
+    const firstKey = new Headers(putCalls[0][1]?.headers).get('Idempotency-Key');
+    const secondKey = new Headers(putCalls[1][1]?.headers).get('Idempotency-Key');
+    expect(firstKey).toBeTruthy();
+    expect(secondKey).toBe(firstKey);
   });
 });

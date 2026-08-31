@@ -34,11 +34,15 @@ if (deadButtons.length > 0) {
 }
 
 const saveStatus = read('src/components/SaveStatus.tsx');
-if (saveStatus.includes('동기화') || saveStatus.includes('클라우드')) {
-  throw new Error('SaveStatus must not imply server synchronization before the backend exists');
-}
-if (!saveStatus.includes('기기에 저장')) {
-  throw new Error('SaveStatus must explicitly describe device-local persistence');
+for (const contract of [
+  "saved: { label: '서버에 저장됨'",
+  "saving: { label: '서버에 저장 중', detail: '변경 내용은 기기에 저장됨'",
+  "offline: { label: '오프라인', detail: '변경 내용은 이 기기에 저장됨'",
+  "conflict: { label: '서버 저장 충돌'"
+]) {
+  if (!saveStatus.includes(contract)) {
+    throw new Error(`SaveStatus server/local persistence contract is missing: ${contract}`);
+  }
 }
 
 const shell = read('src/components/AppShell.tsx');

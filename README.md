@@ -1,27 +1,21 @@
 # Nowline
 
-연간·분기 목표를 **측정 가능한 결과 → 다음 행동 → 주간 시간 블록 → 오늘의 실행 → 회고**로 연결하는 개인 실행 플래너입니다.
-
-할 일을 메모하는 데서 끝내지 않고, “무엇을 언제 실행했고 결과가 어떻게 달라졌는가”까지 관리하는 것이 목표입니다. 하나의 React 코드베이스를 웹 PWA와 iOS·Android 앱에서 함께 사용합니다.
-
-> 현재 저장소는 프론트엔드 MVP입니다. 데이터는 브라우저 `localStorage`에 저장되며, 로그인·클라우드 동기화·Spring API는 아직 연결되지 않았습니다.
+연간·분기 목표를 **측정 가능한 결과 → 다음 행동 → 주간 시간 블록 → 오늘 실행 → 회고**로 연결하는 개인 실행 플래너입니다. React 웹/PWA와 Capacitor iOS·Android 앱이 같은 화면과 Spring API 계약을 사용합니다.
 
 ![Nowline Today 데스크톱 화면](./docs/screenshots/today-desktop.jpg)
 
-## 왜 만들었나요?
+> 현재 범위는 로컬에서 실행하는 풀스택 MVP입니다. Spring API와 PostgreSQL 동기화까지 구현되어 있지만 로그인은 아직 없으며, `X-Nowline-User-Id`는 개발용 신뢰 헤더입니다. 인터넷에 공개하기 전에는 반드시 실제 인증으로 교체해야 합니다.
 
-일반적인 메모·할 일 앱은 작업을 적는 데는 편하지만, 장기 목표가 오늘의 시간표와 실제 실행 기록까지 이어지는지는 보여주기 어렵습니다. Nowline은 아래 질문을 한 흐름 안에서 관리합니다.
+## 무엇을 관리하나요?
 
-| 질문 | Nowline에서 관리하는 방식 |
+| 질문 | Nowline의 관리 방식 |
 | --- | --- |
-| 올해와 이번 분기에 무엇을 만들 것인가? | 1년 방향과 분기 결과를 계층으로 연결 |
+| 올해와 이번 분기에 무엇을 만들 것인가? | 1년 방향과 분기 결과를 연결 |
 | 완료 여부를 무엇으로 판단할 것인가? | 현재값·목표값·신뢰도·다음 점검일 관리 |
-| 이번 주에 실제로 할 시간이 있는가? | 필요 시간과 가용 시간을 비교하고 주간 블록에 배치 |
+| 실제로 실행할 시간이 있는가? | 필요 시간과 가용 시간을 비교하고 주간 블록에 배치 |
 | 오늘 무엇부터 끝낼 것인가? | Top 3와 한 번에 하나의 실행 타이머 제공 |
-| 무엇을 했다는 근거가 남는가? | 실제 시간과 완료 근거 기록 |
-| 계속할 것인가, 줄이거나 중단할 것인가? | 지연·시간 부족·근거 없음 상태를 결정 큐로 관리 |
-
-## 사용 흐름
+| 무엇을 했다는 근거가 남는가? | 실제 시간, 결과 수치, 완료 근거 기록 |
+| 계속할 것인가? | 유지·축소·연장·중단 결정을 회고에서 관리 |
 
 ```mermaid
 flowchart LR
@@ -33,22 +27,22 @@ flowchart LR
   F --> B
 ```
 
-1. `Goals`에서 1년 방향과 이번 분기의 측정 가능한 결과를 정합니다.
-2. 결과를 이루기 위한 가장 작은 다음 행동과 예상 시간을 만듭니다.
-3. `Planner`에서 외부 일정과 가용 시간을 보며 이번 주 시간 블록에 배치합니다.
-4. `Today`에서 Top 3 중 하나를 실행하고 실제 시간과 완료 근거를 남깁니다.
-5. `Review`에서 결과 수치, 방해 요인, 다음 주 Top 3를 갱신합니다.
-6. 지연되거나 시간이 부족한 결과는 유지·축소·기한 연장·중단 중 하나로 결정합니다.
+## 구현된 기능
 
-## 주요 화면
+| 영역 | 기능 |
+| --- | --- |
+| Today | 오늘의 Top 3, 타이머·일시정지·종료, 수동 시간, 완료 근거, 빠른 수집, 이월 작업 결정 |
+| Planner | 여러 주 이동, 다음 행동 생성, 7일 시간표, 외부 일정, 용량 경고, 시간 겹침 방지, 모바일 배치 시트 |
+| Goals | 1년 → 분기 → 결과 구조, 현재·목표 수치, 신뢰도, 계획·실제 시간, 결정 큐 |
+| Review | 결과 수치 반영, 방해 요인, 다음 주 Top 3, 다음 주 Planner 전달 |
+| 동기화 | localStorage 우선 복원, 서버 자동 저장, 오프라인 보존·재시도, ETag 충돌 감지 |
+| 웹·앱 | 반응형 PWA, 오프라인 정적 화면, Capacitor iOS·Android 프로젝트 |
+| 서버 | Java 25 가상 스레드, PostgreSQL/Flyway, 멱등성, 낙관적 잠금, Problem Details |
+| 로컬 운영 | Docker Compose, Kustomize, backend 2 replicas, HPA, PDB, probe, topology spread |
 
-### 주간 계획
-
-목표별 필요·계획·실제 시간을 같은 표에서 비교하고, 아직 배치하지 않은 다음 행동을 7일 시간표에 놓습니다. 외부 일정은 읽기 전용 블록으로 구분됩니다.
+### 주요 화면
 
 ![Nowline Planner 데스크톱 화면](./docs/screenshots/planner-desktop.jpg)
-
-### 목표와 주간 회고
 
 <table>
   <tr>
@@ -56,199 +50,210 @@ flowchart LR
     <td width="50%"><img src="./docs/screenshots/review-desktop.jpg" alt="Nowline Review 데스크톱 화면" /></td>
   </tr>
   <tr>
-    <td><strong>Goals</strong><br />분기 결과의 진행률, 근거 신뢰도, 실제·계획 시간, 지연 상태를 보고 다음 결정을 내립니다.</td>
-    <td><strong>Review</strong><br />달라진 수치, 가장 큰 방해 요인, 다음 주 Top 3를 한 번에 정리합니다.</td>
+    <td><strong>Goals</strong><br />분기 결과의 진행률, 근거 신뢰도, 시간 위험을 보고 다음 결정을 내립니다.</td>
+    <td><strong>Review</strong><br />달라진 수치, 방해 요인, 다음 주 Top 3를 한 번에 정리합니다.</td>
   </tr>
 </table>
-
-### 모바일
-
-390px 화면에서는 데스크톱 레일이 하단 탭과 빠른 수집 버튼으로 바뀝니다. 주간 계획의 드래그 앤 드롭은 날짜·시간을 고르는 배치 시트 방식으로 대체됩니다.
 
 <p align="center">
   <img src="./docs/screenshots/today-mobile.jpg" alt="Nowline Today 모바일 화면" width="320" />
   <img src="./docs/screenshots/planner-mobile.jpg" alt="Nowline Planner 모바일 화면" width="320" />
 </p>
 
-## 구현된 기능
+## 아키텍처
 
-| 영역 | 기능 |
-| --- | --- |
-| Today | 오늘의 Top 3, 실행 타이머, 일시정지·종료, 실제 시간, 완료 근거, Enter 빠른 수집, 이월 작업 바로가기, 수동 시간 실행 취소 |
-| Planner | 주 이동, 다음 행동 생성, 7일 시간표, 외부 일정 표시, 용량 경고, 충돌 예방, 재배치, 모바일 배치 시트 |
-| Goals | 1년 → 분기 → 결과 구조, 계획·선택 결과 편집, 현재·목표 수치, 신뢰도, 시간 위험, 결정 큐 |
-| Review | 실제 결과 수치 검증·반영, 방해 요인 선택, 다음 주 Top 3, 다음 주 Planner 연결 |
-| Onboarding | 원하는 결과 → 다음 행동 → 비어 있는 실행 시간으로 이어지는 3단계 첫 설정 |
-| 공통 | 기기 로컬 자동 저장, 초기화 확인, 반응형 UI, 키보드 포커스, 44px 모바일 조작 영역, PWA 설치 |
-| Native | Capacitor 기반 iOS·Android 프로젝트와 웹 빌드 동기화 |
+```mermaid
+flowchart LR
+  W[React Web/PWA] --> N[nginx /api proxy]
+  M[Capacitor iOS/Android] --> S[Kubernetes Service]
+  N --> S
+  S --> A1[Spring API Pod 1]
+  S --> A2[Spring API Pod 2]
+  A1 --> P[(PostgreSQL)]
+  A2 --> P
+  H[HPA] -. CPU·Memory .-> A1
+  H -. CPU·Memory .-> A2
+```
 
-## 현재 구현 범위와 한계
+- Spring Pod는 사용자 세션이나 플래너 상태를 메모리에 두지 않습니다.
+- `ETag`·`If-Match`가 오래된 기기의 덮어쓰기를 차단합니다.
+- `Idempotency-Key`가 모바일 네트워크 재시도의 중복 쓰기를 막습니다.
+- 사용자별 PostgreSQL advisory lock과 단조 증가 revision이 여러 Pod의 동시 쓰기와 삭제 후 ABA를 막습니다.
+- 가상 스레드와 DB 연결 수는 분리합니다. Hikari 기본 상한은 Pod당 10개입니다.
 
-### 지금 사용할 수 있는 것
+자세한 내용은 [백엔드 아키텍처](./docs/BACKEND_ARCHITECTURE.md)와 [백엔드 실행·API 문서](./backend/README.md)를 참고하세요.
 
-- 모든 주요 화면과 데모 데이터
-- 빠른 수집, 작업 생성, 여러 주 이동, 충돌 없는 시간 배치, 타이머, 수동 시간과 즉시 실행 취소
-- 1년·분기 계획 편집, 목표 결정, 결과 수치 반영, Review Top 3의 다음 주 전달
-- 새로고침 후에도 유지되는 브라우저 로컬 저장과 `기기에 저장됨` 상태 표시
-- 설치형 PWA와 오프라인 정적 화면
-- Capacitor iOS·Android 네이티브 셸
-
-### 아직 연결되지 않은 것
-
-- Spring Boot API, 데이터베이스, 회원가입·로그인
-- 사용자별 데이터 분리, 클라우드 백업, 여러 기기 동기화
-- 복수 연간·분기 계획과 결과의 전체 생성·삭제
-- 시간 블록의 직접 이동·삭제와 서버 기준 동시성 검사
-- 실행 근거·수동 시간 기록을 모아 수정·삭제하는 이력 화면
-- Google·Apple 등 외부 캘린더 실제 연동
-- 푸시 알림, 실제 기기 빌드, 앱스토어 서명과 배포 설정
-
-외부 일정과 초기 연간·분기 데이터는 데모 데이터입니다. 화면은 서버 동기화를 주장하지 않고 `기기에 저장됨`으로 현재 범위를 표시합니다. PWA와 네이티브 앱의 표시 이름은 `Nowline`이며, 앱의 기술 식별자는 기존 호환성을 위해 `com.jieseob.planner`를 유지합니다.
-
-## 기술 스택
-
-| 구분 | 기술 |
-| --- | --- |
-| UI | React 19, TypeScript 7, CSS, Lucide React, clsx |
-| 라우팅 | React Router 7 |
-| 빌드 | Vite 8 |
-| 상태·저장 | React Context, `localStorage` |
-| 테스트 | Vitest 4, Testing Library, jsdom |
-| 웹 앱 | `vite-plugin-pwa`, Workbox |
-| 모바일 앱 | Capacitor 8, iOS, Android |
-| 백엔드 | Spring Boot 연동 예정 — 현재 저장소에는 포함되지 않음 |
-
-## 빠른 시작
+## 가장 빠른 실행: Docker Compose
 
 ### 준비물
 
 - Node.js `^20.19.0` 또는 `>=22.12.0`
-- npm
-
-### 설치와 실행
+- Java 25
+- Docker와 Docker Compose
 
 ```bash
 git clone https://github.com/jieseob1/planner.git
 cd planner
 npm ci
+make compose-up
+make compose-verify
+```
+
+- 웹: [http://localhost:8088](http://localhost:8088)
+- Spring readiness: [http://localhost:8080/actuator/health/readiness](http://localhost:8080/actuator/health/readiness)
+- Prometheus metrics: [http://localhost:8080/actuator/prometheus](http://localhost:8080/actuator/prometheus)
+
+`make compose-up`은 프런트 프로덕션 빌드와 Spring JAR를 먼저 만든 뒤 PostgreSQL·backend·frontend를 시작합니다. 종료해도 DB 볼륨은 보존됩니다.
+
+```bash
+make compose-logs
+make compose-down
+```
+
+포트 충돌 시 `NOWLINE_FRONTEND_PORT`와 `NOWLINE_BACKEND_PORT`를 바꿀 수 있습니다.
+
+## 개발 서버
+
+백엔드와 PostgreSQL을 Compose로 띄우고 Vite HMR을 사용하려면 다음처럼 실행합니다.
+
+```bash
+make backend-jar
+docker compose up -d postgres backend
 npm run dev
 ```
 
-기본 주소는 [http://localhost:5173](http://localhost:5173)입니다. 이미 사용 중인 포트라면 터미널에 표시되는 다른 주소를 엽니다. 첫 설정 흐름은 `/onboarding`에서 바로 확인할 수 있습니다.
+Vite는 `/api`를 `http://localhost:8080`으로 프록시합니다. 기본 화면은 [http://localhost:5173/today](http://localhost:5173/today)입니다.
 
-### 주요 경로
+## 로컬 Kubernetes
 
-| 경로 | 화면 |
-| --- | --- |
-| `/today` | 오늘의 우선 작업과 실행 기록 |
-| `/planner` | 주간 시간 배치 |
-| `/goals` | 연간·분기 목표와 결과 결정 |
-| `/review` | 주간 회고 |
-| `/onboarding` | 첫 목표·행동·시간 설정 |
-
-## 검증
-
-릴리스 기준 검증은 한 명령으로 실행합니다.
+헬퍼는 현재 `kubectl` context를 사용하며 클러스터를 만들거나 context를 임의로 바꾸지 않습니다. `kind` context에서는 같은 태그로 새로 빌드한 이미지를 노드에 로드하고 backend/frontend Deployment를 다시 시작합니다.
 
 ```bash
-npm run verify:release
+npm run k8s:up
+npm run k8s:verify
+npm run verify:k8s:runtime
 ```
 
-이 명령은 다음 항목을 차례로 확인합니다.
+구성은 다음을 포함합니다.
 
-- 컴포넌트·사용자 흐름 테스트
-- 활성 상태의 무동작 버튼, 로컬 저장 문구, 모바일 조작 영역 등 사용성 계약
-- 필수 화면과 프로젝트 구조
-- 디자인 원본과 시각 토큰
-- TypeScript 및 프로덕션 빌드
-- PWA 산출물
-- Capacitor iOS·Android 동기화 결과
-
-`verify:release`의 네이티브 검증은 동기화된 프로젝트·설정·웹 산출물의 존재를 확인합니다. 이번 사용성 패스에서는 Android `assembleDebug`도 JDK 21로 별도 실행해 4.1MB 디버그 APK 생성을 확인했습니다. iOS 실제 빌드는 전체 Xcode가 설치된 Mac에서 추가로 확인해야 합니다.
-
-개별 검증이 필요하면 아래 명령을 사용할 수 있습니다.
+- PostgreSQL StatefulSet과 5Gi PVC
+- Spring backend 기본 2 replicas, CPU·Memory HPA 2~6
+- liveness/readiness/startup probe, RollingUpdate, PDB, topology spread
+- 비루트·read-only frontend/backend 컨테이너와 리소스 request/limit
 
 ```bash
-npm run verify:unit
-npm run verify:structure
-npm run verify:design-source
-npm run verify:visual-system
-npm run verify:usability
-npm run verify:build
-npm run verify:mobile
+npm run k8s:down
 ```
 
-## PWA와 모바일 앱
+`k8s:down`은 Nowline workload만 제거하고 namespace와 PostgreSQL PVC는 보존합니다. 상세 동작은 [로컬 런타임 문서](./infra/README.md)를 확인하세요.
 
-### 프로덕션 웹 빌드
-
-```bash
-npm run build
-npm run preview
-```
-
-### 네이티브 프로젝트 동기화
+## PWA와 iOS·Android
 
 ```bash
 npm run cap:sync
-```
-
-### iOS·Android IDE 열기
-
-```bash
 npm run app:ios
 npm run app:android
 ```
 
-Android 디버그 APK만 만들려면 JDK 21 환경에서 다음을 실행합니다.
+네이티브 앱은 Vite proxy를 사용할 수 없으므로 빌드 시 기기에서 접근 가능한 API 주소를 지정합니다.
 
 ```bash
-cd android
-./gradlew assembleDebug
+# iOS Simulator
+VITE_API_BASE_URL=http://localhost:8080 npm run cap:sync
+
+# Android Emulator
+VITE_API_BASE_URL=http://10.0.2.2:8080 npm run cap:sync
 ```
 
-성공한 APK는 `android/app/build/outputs/apk/debug/app-debug.apk`에 생성됩니다.
+Android는 cleartext HTTP를 기본 차단하고 `localhost`, `127.0.0.1`, `10.0.2.2`만 로컬 개발 예외로 허용합니다. iOS도 로컬 네트워크 예외만 선언합니다. 실기기와 운영 API는 HTTPS를 사용해야 하며, 플랫폼별 서명과 스토어 배포 설정은 별도입니다.
 
-`app:ios`는 macOS와 Xcode가, `app:android`는 Android Studio와 Android SDK가 필요합니다. 실제 기기 설치와 스토어 배포에는 플랫폼별 서명 설정이 별도로 필요합니다.
+## API 요약
+
+모든 요청은 현재 로컬 사용자 UUID가 필요합니다. PUT/DELETE에는 `Idempotency-Key`도 필수입니다.
+
+| 메서드 | 경로 | 조건 | 결과 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/planner` | 선택 `If-None-Match` | `{ revision, snapshot }`, `ETag`; 없으면 404, 동일하면 304 |
+| `PUT` | `/api/v1/planner` | 최초 `If-None-Match: *`, 이후 `If-Match: "revision"` | 전체 snapshot 생성·교체 |
+| `DELETE` | `/api/v1/planner` | `If-Match: "revision"` | 현재 revision의 planner 삭제 |
+
+주요 실패는 RFC Problem Details로 반환합니다. 잘못된 데이터는 400, 멱등 키 오용은 409, 오래된 revision은 412, 조건 누락은 428입니다.
+
+## 검증
+
+Docker가 실행 중인 환경에서 전체 정적·통합 검증은 다음 한 명령으로 실행합니다.
+
+```bash
+npm run verify:full
+```
+
+이 명령은 다음을 확인합니다.
+
+- React 26개 사용자 흐름·동기화 단위 테스트
+- 구조·디자인·접근성·PWA 빌드와 Capacitor 동기화
+- Java 25 Spring 단위·Testcontainers PostgreSQL 통합 테스트
+- Kustomize 10개 리소스의 구조 계약
+- 임시 Compose DB를 사용하는 생성·조회·멱등 재시도·충돌·수정·삭제 E2E
+
+실행 중인 로컬 Kubernetes가 있을 때는 별도로 실제 2-Pod 경로를 검증합니다.
+
+```bash
+npm run verify:k8s:runtime
+```
+
+이 검증은 frontend `/api` proxy, 두 backend Pod의 동일 데이터 조회, 서로 다른 Pod로 보낸 동시 `If-Match` 쓰기에서 정확히 하나만 성공하는지, HPA metrics를 확인합니다.
+
+## 기술 스택
+
+| 구분 | 기술 |
+| --- | --- |
+| 프런트 | React 19, TypeScript 7, React Router 7, Vite 8, Vitest 4 |
+| 웹·앱 | PWA/Workbox, Capacitor 8, iOS, Android |
+| 백엔드 | Java 25, Spring Boot 4.1.1, Spring MVC, virtual threads, JDBC, Flyway |
+| 데이터 | PostgreSQL 17, 정규화 스키마, exclusion constraint |
+| 관측 | Spring Actuator, Prometheus endpoint |
+| 로컬 운영 | Docker Compose, Kustomize, kind, HPA, PDB |
 
 ## 프로젝트 구조
 
 ```text
 planner/
-├── src/
-│   ├── components/       공통 UI와 앱 셸
-│   ├── screens/          Today, Planner, Goals, Review, Onboarding
-│   ├── state/            상태 명령과 localStorage 저장
-│   ├── domain/           Task, Outcome, TimeBlock 등 도메인 타입
-│   ├── data/             데모 데이터
-│   ├── App.tsx           라우트 구성
-│   └── styles.css        반응형 디자인 시스템
-├── scripts/              릴리스 검증 스크립트
-├── docs/screenshots/     README 실제 화면 캡처
-├── public/               PWA 아이콘
-├── ios/                  Capacitor iOS 프로젝트
-├── android/              Capacitor Android 프로젝트
-├── DESIGN_SPEC.md        디자인 원본과 구현 규칙
-├── GATES.md              구현 완료 조건과 검증 근거
-└── capacitor.config.ts   네이티브 앱 설정
+├── src/                    React 화면, 상태, API client, 도메인 타입
+├── backend/                Java 25 Spring API, Flyway, 테스트, Dockerfile
+├── infra/k8s/              Kustomize base와 local overlay
+├── scripts/                프런트·API·K8s·E2E 검증
+├── docs/                   아키텍처, 사용성 감사, 스크린샷
+├── ios/                    Capacitor iOS 프로젝트
+├── android/                Capacitor Android 프로젝트
+├── compose.yaml            PostgreSQL·backend·frontend 로컬 스택
+├── Makefile                반복 가능한 빌드·실행 명령
+└── GATES.md                완료 조건과 실제 검증 근거
 ```
 
-## Spring 연동 방향
+## 현재 한계와 운영 전 필수 보완
 
-현재 `PlannerProvider`가 화면 명령과 로컬 저장의 경계 역할을 합니다. Spring 백엔드를 붙일 때는 UI를 다시 만들기보다 이 경계를 API 클라이언트로 교체하는 방향을 전제로 합니다.
+- `X-Nowline-User-Id`는 인증이 아닙니다. OIDC/JWT와 Spring Security로 서버가 사용자 ID를 결정해야 합니다.
+- 충돌 시 로컬 변경은 보존되지만 서버 데이터와 수동으로 병합하는 UI는 아직 없습니다.
+- 한 사용자당 하나의 현재 연간·분기 plan을 관리합니다. 복수 plan 이력 UI는 후속 범위입니다.
+- 외부 캘린더, 푸시 알림, 실행 기록 전체 편집·감사 화면은 아직 없습니다.
+- 운영에서는 TLS, 외부 Secret 관리, NetworkPolicy, rate/request-size limit, idempotency 보존 정책, PostgreSQL 백업·PITR가 필요합니다.
+- 로컬 단일 PostgreSQL StatefulSet은 운영 HA 설계가 아닙니다.
 
-1. 사용자 인증과 사용자별 계획 데이터 저장
-2. 목표·결과·작업·시간 블록·실행 기록의 서버 영속화
-3. 시간 블록 충돌 검사와 중복 요청 방지
-4. 낙관적 업데이트와 오프라인 변경 큐
-5. 여러 기기 동기화와 변경 이력 관리
+## 다음 작업 우선순위
 
-Spring API와 데이터 모델은 아직 구현되지 않았으므로, 이 항목은 현재 코드의 기능 설명이 아니라 다음 개발 단계입니다.
+1. `X-Nowline-User-Id`를 OIDC/JWT 로그인과 Spring Security Resource Server로 교체
+2. 412 충돌 시 로컬·서버 변경을 비교하고 선택적으로 병합하는 화면 추가
+3. 여러 연간·분기 plan의 생성·종료·보관 이력과 변경 감사 화면 추가
+4. 관리형 PostgreSQL, 백업·PITR, TLS, 외부 Secret, NetworkPolicy, rate/request-size limit 적용
+5. iOS·Android 실기기 API 연결, 알림 권한, 서명, 스토어 배포 검증
+6. Google·Apple 캘린더 연동과 실행·회고 알림 추가
 
-## 디자인 자료
+## 문서
 
-- [디자인 시스템과 화면 규칙](./DESIGN_SPEC.md)
-- [외부 기준을 적용한 사용성 감사](./docs/USABILITY_AUDIT.md)
+- [백엔드 아키텍처](./docs/BACKEND_ARCHITECTURE.md)
+- [백엔드 API와 실행](./backend/README.md)
+- [Docker Compose·Kubernetes](./infra/README.md)
+- [디자인 시스템](./DESIGN_SPEC.md)
+- [사용성 감사](./docs/USABILITY_AUDIT.md)
 - [사용성 기준과 출처](./docs/USABILITY_REFERENCES.md)
 - [Claude Design 원본](https://claude.ai/design/p/97a88bc6-c95f-4bc3-9e8f-ed453200caef?file=Planner_HighFidelity.dc.html)
-- [README 스크린샷](./docs/screenshots)

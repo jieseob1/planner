@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:17.6-alpine3.22
+    environment:
+      POSTGRES_DB: ${NOWLINE_POSTGRES_DB:-nowline}
+      POSTGRES_USER: ${NOWLINE_POSTGRES_USER:-nowline}
+      POSTGRES_PASSWORD: ${NOWLINE_POSTGRES_PASSWORD:-nowline-local-only}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - nowline-postgres-data:/var/lib/postgresql/data
+    networks:
+      default:
+        aliases:
+          - nowline-postgres
+
+  backend:
+    image: nowline-backend:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${NOWLINE_POSTGRES_DB:-nowline}
+      SPRING_DATASOURCE_USERNAME: ${NOWLINE_POSTGRES_USER:-nowline}
+      SPRING_DATASOURCE_PASSWORD: ${NOWLINE_POSTGRES_PASSWORD:-nowline-local-only}
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
+      MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"
+      SERVER_SHUTDOWN: graceful
+      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 20s
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -T 3 -O - http://127.0.0.1:8080/actuator/health/readiness | grep -q '"status":"UP"'
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${NOWLINE_BACKEND_PORT:-8080}:8080"
+    networks:
+      default:
+        aliases:
+          - nowline-backend
+
+  frontend:
+    image: nowline-frontend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -T 3 -O - http://127.0.0.1:8080/healthz | grep -qx ok
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 15s
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${NOWLINE_FRONTEND_PORT:-8088}:8080"
+
+volumes:
+  nowline-postgres-data:
+    name: ${NOWLINE_POSTGRES_VOLUME:-nowline-postgres-data}

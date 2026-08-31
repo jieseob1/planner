@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: nowline-backend
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${NOWLINE_DB_URL:jdbc:postgresql://localhost:5432/nowline}
+    username: ${NOWLINE_DB_USER:nowline}
+    password: ${NOWLINE_DB_PASSWORD:nowline}
+    hikari:
+      pool-name: nowline-jdbc
+      maximum-pool-size: ${NOWLINE_DB_POOL_MAX:10}
+      minimum-idle: ${NOWLINE_DB_POOL_MIN:2}
+      connection-timeout: 3000
+      validation-timeout: 1000
+      idle-timeout: 600000
+      max-lifetime: 1500000
+      auto-commit: false
+  flyway:
+    enabled: true
+    clean-disabled: true
+    validate-migration-naming: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState,ping
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+
+nowline:
+  cors:
+    allowed-origin-patterns: ${NOWLINE_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:[*],http://127.0.0.1:[*],https://localhost:[*],https://127.0.0.1:[*],capacitor://localhost,ionic://localhost}

@@ -98,6 +98,21 @@ export interface PlannerSnapshot {
   review: ReviewState;
 }
 
+/** Server-side aggregate envelope. `revision` is the optimistic-lock version. */
+export interface PlannerAggregate {
+  revision: number;
+  snapshot: PlannerSnapshot;
+}
+
+export interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
+  instance?: string;
+  [extension: string]: unknown;
+}
+
 export interface OnboardingPayload {
   outcomeTitle: string;
   taskTitle: string;

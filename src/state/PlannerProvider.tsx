@@ -8,6 +8,12 @@ import {
   useRef,
   useState
 } from 'react';
+import {
+  createIdempotencyKey,
+  plannerApi,
+  PlannerConflictError,
+  type PlannerReadResult
+} from '../api/plannerApi';
 import { createDemoSnapshot } from '../data/demo';
 import type {
   AddTaskInput,
@@ -25,12 +31,22 @@ import type {
 import { findTimeBlockConflict, isValidTimeBlockSlot, normalizeWeekOffset } from '../lib/timeBlocks';
 
 const STORAGE_KEY = 'planner.mvp.snapshot.v1';
+const SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
+const SERVER_SYNC_DELAY_MS = 350;
 
-export type SaveStatus = 'saved' | 'saving' | 'offline' | 'retry';
+export type SaveStatus =
+  | 'checking'
+  | 'saved'
+  | 'saving'
+  | 'offline'
+  | 'retry'
+  | 'conflict'
+  | 'storage-error';
 
 export interface PlannerContextValue extends PlannerSnapshot {
   saveStatus: SaveStatus;
   isOnline: boolean;
+  retrySync: () => void;
   quickCapture: (title: string) => void;
   addTask: (input: AddTaskInput) => string;
   savePlan: (input: SavePlanInput) => void;
@@ -67,6 +83,24 @@ const safeId = (prefix: string) => {
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 );
+
+interface SyncMetadata {
+  revision: number;
+  etag: string;
+  acknowledgedSnapshot: string;
+}
+
+interface InitialPlannerState {
+  snapshot: PlannerSnapshot;
+  hasStoredSnapshot: boolean;
+  metadata: SyncMetadata | null;
+}
+
+interface PendingWrite {
+  snapshotKey: string;
+  revision: number | null;
+  idempotencyKey: string;
+}
 
 const normalizePlanContext = (value: unknown, fallback: PlanContext): PlanContext => {
   if (!isRecord(value)) return { ...fallback };
@@ -140,13 +174,60 @@ export const normalizePlannerSnapshot = (value: unknown): PlannerSnapshot => {
   };
 };
 
-const loadSnapshot = (): PlannerSnapshot => {
-  if (typeof window === 'undefined') return createDemoSnapshot();
+const serializeSnapshot = (snapshot: PlannerSnapshot) => JSON.stringify(snapshot);
+
+const readSyncMetadata = (): SyncMetadata | null => {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(SYNC_METADATA_KEY) ?? 'null') as unknown;
+    if (
+      !isRecord(value)
+      || typeof value.revision !== 'number'
+      || !Number.isSafeInteger(value.revision)
+      || value.revision < 0
+      || typeof value.etag !== 'string'
+      || typeof value.acknowledgedSnapshot !== 'string'
+    ) return null;
+    return {
+      revision: value.revision,
+      etag: value.etag,
+      acknowledgedSnapshot: value.acknowledgedSnapshot
+    };
+  } catch {
+    return null;
+  }
+};
+
+const loadInitialPlannerState = (): InitialPlannerState => {
+  if (typeof window === 'undefined') {
+    return { snapshot: createDemoSnapshot(), hasStoredSnapshot: false, metadata: null };
+  }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? normalizePlannerSnapshot(JSON.parse(raw) as unknown) : createDemoSnapshot();
+    return {
+      snapshot: raw ? normalizePlannerSnapshot(JSON.parse(raw) as unknown) : createDemoSnapshot(),
+      hasStoredSnapshot: raw !== null,
+      metadata: readSyncMetadata()
+    };
   } catch {
-    return createDemoSnapshot();
+    return { snapshot: createDemoSnapshot(), hasStoredSnapshot: false, metadata: null };
+  }
+};
+
+const writeLocalSnapshot = (snapshot: PlannerSnapshot): boolean => {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, serializeSnapshot(snapshot));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const writeSyncMetadata = (metadata: SyncMetadata): boolean => {
+  try {
+    window.localStorage.setItem(SYNC_METADATA_KEY, JSON.stringify(metadata));
+    return true;
+  } catch {
+    return false;
   }
 };
 
@@ -179,10 +260,73 @@ const metricChangeLabel = (outcome: Outcome, current: number) => {
 };
 
 export function PlannerProvider({ children }: PropsWithChildren) {
-  const [snapshot, setSnapshot] = useState<PlannerSnapshot>(loadSnapshot);
+  const initialStateRef = useRef<InitialPlannerState | null>(null);
+  if (initialStateRef.current === null) initialStateRef.current = loadInitialPlannerState();
+  const initialState = initialStateRef.current;
+  const initialSnapshotKey = serializeSnapshot(initialState.snapshot);
+
+  const [snapshot, setSnapshot] = useState<PlannerSnapshot>(initialState.snapshot);
   const snapshotRef = useRef(snapshot);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const onlineRef = useRef(isOnline);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(isOnline ? 'checking' : 'offline');
+  const [serverReady, setServerReady] = useState(false);
+  const serverReadyRef = useRef(false);
+  const [syncPulse, setSyncPulse] = useState(0);
+  const revisionRef = useRef<number | null>(initialState.metadata?.revision ?? null);
+  const etagRef = useRef<string | null>(initialState.metadata?.etag ?? null);
+  const acknowledgedSnapshotRef = useRef<string | null>(
+    initialState.metadata?.acknowledgedSnapshot ?? null
+  );
+  const hasStoredSnapshotRef = useRef(initialState.hasStoredSnapshot);
+  const dirtyRef = useRef(
+    initialState.metadata?.acknowledgedSnapshot !== initialSnapshotKey
+  );
+  const localChangeCountRef = useRef(0);
+  const requestInFlightRef = useRef(false);
+  const resettingRef = useRef(false);
+  const conflictRef = useRef(false);
+  const pendingWriteRef = useRef<PendingWrite | null>(null);
+  const resetEpochRef = useRef(0);
+
+  const markServerReady = useCallback(() => {
+    serverReadyRef.current = true;
+    setServerReady(true);
+  }, []);
+
+  const markConflict = useCallback(() => {
+    conflictRef.current = true;
+    dirtyRef.current = true;
+    setSaveStatus('conflict');
+  }, []);
+
+  const acknowledgeSnapshot = useCallback((
+    revision: number,
+    etag: string,
+    acknowledgedSnapshot: string
+  ) => {
+    revisionRef.current = revision;
+    etagRef.current = etag;
+    acknowledgedSnapshotRef.current = acknowledgedSnapshot;
+    return writeSyncMetadata({ revision, etag, acknowledgedSnapshot });
+  }, []);
+
+  const replaceWithServerSnapshot = useCallback((
+    serverSnapshot: PlannerSnapshot,
+    revision: number,
+    etag: string
+  ) => {
+    const serverSnapshotKey = serializeSnapshot(serverSnapshot);
+    snapshotRef.current = serverSnapshot;
+    setSnapshot(serverSnapshot);
+    hasStoredSnapshotRef.current = true;
+    dirtyRef.current = false;
+    conflictRef.current = false;
+    pendingWriteRef.current = null;
+    const localStored = writeLocalSnapshot(serverSnapshot);
+    const metadataStored = acknowledgeSnapshot(revision, etag, serverSnapshotKey);
+    setSaveStatus(localStored && metadataStored ? 'saved' : 'storage-error');
+  }, [acknowledgeSnapshot]);
 
   const updateSnapshot = useCallback((updater: (current: PlannerSnapshot) => PlannerSnapshot) => {
     const current = snapshotRef.current;
@@ -190,33 +334,196 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     if (next !== current) {
       snapshotRef.current = next;
       setSnapshot(next);
+      hasStoredSnapshotRef.current = true;
+      dirtyRef.current = true;
+      localChangeCountRef.current += 1;
+      const stored = writeLocalSnapshot(next);
+      if (!stored) {
+        setSaveStatus('storage-error');
+      } else if (conflictRef.current) {
+        setSaveStatus('conflict');
+      } else {
+        setSaveStatus(onlineRef.current ? 'saving' : 'offline');
+      }
     }
     return next;
   }, []);
 
+  const syncNow = useCallback(async () => {
+    if (
+      !onlineRef.current
+      || !serverReadyRef.current
+      || !dirtyRef.current
+      || conflictRef.current
+      || requestInFlightRef.current
+      || resettingRef.current
+    ) return;
+
+    requestInFlightRef.current = true;
+    const requestEpoch = resetEpochRef.current;
+    const submittedSnapshot = snapshotRef.current;
+    const submittedSnapshotKey = serializeSnapshot(submittedSnapshot);
+    const localStored = writeLocalSnapshot(submittedSnapshot);
+    hasStoredSnapshotRef.current = localStored || hasStoredSnapshotRef.current;
+    const submittedRevision = revisionRef.current;
+    const matchingPendingWrite = pendingWriteRef.current?.snapshotKey === submittedSnapshotKey
+      && pendingWriteRef.current.revision === submittedRevision;
+    const pendingWrite: PendingWrite = matchingPendingWrite
+      ? pendingWriteRef.current as PendingWrite
+      : {
+        snapshotKey: submittedSnapshotKey,
+        revision: submittedRevision,
+        idempotencyKey: createIdempotencyKey()
+      };
+    pendingWriteRef.current = pendingWrite;
+    setSaveStatus('saving');
+
+    try {
+      const result = await plannerApi.put(
+        submittedSnapshot,
+        submittedRevision,
+        pendingWrite.idempotencyKey
+      );
+      if (requestEpoch !== resetEpochRef.current) return;
+      pendingWriteRef.current = null;
+      conflictRef.current = false;
+      const metadataStored = acknowledgeSnapshot(
+        result.aggregate.revision,
+        result.etag,
+        submittedSnapshotKey
+      );
+      const hasNewerLocalChanges = serializeSnapshot(snapshotRef.current) !== submittedSnapshotKey;
+      dirtyRef.current = hasNewerLocalChanges;
+      if (!localStored || !metadataStored) {
+        setSaveStatus('storage-error');
+      } else if (hasNewerLocalChanges) {
+        setSaveStatus(onlineRef.current ? 'saving' : 'offline');
+        setSyncPulse((value) => value + 1);
+      } else {
+        setSaveStatus(onlineRef.current ? 'saved' : 'offline');
+      }
+    } catch (error) {
+      if (requestEpoch !== resetEpochRef.current) return;
+      if (error instanceof PlannerConflictError) {
+        pendingWriteRef.current = null;
+        markConflict();
+      } else {
+        setSaveStatus(onlineRef.current ? 'retry' : 'offline');
+      }
+    } finally {
+      requestInFlightRef.current = false;
+    }
+  }, [acknowledgeSnapshot, markConflict]);
+
+  const initializeFromServer = useCallback(async () => {
+    if (!onlineRef.current || requestInFlightRef.current || conflictRef.current) return;
+    requestInFlightRef.current = true;
+    const requestEpoch = resetEpochRef.current;
+    setSaveStatus('checking');
+    const startedAtLocalChange = localChangeCountRef.current;
+    const localSnapshotKeyAtStart = serializeSnapshot(snapshotRef.current);
+    const canUseCachedEtag = acknowledgedSnapshotRef.current === localSnapshotKeyAtStart
+      && revisionRef.current !== null;
+    let shouldBootstrap = false;
+    let handshakeComplete = false;
+
+    try {
+      const result = await plannerApi.get(canUseCachedEtag ? etagRef.current : null);
+      if (requestEpoch !== resetEpochRef.current) return;
+      handshakeComplete = true;
+      if (result.kind === 'not-modified') {
+        if (!canUseCachedEtag || revisionRef.current === null) {
+          setSaveStatus('retry');
+        } else {
+          dirtyRef.current = false;
+          setSaveStatus('saved');
+        }
+      } else if (result.kind === 'missing') {
+        revisionRef.current = null;
+        etagRef.current = null;
+        acknowledgedSnapshotRef.current = null;
+        dirtyRef.current = true;
+        shouldBootstrap = true;
+      } else {
+        const serverSnapshot = normalizePlannerSnapshot(result.aggregate.snapshot);
+        const serverSnapshotKey = serializeSnapshot(serverSnapshot);
+        const currentLocalSnapshotKey = serializeSnapshot(snapshotRef.current);
+        const changedWhileLoading = localChangeCountRef.current !== startedAtLocalChange;
+        const localWasAcknowledged = acknowledgedSnapshotRef.current === currentLocalSnapshotKey;
+        const sameSnapshot = serverSnapshotKey === currentLocalSnapshotKey;
+        const canHydrate = sameSnapshot
+          || (!changedWhileLoading && (!hasStoredSnapshotRef.current || !dirtyRef.current || localWasAcknowledged));
+
+        if (canHydrate) {
+          replaceWithServerSnapshot(serverSnapshot, result.aggregate.revision, result.etag);
+        } else {
+          revisionRef.current = result.aggregate.revision;
+          etagRef.current = result.etag;
+          markConflict();
+        }
+      }
+    } catch (error) {
+      if (requestEpoch !== resetEpochRef.current) return;
+      if (error instanceof PlannerConflictError) {
+        markConflict();
+      } else {
+        setSaveStatus(onlineRef.current ? 'retry' : 'offline');
+      }
+    } finally {
+      requestInFlightRef.current = false;
+      if (handshakeComplete) {
+        markServerReady();
+      } else if (!resettingRef.current) {
+        serverReadyRef.current = false;
+        setServerReady(false);
+      }
+    }
+
+    if (shouldBootstrap) void syncNow();
+  }, [markConflict, markServerReady, replaceWithServerSnapshot, syncNow]);
+
+  const retrySync = useCallback(() => {
+    if (!onlineRef.current || conflictRef.current) return;
+    if (serverReadyRef.current) void syncNow();
+    else void initializeFromServer();
+  }, [initializeFromServer, syncNow]);
+
   useEffect(() => {
-    const goOnline = () => setIsOnline(true);
-    const goOffline = () => setIsOnline(false);
+    const goOnline = () => {
+      onlineRef.current = true;
+      setIsOnline(true);
+      if (conflictRef.current) return;
+      if (serverReadyRef.current) void syncNow();
+      else void initializeFromServer();
+    };
+    const goOffline = () => {
+      onlineRef.current = false;
+      setIsOnline(false);
+      setSaveStatus('offline');
+    };
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
     return () => {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
-  }, []);
+  }, [initializeFromServer, syncNow]);
 
   useEffect(() => {
-    setSaveStatus(isOnline ? 'saving' : 'offline');
-    const handle = window.setTimeout(() => {
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-        setSaveStatus(isOnline ? 'saved' : 'offline');
-      } catch {
-        setSaveStatus('retry');
-      }
-    }, 180);
+    if (onlineRef.current) void initializeFromServer();
+  }, [initializeFromServer]);
+
+  useEffect(() => {
+    if (
+      !serverReady
+      || !isOnline
+      || !dirtyRef.current
+      || conflictRef.current
+      || resettingRef.current
+    ) return undefined;
+    const handle = window.setTimeout(() => void syncNow(), SERVER_SYNC_DELAY_MS);
     return () => window.clearTimeout(handle);
-  }, [snapshot, isOnline]);
+  }, [isOnline, serverReady, snapshot, syncNow, syncPulse]);
 
   const addTask = useCallback((input: AddTaskInput): string => {
     const title = input.title.trim();
@@ -494,14 +801,67 @@ export function PlannerProvider({ children }: PropsWithChildren) {
   }, [updateSnapshot]);
 
   const resetDemo = useCallback(() => {
-    window.localStorage.removeItem(STORAGE_KEY);
-    updateSnapshot(() => createDemoSnapshot());
-  }, [updateSnapshot]);
+    const demoSnapshot = createDemoSnapshot();
+    resetEpochRef.current += 1;
+    resettingRef.current = true;
+    conflictRef.current = false;
+    pendingWriteRef.current = null;
+    dirtyRef.current = true;
+    localChangeCountRef.current += 1;
+    snapshotRef.current = demoSnapshot;
+    setSnapshot(demoSnapshot);
+    hasStoredSnapshotRef.current = writeLocalSnapshot(demoSnapshot);
+    try {
+      window.localStorage.removeItem(SYNC_METADATA_KEY);
+    } catch {
+      setSaveStatus('storage-error');
+    }
+    setSaveStatus(hasStoredSnapshotRef.current
+      ? (onlineRef.current ? 'saving' : 'offline')
+      : 'storage-error');
+
+    const resetServer = async () => {
+      if (!onlineRef.current) {
+        resettingRef.current = false;
+        return;
+      }
+
+      try {
+        // Reset is an explicit destructive action confirmed by the user. Read
+        // the latest server revision first so a stale cached ETag cannot leave
+        // the app permanently stuck in conflict after another device changed
+        // or deleted the planner.
+        const current: PlannerReadResult = await plannerApi.get();
+        const revision = current.kind === 'found' ? current.aggregate.revision : null;
+        if (revision !== null) {
+          await plannerApi.delete(revision, createIdempotencyKey());
+        }
+        revisionRef.current = null;
+        etagRef.current = null;
+        acknowledgedSnapshotRef.current = null;
+        conflictRef.current = false;
+        dirtyRef.current = true;
+        markServerReady();
+      } catch (error) {
+        if (error instanceof PlannerConflictError) markConflict();
+        else setSaveStatus(onlineRef.current ? 'retry' : 'offline');
+        return;
+      } finally {
+        resettingRef.current = false;
+      }
+
+      setSyncPulse((value) => value + 1);
+      void syncNow();
+    };
+
+    void resetServer();
+  }, [markConflict, markServerReady, syncNow]);
 
   const value = useMemo<PlannerContextValue>(() => ({
     ...snapshot,
     saveStatus,
     isOnline,
+    retrySync,
     quickCapture,
     addTask,
     savePlan,
@@ -522,6 +882,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     snapshot,
     saveStatus,
     isOnline,
+    retrySync,
     quickCapture,
     addTask,
     savePlan,

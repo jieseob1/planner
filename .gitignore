@@ -17,3 +17,5 @@ android/build
 android/app/src/main/assets/public
 .unlazy/
 .unlazy-hook-state.json
+.codegraph/
+.tools/

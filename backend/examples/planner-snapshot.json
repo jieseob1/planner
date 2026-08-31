@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "plan": {
+    "year": 2026,
+    "annualDirection": "시장에 증명할 백엔드 역량과 수익 기반 만들기",
+    "quarter": 3,
+    "quarterFocus": "포트폴리오 공개 · 첫 유료 검증",
+    "quarterEndDate": "2026-09-30"
+  },
+  "plannerWeekOffset": 0,
+  "tasks": [
+    {
+      "id": "task-draft",
+      "title": "기술 글 3편 초안",
+      "outcomeId": "outcome-writing",
+      "estimateMinutes": 40,
+      "status": "in-progress",
+      "pinned": true,
+      "carryCount": 0
+    }
+  ],
+  "timeBlocks": [
+    {
+      "id": "block-draft",
+      "taskId": "task-draft",
+      "title": "글 초안",
+      "day": "tue",
+      "startMinutes": 1170,
+      "durationMinutes": 90,
+      "external": false,
+      "weekOffset": 0
+    }
+  ],
+  "timeEntries": [],
+  "outcomes": [
+    {
+      "id": "outcome-writing",
+      "title": "기술 글 6개 발행",
+      "parentTitle": "백엔드 포트폴리오 완성",
+      "current": 2,
+      "target": 6,
+      "unit": "편",
+      "confidence": "medium",
+      "lastUpdatedDays": 3,
+      "actualHours": 18,
+      "neededHours": 6,
+      "availableHours": 12,
+      "evidenceLabel": "3일 전 갱신",
+      "changeLabel": "지난 갱신 대비 변화 없음",
+      "attention": "stalled"
+    }
+  ],
+  "timer": null,
+  "review": {
+    "blocker": null,
+    "selectedTopTaskIds": ["task-draft"],
+    "metricDraft": "2",
+    "completedAt": null
+  }
+}

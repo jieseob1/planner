@@ -1,8 +1,8 @@
-# Gates: planner frontend MVP
+# Gates: Nowline full-stack MVP
 
 OWNS: **
 
-Scope: Deliver a responsive React PWA implementing the approved planner wireframes and package the same frontend for iOS and Android with Capacitor.
+Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API with PostgreSQL persistence, and a repeatable local Compose/Kubernetes runtime.
 
 - [x] G1: Core product screens and state rules are covered by automated frontend tests
   CHECK: rtk npm run verify:unit
@@ -70,3 +70,42 @@ Scope: Deliver a responsive React PWA implementing the approved planner wirefram
 
 - [x] G15: The synchronized Android project produces a debug APK
   EVIDENCE: JDK 21 with locally available Gradle 8.13 ran assembleDebug successfully; 93 tasks executed; output=BUILD SUCCESSFUL; artifact=android/app/build/outputs/apk/debug/app-debug.apk (4.1MB, ignored build output). The wrapper's first network download attempt was environment-blocked by Java certificate trust and was not bypassed insecurely.
+
+## Java 25 backend and server synchronization
+
+- [x] G16: The Java 25 Spring backend, normalized Flyway schema, API validation, health probes, metrics, and constrained database pool pass unit and PostgreSQL integration tests
+  CHECK: rtk npm run verify:backend
+  EXPECT: backend verification passed
+  EVIDENCE: exit=0; Spring Boot 4.1.1 on Java 25.0.1; 7 unit tests and 5 Testcontainers PostgreSQL integration tests passed; PostgreSQL 17.9 migration, CORS preflights, readiness, Prometheus, and Hikari maximum 10 were exercised.
+
+- [x] G17: Conditional writes, persistent idempotency, deletion/recreation revision monotonicity, overlap rejection, and cleanup are verified through the real HTTP and PostgreSQL path
+  CHECK: rtk npm run verify:e2e
+  EXPECT: backend end-to-end verification passed
+  EVIDENCE: exit=0; create, replay, read, stale 412, update, idempotency-key 409, overlapping block 400, stale delete, delete, and final 404 passed. The verifier used and removed only a per-run named PostgreSQL volume.
+
+- [x] G18: The frontend remains local-first while server hydration, acknowledged saves, offline retry, and explicit conflict preservation pass the complete PWA and native verification
+  CHECK: rtk npm run verify:release
+  EXPECT: redesigned frontend release verification passed
+  EVIDENCE: exit=0; 2 test files and 26 tests passed; structure, design source, visual system, usability, TypeScript/Vite PWA build, Android sync, iOS sync, and restricted local-network configuration passed.
+
+## Local Kubernetes scale-out
+
+- [x] G19: The Kustomize package renders the required namespace, services, database, two-replica backend, frontend, HPA, PDB, probes, resource bounds, and spread constraints
+  CHECK: rtk npm run verify:k8s
+  EXPECT: validated 10 rendered Kubernetes objects
+  EVIDENCE: exit=0; 10 objects passed semantic verification, including the bounded PostgreSQL init container and retained 5Gi PVC design.
+
+- [x] G20: A real local cluster serves the frontend proxy and preserves optimistic concurrency across two independent backend Pods
+  CHECK: rtk npm run verify:k8s:runtime
+  EXPECT: local Kubernetes scale-out verification passed
+  EVIDENCE: exit=0; two Ready backend Pods returned identical state; concurrent same-ETag writes sent to different Pods produced exactly one 200 and one 412; final revision agreed; HPA metrics were available. Final workload snapshot: all five Pods Ready with zero restarts, HPA 2 replicas at cpu 1%/70% and memory 43%/80%, PDB minAvailable 1, PVC Bound 5Gi.
+
+- [x] G21: The production frontend, nginx proxy, Spring API, and PostgreSQL complete a browser save and reload flow through local Kubernetes
+  EVIDENCE: In-app browser at http://127.0.0.1:4189/today displayed `서버에 저장됨`; adding `K8s 브라우저 저장 검증` produced a server acknowledgement, and a fresh navigation restored the task. This check first exposed a local dynamic-port CORS 403; origin patterns and integration coverage were corrected before the passing run.
+
+## Release documentation and structural review
+
+- [x] G22: Full-stack documentation, native local-network restrictions, and the final structural index match the implemented release
+  CHECK: rtk npm run verify:full
+  EXPECT: full stack verification passed
+  EVIDENCE: exit=0; frontend release, backend verify, 10-object K8s structure, and isolated Compose HTTP E2E all passed. CodeGraph final index: 84 files, 904 nodes, 1,792 edges; WebConfiguration and the server-sync provider are indexed. README documents Compose, Kubernetes, mobile, API, security boundaries, and current limitations.

@@ -121,8 +121,8 @@ export function AppShell() {
 
       {resetConfirmOpen ? (
         <Modal
-          title="데모 데이터를 초기화할까요?"
-          description="이 브라우저·기기에 저장한 목표, 작업, 시간 기록과 회고를 삭제하고 처음 제공된 데모 데이터로 되돌립니다. 이 작업은 되돌릴 수 없습니다."
+          title="데모 데이터로 모두 초기화할까요?"
+          description="이 기기와 연결된 서버에 저장한 목표, 작업, 시간 기록과 회고를 처음 제공된 데모 데이터로 되돌립니다. 이 작업은 되돌릴 수 없습니다."
           onClose={() => setResetConfirmOpen(false)}
         >
           <div className="modal__actions">
@@ -135,7 +135,7 @@ export function AppShell() {
               취소
             </button>
             <button className="button button--warning" type="button" onClick={confirmDemoReset}>
-              기기 데이터 초기화
+              기기·서버 데이터 초기화
             </button>
           </div>
         </Modal>

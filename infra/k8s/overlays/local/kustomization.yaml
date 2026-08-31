@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nowline-local
+resources:
+  - namespace.yaml
+  - ../../base
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    app.kubernetes.io/name: nowline
+    app.kubernetes.io/component: database-credentials
+secretGenerator:
+  - name: nowline-postgres
+    type: Opaque
+    literals:
+      - database=nowline
+      - username=nowline
+      - password=nowline-local-only
+images:
+  - name: nowline-backend
+    newName: nowline-backend
+    newTag: local
+  - name: nowline-frontend
+    newName: nowline-frontend
+    newTag: local
