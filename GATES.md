@@ -189,15 +189,15 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
   EXPECT: mobile platform verification passed; production implementation contracts verified
   EVIDENCE: production Android cleartext is denied with debug-only local exceptions, iOS ATS is scoped, secure OIDC state/deep links/push/privacy manifests are committed, Capacitor sync passed, and Android assembleDebug completed 215 tasks. Signed device/store proof remains G43.
 
-- [ ] G38: Authenticated browser and API end-to-end tests cover onboarding, plan history, offline editing, conflict merge, calendar connect/sync/disconnect, reminders, export, and account deletion on desktop and mobile viewports
+- [x] G38: Authenticated browser and API end-to-end tests cover onboarding, plan history, offline editing, conflict merge, calendar connect/sync/disconnect, reminders, export, and account deletion on desktop and mobile viewports
   CHECK: rtk npm run verify:production:e2e
-  EXPECT: production end-to-end verification passed
-  EVIDENCE: pending
+  EXPECT: production authenticated browser end-to-end verification passed
+  EVIDENCE: exit=0; isolated PostgreSQL/backend/frontend/fake Google runtime completed policy consent, onboarding, offline quick capture, three-way conflict comparison and merge, plan creation and audit, Google connect/calendar/sync/disconnect/revoke, reminder preferences, export, fresh-auth account deletion and logout in branded Chrome; 390x844 mobile Today/Plans/Settings had no horizontal overflow and effective primary controls were at least 44px.
 
-- [ ] G39: Load, soak, failover, multi-replica concurrency, calendar quota, retry-storm, and database-pool tests meet documented capacity and recovery thresholds without lost or cross-tenant data
+- [x] G39: Load, soak, failover, multi-replica concurrency, calendar quota, retry-storm, and database-pool tests meet documented capacity and recovery thresholds without lost or cross-tenant data
   CHECK: rtk npm run verify:production:reliability
   EXPECT: production reliability verification passed
-  EVIDENCE: pending
+  EVIDENCE: exit=0; two Java 25 backend instances shared PostgreSQL 17; cross-tenant read returned 404; same-ETag writes produced 1 success and 19 rejections; 400 requests at concurrency 32 had 0 failures and p95 134.0ms; 30-second soak completed 298 requests with 0 failures and p95 31.9ms; Hikari maximum was 8 per instance with 0 pending; after stopping backend A, 100/100 reads passed on B; 50 concurrent calendar sync requests deduplicated to 1 active job and one simulated 429 succeeded on attempt 2 with provider concurrency 1.
 
 - [x] G40: The README and operator/developer runbooks describe local development, identity-provider setup, Google verification, production deployment, monitoring, backup restore, incident handling, privacy operations, mobile release, and every required external credential
   CHECK: rtk npm run verify:production:contracts

@@ -52,6 +52,7 @@ public class DevAuthController {
                 .issueTime(Date.from(now))
                 .notBeforeTime(Date.from(now.minusSeconds(5)))
                 .expirationTime(Date.from(expiresAt))
+                .claim("auth_time", Date.from(now))
                 .claim("name", "Local Nowline User")
                 .claim("email", "local@nowline.invalid")
                 .build();

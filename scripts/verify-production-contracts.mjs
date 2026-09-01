@@ -33,7 +33,11 @@ const requireText = (file, values) => {
   'docs/PRODUCTION_SETUP.md',
   'docs/OPERATIONS_RUNBOOK.md',
   'docs/MOBILE_RELEASE.md',
-  'docs/PRODUCTION_UX_AUDIT.md'
+  'docs/PRODUCTION_UX_AUDIT.md',
+  'docs/RELIABILITY_BASELINE.md',
+  'scripts/lib/fake-google-calendar.mjs',
+  'scripts/verify-production-e2e.mjs',
+  'scripts/verify-production-reliability.mjs'
 ].forEach(requireFile);
 
 requireText('src/auth/AuthProvider.tsx', [
@@ -63,7 +67,10 @@ requireText('.github/workflows/release.yml', [
 requireText('.github/workflows/mobile-release.yml', [
   'bundleRelease', 'xcodebuild -exportArchive', 'ANDROID_KEYSTORE_BASE64', 'APP_STORE_CONNECT_API_KEY_BASE64'
 ]);
-requireText('README.md', ['현재 구현 상태', '공개 배포 전에 반드시 필요한 것', 'Google Calendar', 'verify:recovery']);
+requireText('README.md', [
+  '현재 구현 상태', '공개 배포 전에 반드시 필요한 것', 'Google Calendar',
+  'verify:production:e2e', 'verify:production:reliability', 'RELIABILITY_BASELINE.md'
+]);
 
 const mainJava = [
   'backend/src/main/java/io/nowline/planner/api/PlannerController.java',

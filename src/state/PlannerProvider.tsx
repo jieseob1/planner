@@ -35,6 +35,7 @@ const SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
 const CONFLICT_BACKUP_KEY = 'planner.mvp.last-conflict.v1';
 const ACTIVE_PLAN_ABSENT_KEY = 'nowline.active-plan.absent.v1';
 const SERVER_SYNC_DELAY_MS = 350;
+const toApiDecimal = (value: number) => Number(value.toFixed(6));
 
 export type SaveStatus =
   | 'checking'
@@ -718,7 +719,14 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         ...current,
         plan,
         outcomes: current.outcomes.map((outcome) => outcome.id === input.outcomeId
-          ? { ...outcome, ...input.outcomePatch, title: input.outcomePatch.title.trim() }
+          ? {
+            ...outcome,
+            ...input.outcomePatch,
+            title: input.outcomePatch.title.trim(),
+            target: toApiDecimal(input.outcomePatch.target),
+            neededHours: toApiDecimal(input.outcomePatch.neededHours),
+            availableHours: toApiDecimal(input.outcomePatch.availableHours)
+          }
           : outcome)
       };
     });
@@ -858,6 +866,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
 
   const updateOutcomeMetric = useCallback((outcomeId: string, currentValue: number) => {
     if (!Number.isFinite(currentValue) || currentValue < 0) return;
+    const normalizedCurrent = toApiDecimal(currentValue);
     updateSnapshot((current) => {
       const target = current.outcomes.find((outcome) => outcome.id === outcomeId);
       if (!target) return current;
@@ -866,14 +875,14 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         outcomes: current.outcomes.map((outcome) => outcome.id === outcomeId
           ? {
             ...outcome,
-            current: currentValue,
+            current: normalizedCurrent,
             lastUpdatedDays: 0,
             evidenceLabel: '방금 갱신',
-            changeLabel: metricChangeLabel(outcome, currentValue),
+            changeLabel: metricChangeLabel(outcome, normalizedCurrent),
             attention: outcome.neededHours > outcome.availableHours ? 'time-shortage' : 'none'
           }
           : outcome),
-        review: { ...current.review, metricDraft: String(currentValue) }
+        review: { ...current.review, metricDraft: String(normalizedCurrent) }
       };
     });
   }, [updateSnapshot]);
@@ -912,7 +921,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         confidence: 'unknown',
         lastUpdatedDays: null,
         actualHours: 0,
-        neededHours: payload.estimateMinutes / 60,
+        neededHours: toApiDecimal(payload.estimateMinutes / 60),
         availableHours: 4,
         evidenceLabel: '첫 점검에서 측정 방식 설정',
         changeLabel: '첫 실행 전',

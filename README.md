@@ -144,12 +144,16 @@ local overlay는 PostgreSQL PVC, backend 2 replicas, HPA 2~6, PDB, startup/readi
 ```bash
 npm run verify:production # 아래 전체 검증 + migration runner + 복구 + 계약 + dependency audit
 npm run verify:full       # React + PWA/mobile sync + Spring/Testcontainers + manifests + HTTP E2E
+npm run verify:production:e2e # 실제 Chrome에서 인증·오프라인·충돌·Google·탈퇴 흐름 검증
+npm run verify:production:reliability # backend 2대 부하·soak·failover·quota retry 검증
 npm run verify:migration  # 운영과 같은 one-shot Flyway runner가 V7 적용 후 정상 종료
 npm run verify:recovery   # PostgreSQL 17 backup/restore 무결성 drill
 npm run verify:k8s:runtime # 현재 이미지를 local cluster에 넣고 두 Pod 동시성 검증
 ```
 
 `verify:k8s:runtime`은 현재 Kubernetes context를 바꾸지 않으며, local overlay와 현재 이미지를 적용합니다. 두 backend Pod에 직접 동시 요청해 하나만 ETag update에 성공하고 최종 상태가 일치하는지 확인합니다.
+
+`verify:production:e2e`와 `verify:production:reliability`는 매 실행마다 격리된 PostgreSQL·backend·가짜 Google Calendar 공급자를 만들고 종료합니다. 전자는 데스크톱/모바일 인증 사용자 여정을 Chrome으로 확인하고, 후자는 두 backend 인스턴스의 부하·30초 soak·동시 수정·단일 인스턴스 중단·Google 429 재시도를 확인합니다. 기준과 최근 측정값은 [Reliability baseline](./docs/RELIABILITY_BASELINE.md)에 있습니다.
 
 Android debug APK는 JDK 21과 Gradle 8.13으로 `assembleDebug`까지 확인했습니다. iOS 프로젝트와 자산은 Capacitor sync 및 CI release workflow에 포함되며, 로컬 서명 없는 simulator/archive 검증에는 전체 Xcode 설치가 필요합니다.
 
@@ -206,5 +210,6 @@ planner/
 - [Compose/Kubernetes](./infra/README.md)
 - [Design spec](./DESIGN_SPEC.md)
 - [Production UX audit](./docs/PRODUCTION_UX_AUDIT.md) · [usability sources](./docs/USABILITY_REFERENCES.md)
+- [Reliability baseline](./docs/RELIABILITY_BASELINE.md)
 - [Acceptance gates](./GATES.md)
 - [Claude Design source](https://claude.ai/design/p/97a88bc6-c95f-4bc3-9e8f-ed453200caef?file=Planner_HighFidelity.dc.html)
