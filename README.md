@@ -6,7 +6,7 @@
 
 ## 현재 구현 상태
 
-저장소 안의 제품·운영 코드는 공개 서비스 배포 구조까지 구현되어 있습니다. 실제 서비스 오픈에는 사용자가 소유한 도메인/TLS, OIDC, Google OAuth 검증, 관리형 MySQL 8.4, Apple·Google 서명 계정 같은 외부 자산 연결이 별도로 필요합니다. 샘플 도메인 `app.nowline.example`로는 공개할 수 없습니다.
+저장소 안의 제품·운영 코드와 로컬 다중 사용자 베타는 구현되어 있습니다. 로컬 베타는 자체 Keycloak 회원가입·OIDC, 무료 베타 권한, MySQL 영속 저장을 사용하며 공용 개발 토큰을 쓰지 않습니다. 인터넷 공개에는 사용자가 소유한 도메인/TLS, Google OAuth 검증, 관리형 MySQL 8.4, Apple·Google 서명 계정 같은 외부 자산 연결이 별도로 필요합니다. 샘플 도메인 `app.nowline.example`로는 공개할 수 없습니다.
 
 | 영역 | 구현 내용 |
 | --- | --- |
@@ -16,6 +16,7 @@
 | 목표·회고 | 수치 목표, 신뢰도, 계획/실제 시간, 유지·축소·연장·중단 결정 |
 | 동기화 | local-first, 오프라인 재시도, ETag, Idempotency-Key, 3-way 충돌 병합 |
 | 인증·개인정보 | OIDC Authorization Code + PKCE, JWT tenant 격리, 필수 정책 동의, export, fresh-login 계정 삭제 |
+| 베타 권한 | 가입 시 무료 BETA entitlement 자동 부여, 계정별 권한 조회·export·cascade 삭제, 향후 PRO/provider 필드 |
 | Google Calendar | 최소 scope OAuth, 암호화 refresh token, 양방향 증분 sync, 410 복구, ETag, webhook watch, 재시도 |
 | 알림 | 시간대/quiet hours, Web Push, iOS·Android push adapter, DB job lease, 중복 방지 |
 | 운영 | Java 25 virtual threads, rate/body limit, 보안 헤더, Prometheus/OTel, TLS K8s overlay, CI/CD, SBOM·서명·스캔 |
@@ -78,7 +79,27 @@ flowchart LR
 - OAuth/푸시 credential은 AES-256-GCM과 사용자·기기 AAD로 암호화합니다.
 - 가상 스레드와 DB pool은 별개이며 기본 Hikari 상한은 Pod당 10개입니다.
 
-## 5분 로컬 실행
+## 오늘 실행할 다중 사용자 로컬 베타
+
+필요한 도구는 Node.js 24, Java 25, Docker, 현재 연결된 로컬 Kubernetes입니다. 다음 명령은 자체 Keycloak 회원가입, MySQL, Spring API 2개, React/PWA를 빌드하고 실제 사용자 2명의 가입·데이터 분리·재로그인을 검증한 뒤 `4189` 포트를 계속 열어 둡니다.
+
+```bash
+git clone https://github.com/jieseob1/planner.git
+cd planner
+npm run verify:beta:k8s
+npm run k8s:serve:status
+```
+
+- 사용자 앱: [http://localhost:4189](http://localhost:4189)
+- 종료: `npm run k8s:serve:stop` 후 `npm run k8s:down`
+- 데이터: MySQL PVC는 workload를 내려도 유지됩니다.
+- 베타 결제: 현재는 모든 신규 계정에 무료 BETA 권한만 부여하며 자동 결제하지 않습니다.
+
+Docker Compose만 사용할 때는 `npm run beta:up`, `npm run verify:beta:runtime`, `npm run beta:backup` 순서로 실행하고 [http://localhost:8088](http://localhost:8088)에 접속합니다. 자세한 운영·백업·AWS 이전 절차는 [Local beta runbook](./docs/LOCAL_BETA_RUNBOOK.md)에 있습니다.
+
+현재 localhost HTTP 구성은 이 컴퓨터에서 베타를 검증하기 위한 것입니다. 다른 실제 사용자가 인터넷에서 접속하려면 도메인과 신뢰된 HTTPS를 먼저 연결하고 OIDC origin을 그 주소로 다시 빌드해야 합니다. 포트만 공유하거나 라우터에 그대로 노출하면 안 됩니다.
+
+## 5분 단일 사용자 개발 실행
 
 필요한 도구는 Node.js 24, Java 25, Docker입니다.
 
@@ -94,7 +115,7 @@ make compose-verify
 - readiness: [http://localhost:8080/actuator/health/readiness](http://localhost:8080/actuator/health/readiness)
 - metrics: [http://localhost:8080/actuator/prometheus](http://localhost:8080/actuator/prometheus)
 
-Compose는 외부에 노출하면 안 되는 `local-auth` profile과 로컬 전용 JWT secret을 사용합니다. 종료해도 MySQL volume은 보존됩니다.
+이 개발용 Compose는 외부에 노출하면 안 되는 `local-auth` profile과 로컬 전용 JWT secret을 사용합니다. 실제 사용자 베타에는 위의 `beta:*` 또는 `verify:beta:k8s` 명령만 사용합니다. 종료해도 MySQL volume은 보존됩니다.
 
 ```bash
 make compose-logs
@@ -137,9 +158,10 @@ npm run app:android
 npm run k8s:up
 npm run k8s:verify
 npm run verify:k8s:runtime
+npm run verify:beta:k8s
 ```
 
-local overlay는 MySQL PVC, backend 2 replicas, HPA 2~6, PDB, startup/readiness/liveness probe와 topology spread를 포함합니다. production overlay는 로컬 DB를 제거하고 TLS Ingress, default-deny NetworkPolicy, 전용 ServiceAccount, 외부 Secret/HA DB, migration Job, ServiceMonitor와 alerts 계약을 사용합니다.
+local overlay는 MySQL PVC, MySQL-backed Keycloak, backend 2 replicas, HPA 2~6, PDB, startup/readiness/liveness probe와 topology spread를 포함합니다. `verify:beta:k8s`는 다중 사용자 브라우저 QA 후 로컬 포트포워드를 유지합니다. production overlay는 로컬 DB를 제거하고 TLS Ingress, default-deny NetworkPolicy, 전용 ServiceAccount, 외부 Secret/HA DB, migration Job, ServiceMonitor와 alerts 계약을 사용합니다.
 
 ## 검증
 
@@ -148,11 +170,15 @@ npm run verify:production # 아래 전체 검증 + migration runner + 복구 + �
 npm run verify:full       # React + PWA/mobile sync + Spring/Testcontainers + manifests + HTTP E2E
 npm run verify:production:e2e # 실제 Chrome에서 인증·오프라인·충돌·Google·탈퇴 흐름 검증
 npm run verify:production:reliability # backend 2대 부하·soak·failover·quota retry 검증
-npm run verify:migration  # 운영과 같은 one-shot Flyway runner가 V7 적용 후 정상 종료
+npm run verify:migration  # 운영과 같은 one-shot Flyway runner가 V8 적용 후 정상 종료
 npm run verify:recovery   # MySQL 8.4 mysqldump/restore 무결성 drill
 npm run verify:k8s:runtime # 현재 이미지를 local cluster에 넣고 두 Pod 동시성 검증
 npm run verify:mysql-contract # production 코드·설정·테스트의 PostgreSQL 의존성 부재 검사
 npm run verify:secrets    # Git 추적 파일의 private key/provider token signature 검사
+npm run verify:beta       # 로컬 다중 사용자 베타 구현 전체 검증
+npm run verify:beta:runtime # Compose에서 회원가입·tenant 격리·재로그인 검증
+npm run verify:beta:backup  # 실제 무중단 MySQL dump·gzip·checksum 검증
+npm run verify:beta:k8s     # 로컬 K8s 배포·동일 사용자 흐름·2 backend Ready 검증
 ```
 
 `verify:k8s:runtime`은 현재 Kubernetes context를 바꾸지 않으며, local overlay와 현재 이미지를 적용합니다. 두 backend Pod에 직접 동시 요청해 하나만 ETag update에 성공하고 최종 상태가 일치하는지 확인합니다.
@@ -209,6 +235,7 @@ planner/
 ## 문서
 
 - [Production setup](./docs/PRODUCTION_SETUP.md)
+- [Local beta runbook](./docs/LOCAL_BETA_RUNBOOK.md)
 - [Operations runbook](./docs/OPERATIONS_RUNBOOK.md)
 - [Mobile release checklist](./docs/MOBILE_RELEASE.md)
 - [Backend architecture](./docs/BACKEND_ARCHITECTURE.md)

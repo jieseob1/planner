@@ -24,6 +24,7 @@ const requireText = (file, values) => {
   'backend/src/main/java/io/nowline/planner/security/ApiProtectionFilter.java',
   'backend/src/main/java/io/nowline/planner/config/DataRetentionScheduler.java',
   'backend/src/main/resources/db/migration/V7__add_policy_consent.sql',
+  'backend/src/main/resources/db/migration/V8__add_account_entitlement.sql',
   'infra/k8s/overlays/production/migration-job.yaml',
   'infra/k8s/overlays/production/monitoring.yaml',
   'ios/App/App/PrivacyInfo.xcprivacy',

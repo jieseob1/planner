@@ -1,5 +1,6 @@
 package io.nowline.planner.security;
 
+import io.nowline.planner.account.AccountEntitlementService;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -17,15 +18,18 @@ import static io.nowline.planner.persistence.JdbcValues.id;
 public class CurrentUserService {
 
     private final JdbcClient jdbc;
+    private final AccountEntitlementService entitlements;
     private final boolean consentRequired;
     private final String currentPolicyVersion;
 
     public CurrentUserService(
             JdbcClient jdbc,
+            AccountEntitlementService entitlements,
             @Value("${nowline.security.consent-required:true}") boolean consentRequired,
             @Value("${nowline.policy.version:2026-09-01}") String currentPolicyVersion
     ) {
         this.jdbc = jdbc;
+        this.entitlements = entitlements;
         this.consentRequired = consentRequired;
         this.currentPolicyVersion = currentPolicyVersion;
     }
@@ -63,7 +67,7 @@ public class CurrentUserService {
                 .param("displayName", normalizedClaim(jwt.getClaimAsString("name"), 200))
                 .update();
 
-        return jdbc.sql("""
+        UUID resolvedUserId = jdbc.sql("""
                         SELECT user_id FROM app_user
                         WHERE identity_key = SHA2(CONCAT(:issuer, CHAR(0), :subject), 256)
                           AND oidc_issuer = :issuer AND oidc_subject = :subject AND deleted_at IS NULL
@@ -72,6 +76,8 @@ public class CurrentUserService {
                 .param("subject", subject)
                 .query((rs, row) -> UUID.fromString(rs.getString("user_id")))
                 .single();
+        entitlements.ensureBetaEntitlement(resolvedUserId);
+        return resolvedUserId;
     }
 
     @Transactional(readOnly = true)

@@ -27,6 +27,7 @@ public class AccountService {
     private final UserPreferenceService preferences;
     private final GoogleCalendarConnectionService calendar;
     private final AccountDeletionRepository deletion;
+    private final AccountEntitlementService entitlements;
 
     public AccountService(
             JdbcTemplate jdbc,
@@ -34,7 +35,8 @@ public class AccountService {
             PlanHistoryRepository plans,
             UserPreferenceService preferences,
             GoogleCalendarConnectionService calendar,
-            AccountDeletionRepository deletion
+            AccountDeletionRepository deletion,
+            AccountEntitlementService entitlements
     ) {
         this.jdbc = jdbc;
         this.planner = planner;
@@ -42,6 +44,7 @@ public class AccountService {
         this.preferences = preferences;
         this.calendar = calendar;
         this.deletion = deletion;
+        this.entitlements = entitlements;
     }
 
     @Transactional
@@ -71,6 +74,7 @@ public class AccountService {
             return user;
         }, id(userId)));
         result.put("preferences", preferences.get(userId));
+        result.put("entitlement", entitlements.get(userId));
         result.put("activePlanner", planner.find(userId).orElse(null));
 
         List<Map<String, Object>> planExports = new ArrayList<>();

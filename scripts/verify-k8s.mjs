@@ -82,7 +82,7 @@ const decoded = parseAllDocuments(rendered).map((document, index) => {
   return document.toJS();
 }).filter(Boolean);
 
-assert(decoded.length >= 10, `expected at least 10 rendered Kubernetes objects, found ${decoded.length}`);
+assert(decoded.length >= 13, `expected at least 13 rendered Kubernetes objects, found ${decoded.length}`);
 
 const resources = new Map();
 for (const resource of decoded) {
@@ -99,10 +99,13 @@ for (const resource of decoded) {
 const namespace = get(resources, 'Namespace', 'nowline-local');
 assert(namespace.metadata.labels?.['pod-security.kubernetes.io/enforce'] === 'baseline', 'local namespace must enforce the baseline Pod Security profile');
 
-const secret = get(resources, 'Secret', 'nowline-mysql');
-for (const field of ['database', 'username', 'password', 'root-password']) {
-  assert(typeof secret.data?.[field] === 'string' && secret.data[field].length > 0, `Secret/nowline-mysql is missing data.${field}`);
-}
+assert(!resources.has('Secret/nowline-mysql'), 'local database secrets must be injected at runtime, not rendered into source manifests');
+assert(!resources.has('Secret/nowline-local-auth'), 'local beta must not render a development JWT secret');
+const realmConfig = get(resources, 'ConfigMap', 'nowline-keycloak-realm');
+assert(realmConfig.data?.['nowline-realm.json']?.includes('"registrationAllowed": true'), 'Keycloak realm must enable self-registration');
+assert(realmConfig.data?.['nowline-realm.json']?.includes('oidc-audience-mapper'), 'Keycloak realm must add the API audience');
+const bootstrapConfig = get(resources, 'ConfigMap', 'nowline-keycloak-bootstrap');
+assert(bootstrapConfig.data?.['bootstrap-keycloak.sh']?.includes('CREATE DATABASE IF NOT EXISTS keycloak'), 'Keycloak MySQL bootstrap is missing');
 
 const mysqlService = get(resources, 'Service', 'nowline-mysql');
 assert(mysqlService.spec?.clusterIP === 'None', 'MySQL Service must be headless for StatefulSet identity');
@@ -147,6 +150,31 @@ assertHttpProbes(backendContainer, {
 assertResources(backendContainer, 'backend container');
 assert(backendContainer.env?.some((entry) => entry.name === 'SPRING_THREADS_VIRTUAL_ENABLED' && entry.value === 'true'), 'backend must enable Java virtual threads');
 assert(backendContainer.env?.some((entry) => entry.name === 'SPRING_DATASOURCE_PASSWORD' && entry.valueFrom?.secretKeyRef?.name === 'nowline-mysql'), 'backend database password must come from the Secret');
+assert(backendContainer.env?.some((entry) => entry.name === 'NOWLINE_OIDC_ISSUER' && entry.value === 'http://localhost:4189/idp/realms/nowline'), 'backend must validate the local beta issuer');
+assert(backendContainer.env?.some((entry) => entry.name === 'NOWLINE_OIDC_JWK_SET_URI' && entry.value?.includes('nowline-keycloak:8080')), 'backend must fetch JWKs over the internal service');
+assert(!backendContainer.env?.some((entry) => entry.name === 'NOWLINE_DEV_JWT_SECRET'), 'backend must not receive a development JWT secret');
+assert(!backendContainer.env?.some((entry) => entry.name === 'SPRING_PROFILES_ACTIVE' && entry.value === 'local-auth'), 'backend must not activate local-auth');
+
+const keycloakService = get(resources, 'Service', 'nowline-keycloak');
+assert(keycloakService.spec?.type === 'ClusterIP', 'Keycloak Service must be internal ClusterIP');
+assert(keycloakService.spec?.ports?.some((port) => port.port === 8080), 'Keycloak Service must expose port 8080 internally');
+const keycloak = get(resources, 'Deployment', 'nowline-keycloak');
+assert(keycloak.spec?.replicas === 1, 'local Keycloak must run one replica');
+assertSafeRolling(keycloak);
+const keycloakBootstrap = keycloak.spec?.template?.spec?.initContainers?.find((container) => container.name === 'bootstrap-keycloak-database');
+assert(keycloakBootstrap?.image === 'mysql:8.4.10', 'Keycloak bootstrap must use the pinned MySQL client image');
+assert(keycloakBootstrap.env?.some((entry) => entry.name === 'MYSQL_ROOT_PASSWORD' && entry.valueFrom?.secretKeyRef?.name === 'nowline-mysql'), 'Keycloak bootstrap root password must come from the runtime Secret');
+assertResources(keycloakBootstrap, 'Keycloak database bootstrap');
+const keycloakContainer = namedContainer(keycloak, 'keycloak');
+assert(keycloakContainer.image === 'nowline-keycloak:local', 'Keycloak must use nowline-keycloak:local');
+assertHttpProbes(keycloakContainer, {
+  startupProbe: '/idp/health/started',
+  readinessProbe: '/idp/health/ready',
+  livenessProbe: '/idp/health/live'
+}, 'Keycloak container');
+assertResources(keycloakContainer, 'Keycloak container');
+assert(keycloakContainer.env?.some((entry) => entry.name === 'KC_DB' && entry.value === 'mysql'), 'Keycloak must use MySQL');
+assert(keycloakContainer.env?.some((entry) => entry.name === 'KC_DB_PASSWORD' && entry.valueFrom?.secretKeyRef?.name === 'nowline-keycloak'), 'Keycloak DB password must come from the runtime Secret');
 
 const frontendService = get(resources, 'Service', 'nowline-frontend');
 assert(frontendService.spec?.type === 'ClusterIP', 'frontend Service must be internal ClusterIP');
@@ -157,7 +185,7 @@ assert(frontend.spec?.replicas >= 1, 'frontend Deployment needs at least one rep
 assertSafeRolling(frontend);
 assert(frontend.spec?.template?.spec?.topologySpreadConstraints?.some((constraint) => constraint.topologyKey === 'kubernetes.io/hostname'), 'frontend needs hostname topology spreading');
 const frontendContainer = namedContainer(frontend, 'frontend');
-assert(frontendContainer.image === 'nowline-frontend:local', 'frontend must use nowline-frontend:local');
+assert(frontendContainer.image === 'nowline-frontend-beta:local', 'frontend must use nowline-frontend-beta:local');
 assertHttpProbes(frontendContainer, {
   startupProbe: '/healthz',
   readinessProbe: '/healthz',
@@ -176,7 +204,7 @@ const pdb = get(resources, 'PodDisruptionBudget', 'nowline-backend');
 assert(String(pdb.spec?.minAvailable) === '1', 'backend PDB must keep at least one replica available');
 assert(pdb.spec?.selector?.matchLabels?.['app.kubernetes.io/component'] === 'backend', 'backend PDB selector must target backend pods');
 
-for (const workload of [mysql, backend, frontend]) {
+for (const workload of [mysql, keycloak, backend, frontend]) {
   for (const container of workload.spec?.template?.spec?.containers ?? []) {
     assert(!container.image.endsWith(':latest'), `${keyFor(workload)} must not use a latest image tag`);
   }
@@ -185,7 +213,7 @@ for (const workload of [mysql, backend, frontend]) {
   }
 }
 
-for (const service of [mysqlService, backendService, frontendService]) {
+for (const service of [mysqlService, keycloakService, backendService, frontendService]) {
   assert(!['LoadBalancer', 'NodePort'].includes(service.spec?.type), `${keyFor(service)} must not expose the local cluster externally`);
 }
 

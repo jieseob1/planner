@@ -76,7 +76,7 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
 - [x] G16: The Java 25 Spring backend, normalized Flyway schema, API validation, health probes, metrics, and constrained database pool pass unit and MySQL integration tests
   CHECK: rtk npm run verify:backend
   EXPECT: backend verification passed
-  EVIDENCE: exit=0; Spring Boot 4.1.1 on Java 25.0.1; Testcontainers MySQL 8.4.10 applied Flyway V1-V7 and exercised CORS preflights, readiness, Prometheus, Hikari maximum 10, single job claim across 24 virtual threads, and bounded transient-lock retry.
+  EVIDENCE: exit=0; Spring Boot 4.1.1 on Java 25.0.1; Testcontainers MySQL 8.4.10 applied Flyway V1-V8 and exercised entitlement provisioning, CORS preflights, readiness, Prometheus, Hikari maximum 10, single job claim across 24 virtual threads, and bounded transient-lock retry.
 
 - [x] G17: Conditional writes, persistent idempotency, deletion/recreation revision monotonicity, overlap rejection, and cleanup are verified through the real HTTP and MySQL path
   CHECK: rtk npm run verify:e2e
@@ -92,8 +92,8 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
 
 - [x] G19: The Kustomize package renders the required namespace, services, database, two-replica backend, frontend, HPA, PDB, probes, resource bounds, and spread constraints
   CHECK: rtk npm run verify:k8s
-  EXPECT: validated 11 rendered Kubernetes objects
-  EVIDENCE: exit=0; 11 objects passed semantic verification, including the bounded MySQL init container and retained 5Gi PVC design.
+  EXPECT: validated 13 rendered Kubernetes objects
+  EVIDENCE: exit=0; 13 objects passed semantic verification, including the bounded MySQL init container, retained 5Gi PVC, Keycloak service/deployment, and runtime-only Secret boundary.
 
 - [x] G20: A real local cluster serves the frontend proxy and preserves optimistic concurrency across two independent backend Pods
   CHECK: rtk npm run verify:k8s:runtime
@@ -108,7 +108,7 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
 - [x] G22: Full-stack documentation, native local-network restrictions, and the final structural index match the implemented release
   CHECK: rtk npm run verify:full
   EXPECT: full stack verification passed
-  EVIDENCE: exit=0; frontend release, backend verify, 11-object K8s structure, and isolated Compose HTTP E2E all passed. CodeGraph final index: 165 files, 2,433 nodes, 5,239 edges; MySQL repositories, DatabaseWriteExecutor, WebConfiguration, and the server-sync provider are indexed. README documents Compose, Kubernetes, mobile, API, security boundaries, and current limitations.
+  EVIDENCE: exit=0; frontend release, backend verify, Kubernetes structure, and isolated Compose HTTP E2E all passed. CodeGraph final index: 165 files, 2,433 nodes, 5,239 edges; MySQL repositories, DatabaseWriteExecutor, WebConfiguration, and the server-sync provider are indexed. README documents Compose, Kubernetes, mobile, API, security boundaries, and current limitations.
 
 ## Public production service
 
@@ -167,7 +167,7 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
 - [x] G33: Production Kustomize resources use TLS ingress, external-secret contracts, default-deny NetworkPolicy, dedicated service accounts, restricted pods, disruption budgets, autoscaling, topology spread, migration jobs, and an external HA MySQL contract
   CHECK: rtk npm run verify:k8s && rtk npm run verify:migration
   EXPECT: production Kubernetes manifest verification passed; production migration runner verification passed
-  EVIDENCE: production manifests passed semantic verification; the one-shot container applied Flyway V1-V7 to MySQL 8.4 in 3.60s, restarted in 2.67s, and retained all seven checksums without a failed migration.
+  EVIDENCE: production manifests passed semantic verification; the one-shot container applied Flyway V1-V8 to MySQL 8.4 in 5.37s, restarted in 5.51s, and retained all eight checksums without a failed migration.
 
 - [x] G34: Backup, point-in-time recovery, migration rollback, key rotation, incident response, and disaster recovery runbooks have executable local drills and measured RPO/RTO evidence
   CHECK: rtk npm run verify:recovery
@@ -217,3 +217,35 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
 
 - [ ] G43: Signed iOS and Android release candidates pass physical-device, push-notification, deep-link, account-deletion, privacy-disclosure, and store preflight checks
   EVIDENCE: pending; requires Apple Developer and Google Play accounts, signing identities, bundle/application IDs, and physical devices. Unsigned iOS simulator build was also attempted locally but the selected developer directory contains Command Line Tools rather than full Xcode; Capacitor sync and the macOS release workflow contract remain verified.
+
+## Local multi-user public beta
+
+- [x] G45: The local beta stack uses self-hosted OIDC registration and per-user JWTs, and the development token endpoint is absent
+  CHECK: rtk node scripts/verify-local-beta-contracts.mjs
+  EXPECT: local beta contracts verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=f5d0056e435b/23 entries; output=local beta contracts verified
+
+- [x] G46: The frontend, Spring API, MySQL schema, self-hosted identity configuration, and beta entitlement API pass their automated suites
+  CHECK: rtk npm run verify:beta
+  EXPECT: local beta implementation verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=f5d0056e435b/23 entries; output=WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information | WARNING: Dynamic loading of agents will be disallowed by default in a future release
+
+- [x] G47: Two independently registered local-beta users can sign in through OIDC, accept policy, store isolated planner data, log out, and sign back in without data loss
+  CHECK: rtk npm run verify:beta:runtime
+  EXPECT: local beta multi-user runtime verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=f5d0056e435b/23 entries; output=Container nowline-beta-keycloak-1 Healthy | Container nowline-beta-frontend-1 Healthy
+
+- [x] G48: The local MySQL database can be backed up without stopping the service and the backup command supports optional S3 Glacier-class archival
+  CHECK: rtk npm run verify:beta:backup
+  EXPECT: local beta backup verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=f5d0056e435b/23 entries; output=verified backup nowline-20260901T045150Z.sql.gz (12618 bytes) | local beta backup verified
+
+- [x] G49: The local Kubernetes overlay includes MySQL-backed Keycloak, internal JWK discovery, two backend replicas, and no development JWT secret
+  CHECK: rtk npm run verify:k8s
+  EXPECT: local Kubernetes configuration verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=f5d0056e435b/23 entries; output=local Kubernetes configuration verified | production Kubernetes manifest verification passed
+
+- [x] G50: The local Kubernetes server is running the multi-user beta build and passes OIDC discovery, health, login, tenant-isolation, and persistence smoke checks
+  CHECK: rtk npm run verify:beta:k8s:runtime
+  EXPECT: local Kubernetes beta runtime verified
+  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=f5d0056e435b/23 entries; output=local beta multi-user runtime verified | local Kubernetes beta runtime verified

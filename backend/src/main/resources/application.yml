@@ -81,6 +81,7 @@ nowline:
   security:
     issuer: ${NOWLINE_OIDC_ISSUER:}
     audience: ${NOWLINE_OIDC_AUDIENCE:nowline-api}
+    jwk-set-uri: ${NOWLINE_OIDC_JWK_SET_URI:}
     hmac-secret: ${NOWLINE_DEV_JWT_SECRET:}
     dev-subject: ${NOWLINE_DEV_SUBJECT:local-user}
     max-request-bytes: ${NOWLINE_MAX_REQUEST_BYTES:1048576}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Bell, BellOff, Download, ShieldCheck, Trash2 } from 'lucide-react';
-import { accountApi, type AccountPreferences, type NotificationConfiguration } from '../api/accountApi';
+import { BadgeCheck, Bell, BellOff, Download, ShieldCheck, Trash2 } from 'lucide-react';
+import { accountApi, type AccountEntitlement, type AccountPreferences, type NotificationConfiguration } from '../api/accountApi';
 import { useAuth } from '../auth/AuthProvider';
 import { Modal } from './Modal';
 import { FocusAlert } from './FocusAlert';
@@ -42,6 +42,7 @@ const deviceId = () => {
 
 export function AccountSettingsSections() {
   const { logout } = useAuth();
+  const [entitlement, setEntitlement] = useState<AccountEntitlement | null>(null);
   const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
   const [configuration, setConfiguration] = useState<NotificationConfiguration | null>(null);
   const [permission, setPermission] = useState<NotificationPermission>(() => (
@@ -56,8 +57,9 @@ export function AccountSettingsSections() {
   const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
-    Promise.all([accountApi.preferences(), accountApi.notificationConfiguration()])
-      .then(([preferenceValue, configurationValue]) => {
+    Promise.all([accountApi.entitlement(), accountApi.preferences(), accountApi.notificationConfiguration()])
+      .then(([entitlementValue, preferenceValue, configurationValue]) => {
+        setEntitlement(entitlementValue);
         setPreferences(preferenceValue);
         setConfiguration(configurationValue);
       })
@@ -178,6 +180,27 @@ export function AccountSettingsSections() {
     <>
       {notice && <div className="inline-success" role="status">{notice}</div>}
       {error && <FocusAlert message={error} />}
+
+      <section className="settings-card" aria-labelledby="subscription-title">
+        <div className="settings-card__heading">
+          <span className="settings-card__icon"><BadgeCheck size={22} aria-hidden="true" /></span>
+          <div>
+            <h2 id="subscription-title">이용 플랜</h2>
+            <p>공개 베타 동안 핵심 계획·동기화 기능을 제한 없이 사용할 수 있습니다.</p>
+          </div>
+          {entitlement && <span className="integration-state integration-state--ready">{entitlement.plan === 'BETA' ? '무료 베타' : 'Pro'}</span>}
+        </div>
+        {entitlement ? (
+          <div className="integration-settings">
+            <div className="integration-account">
+              <span>현재 상태</span>
+              <strong>{entitlement.status === 'ACTIVE' ? '정상 이용 중' : entitlement.status}</strong>
+              <small>{entitlement.paid ? '유료 구독 권한' : '결제 없이 제공되는 베타 권한'}</small>
+            </div>
+            <p className="settings-hint">유료 플랜이 시작되기 전에는 자동 결제되지 않습니다. 가격과 전환 일정은 별도로 안내합니다.</p>
+          </div>
+        ) : <p role="status">이용 플랜을 확인하고 있습니다…</p>}
+      </section>
 
       <section className="settings-card" aria-labelledby="notification-title">
         <div className="settings-card__heading">

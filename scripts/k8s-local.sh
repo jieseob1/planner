@@ -7,8 +7,10 @@ ROOT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 KUSTOMIZE_DIR="${ROOT_DIR}/infra/k8s/overlays/local"
 NAMESPACE="nowline-local"
 WAIT_SECONDS="${NOWLINE_K8S_WAIT_SECONDS:-180}"
-FRONTEND_IMAGE="nowline-frontend:local"
+FRONTEND_IMAGE="nowline-frontend-beta:local"
 BACKEND_IMAGE="nowline-backend:local"
+KEYCLOAK_IMAGE="nowline-keycloak:local"
+LOCAL_ENV_FILE="${ROOT_DIR}/.env.local-beta"
 
 if [[ ! "${WAIT_SECONDS}" =~ ^[1-9][0-9]{1,2}$ ]] || (( WAIT_SECONDS < 10 || WAIT_SECONDS > 900 )); then
   printf 'NOWLINE_K8S_WAIT_SECONDS must be an integer from 10 through 900.\n' >&2
@@ -65,7 +67,7 @@ load_kind_images() {
 
   local cluster_name="${KUBE_CONTEXT#kind-}"
   if command -v kind >/dev/null 2>&1; then
-    kind load docker-image "${FRONTEND_IMAGE}" "${BACKEND_IMAGE}" --name "${cluster_name}"
+    kind load docker-image "${FRONTEND_IMAGE}" "${BACKEND_IMAGE}" "${KEYCLOAK_IMAGE}" --name "${cluster_name}"
     return
   fi
 
@@ -81,7 +83,7 @@ load_kind_images() {
     exit 1
   fi
   while IFS= read -r node; do
-    docker save "${FRONTEND_IMAGE}" "${BACKEND_IMAGE}" \
+    docker save "${FRONTEND_IMAGE}" "${BACKEND_IMAGE}" "${KEYCLOAK_IMAGE}" \
       | docker exec --interactive "${node}" ctr --namespace k8s.io images import - >/dev/null
   done <<<"${nodes}"
 }
@@ -90,18 +92,73 @@ build_images() {
   require_command docker
   require_command npm
   require_kubectl
+  "${ROOT_DIR}/scripts/prepare-local-beta-env.sh"
   (
     cd -- "${ROOT_DIR}"
-    VITE_API_BASE_URL= npm run build
+    npm ci --no-audit --no-fund
+    VITE_API_BASE_URL= \
+    VITE_AUTH_MODE=oidc \
+    VITE_OIDC_AUTHORITY=http://localhost:4189/idp/realms/nowline \
+    VITE_OIDC_CLIENT_ID=nowline-web \
+    VITE_OIDC_SCOPE='openid profile email offline_access' \
+    VITE_OIDC_WEB_REDIRECT_URI=http://localhost:4189/auth/callback \
+    VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI=http://localhost:4189 \
+    VITE_OIDC_SILENT_REDIRECT_URI=http://localhost:4189/auth/silent-callback \
+      npm run build
+  )
+  (
+    cd -- "${ROOT_DIR}"
     ./backend/mvnw --quiet --file backend/pom.xml package -DskipTests
   )
-  docker build --tag "${FRONTEND_IMAGE}" --file "${ROOT_DIR}/Dockerfile" "${ROOT_DIR}"
+  docker build --tag "${FRONTEND_IMAGE}" --file "${ROOT_DIR}/Dockerfile.beta" "${ROOT_DIR}"
   docker build --tag "${BACKEND_IMAGE}" --file "${ROOT_DIR}/backend/Dockerfile" "${ROOT_DIR}/backend"
+  docker build --tag "${KEYCLOAK_IMAGE}" --file "${ROOT_DIR}/infra/keycloak/Containerfile" "${ROOT_DIR}/infra/keycloak"
   load_kind_images
+}
+
+env_value() {
+  local key="$1" value
+  value="$(sed -n "s/^${key}=//p" "${LOCAL_ENV_FILE}" | head -n 1)"
+  if [[ -z "${value}" || ! "${value}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    printf '%s must be present in .env.local-beta and use URL-safe characters.\n' "${key}" >&2
+    exit 1
+  fi
+  printf '%s' "${value}"
+}
+
+ensure_local_secrets() {
+  "${ROOT_DIR}/scripts/prepare-local-beta-env.sh"
+  kubectl_nowline apply --filename "${KUSTOMIZE_DIR}/namespace.yaml" >/dev/null
+  # This Secret belonged to the removed shared development-token profile. It
+  # must not remain as an accidental rollback path in a multi-user beta.
+  kubectl_nowline --namespace "${NAMESPACE}" delete secret nowline-local-auth \
+    --ignore-not-found >/dev/null
+  local mysql_password mysql_root_password keycloak_db_password keycloak_admin_password
+  keycloak_db_password="$(env_value NOWLINE_KEYCLOAK_DB_PASSWORD)"
+  keycloak_admin_password="$(env_value NOWLINE_KEYCLOAK_ADMIN_PASSWORD)"
+  if ! kubectl_nowline --namespace "${NAMESPACE}" get secret nowline-mysql >/dev/null 2>&1; then
+    mysql_password="$(env_value NOWLINE_MYSQL_PASSWORD)"
+    mysql_root_password="$(env_value NOWLINE_MYSQL_ROOT_PASSWORD)"
+    kubectl_nowline --namespace "${NAMESPACE}" create secret generic nowline-mysql \
+      --from-literal=database=nowline \
+      --from-literal=username=nowline \
+      --from-literal=password="${mysql_password}" \
+      --from-literal=root-password="${mysql_root_password}" >/dev/null
+  else
+    printf '%s\n' 'Reusing the existing MySQL Secret so credentials remain compatible with the retained PVC.'
+  fi
+  if ! kubectl_nowline --namespace "${NAMESPACE}" get secret nowline-keycloak >/dev/null 2>&1; then
+    kubectl_nowline --namespace "${NAMESPACE}" create secret generic nowline-keycloak \
+      --from-literal=db-password="${keycloak_db_password}" \
+      --from-literal=admin-password="${keycloak_admin_password}" >/dev/null
+  else
+    printf '%s\n' 'Reusing the existing Keycloak Secret.'
+  fi
 }
 
 wait_for_rollouts() {
   kubectl_nowline --namespace "${NAMESPACE}" rollout status statefulset/nowline-mysql --timeout="${WAIT_TIMEOUT}"
+  kubectl_nowline --namespace "${NAMESPACE}" rollout status deployment/nowline-keycloak --timeout="${WAIT_TIMEOUT}"
   kubectl_nowline --namespace "${NAMESPACE}" rollout status deployment/nowline-backend --timeout="${WAIT_TIMEOUT}"
   kubectl_nowline --namespace "${NAMESPACE}" rollout status deployment/nowline-frontend --timeout="${WAIT_TIMEOUT}"
 }
@@ -109,11 +166,13 @@ wait_for_rollouts() {
 up_stack() {
   build_images
   require_kubectl
+  ensure_local_secrets
   kubectl_nowline apply --kustomize "${KUSTOMIZE_DIR}"
   # Local images intentionally use stable tags. Restart the consumers so an
   # image freshly loaded into kind is actually picked up on every `up`.
   kubectl_nowline --namespace "${NAMESPACE}" rollout restart \
     deployment/nowline-backend \
+    deployment/nowline-keycloak \
     deployment/nowline-frontend
   wait_for_rollouts
   show_metrics_server_notice
@@ -163,7 +222,7 @@ verify_stack() {
   FORWARD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nowline-k8s.XXXXXX")"
   trap cleanup_forwards EXIT INT TERM
 
-  kubectl_nowline --namespace "${NAMESPACE}" port-forward --address=127.0.0.1 service/nowline-frontend :80 >"${FORWARD_DIR}/frontend.log" 2>&1 &
+  kubectl_nowline --namespace "${NAMESPACE}" port-forward --address=127.0.0.1 service/nowline-frontend 4189:80 >"${FORWARD_DIR}/frontend.log" 2>&1 &
   FRONTEND_FORWARD_PID=$!
   kubectl_nowline --namespace "${NAMESPACE}" port-forward --address=127.0.0.1 service/nowline-backend :8080 >"${FORWARD_DIR}/backend.log" 2>&1 &
   BACKEND_FORWARD_PID=$!
@@ -174,6 +233,13 @@ verify_stack() {
 
   curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
     "http://127.0.0.1:${frontend_port}/healthz" >/dev/null
+  local discovery
+  discovery="$(curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
+    "http://localhost:${frontend_port}/idp/realms/nowline/.well-known/openid-configuration")"
+  if [[ "${discovery}" != *'"issuer":"http://localhost:4189/idp/realms/nowline"'* ]]; then
+    printf 'Local OIDC discovery returned an unexpected issuer.\n' >&2
+    return 1
+  fi
   curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
     "http://127.0.0.1:${backend_port}/actuator/health/readiness" >/dev/null
   local unauthenticated_status dev_token_status
@@ -188,8 +254,8 @@ verify_stack() {
   dev_token_status="$(curl --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
     --output /dev/null --write-out '%{http_code}' \
     "http://127.0.0.1:${frontend_port}/api/v1/auth/dev-token")"
-  if [[ "${dev_token_status}" != "200" ]]; then
-    printf 'Frontend /api proxy could not reach the local-auth token endpoint: %s\n' "${dev_token_status}" >&2
+  if [[ "${dev_token_status}" != "401" && "${dev_token_status}" != "404" ]]; then
+    printf 'Local beta must not return a development token, got: %s\n' "${dev_token_status}" >&2
     return 1
   fi
 
@@ -204,11 +270,17 @@ down_stack() {
     poddisruptionbudget/nowline-backend \
     deployment/nowline-frontend \
     deployment/nowline-backend \
+    deployment/nowline-keycloak \
     statefulset/nowline-mysql \
     service/nowline-frontend \
     service/nowline-backend \
+    service/nowline-keycloak \
     service/nowline-mysql \
     secret/nowline-mysql \
+    secret/nowline-keycloak \
+    secret/nowline-local-auth \
+    configmap/nowline-keycloak-realm \
+    configmap/nowline-keycloak-bootstrap \
     --ignore-not-found \
     --wait=true \
     --timeout="${WAIT_TIMEOUT}"

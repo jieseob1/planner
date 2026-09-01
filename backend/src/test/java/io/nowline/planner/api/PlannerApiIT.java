@@ -331,6 +331,27 @@ class PlannerApiIT {
     }
 
     @Test
+    void provisionsAnIsolatedFreeBetaEntitlementForEachAuthenticatedUser() throws Exception {
+        String firstSubject = "beta-first-" + UUID.randomUUID();
+        String secondSubject = "beta-second-" + UUID.randomUUID();
+        String firstToken = token(firstSubject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        String secondToken = token(secondSubject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+
+        HttpResponse<String> first = authenticatedGet("/api/v1/account/entitlement", firstToken);
+        HttpResponse<String> second = authenticatedGet("/api/v1/account/entitlement", secondToken);
+
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(second.statusCode()).isEqualTo(200);
+        assertThat(first.body()).contains("\"plan\":\"BETA\"", "\"status\":\"ACTIVE\"", "\"paid\":false");
+        assertThat(second.body()).contains("\"plan\":\"BETA\"", "\"status\":\"ACTIVE\"", "\"paid\":false");
+        assertThat(jdbc.queryForObject("""
+                        SELECT count(*) FROM account_entitlement entitlement
+                        JOIN app_user app ON app.user_id = entitlement.user_id
+                        WHERE app.oidc_subject IN (?, ?)
+                        """, Long.class, firstSubject, secondSubject)).isEqualTo(2);
+    }
+
+    @Test
     void exportsPreferencesAndDeletesAllAccountDataAfterFreshAuthentication() throws Exception {
         String subject = "privacy-" + UUID.randomUUID();
         String accessToken = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
@@ -352,7 +373,7 @@ class PlannerApiIT {
         assertThat(exported.statusCode()).isEqualTo(200);
         assertThat(exported.headers().firstValue("Content-Disposition")).hasValueSatisfying(
                 value -> assertThat(value).contains("nowline-account-export.json"));
-        assertThat(exported.body()).contains("nowline-account-export-v1", subject, "기술 글 6개 발행");
+        assertThat(exported.body()).contains("nowline-account-export-v1", subject, "기술 글 6개 발행", "entitlement", "BETA");
 
         assertProblem(jsonRequest("DELETE", "/api/v1/account", accessToken,
                 "{\"confirmation\":\"wrong\"}"), 400, "invalid-planner-snapshot");
@@ -374,6 +395,8 @@ class PlannerApiIT {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE oidc_subject = ?", Long.class, subject))
                 .isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM planner_aggregate WHERE user_id = ?", Long.class, userId))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM account_entitlement WHERE user_id = ?", Long.class, userId))
                 .isZero();
     }
 

@@ -4,23 +4,19 @@ namespace: nowline-local
 resources:
   - namespace.yaml
   - ../../base
+  - keycloak.yaml
 generatorOptions:
   disableNameSuffixHash: true
   labels:
     app.kubernetes.io/name: nowline
     app.kubernetes.io/component: database-credentials
-secretGenerator:
-  - name: nowline-mysql
-    type: Opaque
-    literals:
-      - database=nowline
-      - username=nowline
-      - password=nowline-local-only
-      - root-password=nowline-root-local-only
-  - name: nowline-local-auth
-    type: Opaque
-    literals:
-      - jwt-secret=nowline-local-development-jwt-secret-change-before-production
+configMapGenerator:
+  - name: nowline-keycloak-realm
+    files:
+      - files/nowline-realm.json
+  - name: nowline-keycloak-bootstrap
+    files:
+      - files/bootstrap-keycloak.sh
 patches:
   - target:
       group: apps
@@ -31,13 +27,8 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
-          name: SPRING_PROFILES_ACTIVE
-          value: local-auth
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value:
           name: NOWLINE_OIDC_ISSUER
-          value: https://identity.local.nowline.invalid
+          value: http://localhost:4189/idp/realms/nowline
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
@@ -46,15 +37,15 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
-          name: NOWLINE_DEV_JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: nowline-local-auth
-              key: jwt-secret
+          name: NOWLINE_OIDC_JWK_SET_URI
+          value: http://nowline-keycloak:8080/idp/realms/nowline/protocol/openid-connect/certs
 images:
   - name: nowline-backend
     newName: nowline-backend
     newTag: local
   - name: nowline-frontend
-    newName: nowline-frontend
+    newName: nowline-frontend-beta
+    newTag: local
+  - name: nowline-keycloak
+    newName: nowline-keycloak
     newTag: local

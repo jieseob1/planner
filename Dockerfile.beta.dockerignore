@@ -1,0 +1,11 @@
+.git
+.github
+.codegraph
+.unlazy
+node_modules
+android
+ios
+backend
+docs
+scripts
+*.md

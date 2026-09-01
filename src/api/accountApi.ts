@@ -16,6 +16,17 @@ export interface NotificationConfiguration {
   webPublicKey: string | null;
 }
 
+export interface AccountEntitlement {
+  plan: 'BETA' | 'PRO';
+  status: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED';
+  paid: boolean;
+  provider: string | null;
+  currentPeriodEndsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  features: string[];
+  updatedAt: string;
+}
+
 const authorizedFetch = async (path: string, init?: RequestInit) => {
   const token = await getAccessToken();
   return fetch(`${baseUrl}${path}`, {
@@ -46,6 +57,7 @@ const json = async <T>(path: string, init?: RequestInit): Promise<T> => {
 };
 
 export const accountApi = {
+  entitlement: () => json<AccountEntitlement>('/api/v1/account/entitlement'),
   preferences: () => json<AccountPreferences>('/api/v1/account/preferences'),
   savePreferences: (value: AccountPreferences) => json<AccountPreferences>('/api/v1/account/preferences', {
     method: 'PUT', body: JSON.stringify(value)

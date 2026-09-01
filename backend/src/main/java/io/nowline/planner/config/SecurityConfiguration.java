@@ -69,6 +69,7 @@ public class SecurityConfiguration {
     JwtDecoder jwtDecoder(
             @Value("${nowline.security.issuer}") String issuer,
             @Value("${nowline.security.audience}") String audience,
+            @Value("${nowline.security.jwk-set-uri:}") String jwkSetUri,
             @Value("${nowline.security.hmac-secret}") String hmacSecret,
             Environment environment
     ) {
@@ -90,11 +91,15 @@ public class SecurityConfiguration {
             if (issuer.isBlank()) {
                 throw new IllegalStateException("NOWLINE_OIDC_ISSUER is required outside local-auth/test profiles");
             }
-            JwtDecoder discovered = JwtDecoders.fromIssuerLocation(issuer);
-            if (!(discovered instanceof NimbusJwtDecoder nimbus)) {
-                return discovered;
+            if (!jwkSetUri.isBlank()) {
+                decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+            } else {
+                JwtDecoder discovered = JwtDecoders.fromIssuerLocation(issuer);
+                if (!(discovered instanceof NimbusJwtDecoder nimbus)) {
+                    return discovered;
+                }
+                decoder = nimbus;
             }
-            decoder = nimbus;
         }
 
         OAuth2TokenValidator<Jwt> audienceValidator = token -> token.getAudience().contains(audience)

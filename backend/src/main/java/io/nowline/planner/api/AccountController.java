@@ -1,6 +1,7 @@
 package io.nowline.planner.api;
 
 import io.nowline.planner.account.AccountService;
+import io.nowline.planner.account.AccountEntitlementService;
 import io.nowline.planner.account.UserPreferenceService;
 import io.nowline.planner.security.CurrentUserService;
 import io.nowline.planner.service.PlannerException;
@@ -29,15 +30,18 @@ import java.time.Instant;
 public class AccountController {
 
     private final AccountService accounts;
+    private final AccountEntitlementService entitlements;
     private final UserPreferenceService preferences;
     private final CurrentUserService currentUser;
 
     public AccountController(
             AccountService accounts,
+            AccountEntitlementService entitlements,
             UserPreferenceService preferences,
             CurrentUserService currentUser
     ) {
         this.accounts = accounts;
+        this.entitlements = entitlements;
         this.preferences = preferences;
         this.currentUser = currentUser;
     }
@@ -87,6 +91,12 @@ public class AccountController {
     ResponseEntity<UserPreferenceService.Preferences> preferences(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(preferences.get(currentUser.resolve(jwt)));
+    }
+
+    @GetMapping("/entitlement")
+    ResponseEntity<AccountEntitlementService.Entitlement> entitlement(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(entitlements.get(currentUser.resolve(jwt)));
     }
 
     @PutMapping("/preferences")

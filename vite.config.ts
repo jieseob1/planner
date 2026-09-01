@@ -29,6 +29,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/idp\//],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         importScripts: ['/push-handler.js']
       }

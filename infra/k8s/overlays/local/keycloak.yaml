@@ -1,0 +1,185 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nowline-keycloak
+  labels:
+    app.kubernetes.io/name: nowline
+    app.kubernetes.io/component: identity
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: nowline
+    app.kubernetes.io/component: identity
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nowline-keycloak
+  labels:
+    app.kubernetes.io/name: nowline
+    app.kubernetes.io/component: identity
+spec:
+  replicas: 1
+  minReadySeconds: 5
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nowline
+      app.kubernetes.io/component: identity
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nowline
+        app.kubernetes.io/component: identity
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: bootstrap-keycloak-database
+          image: mysql:8.4.10
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/bootstrap/bootstrap-keycloak.sh"]
+          env:
+            - name: MYSQL_HOST
+              value: nowline-mysql
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nowline-mysql
+                  key: root-password
+            - name: KEYCLOAK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nowline-keycloak
+                  key: db-password
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /bootstrap
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: keycloak
+          image: nowline-keycloak:local
+          imagePullPolicy: IfNotPresent
+          args: ["start", "--optimized", "--import-realm"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          env:
+            - name: KC_DB
+              value: mysql
+            - name: KC_DB_URL
+              value: jdbc:mysql://nowline-mysql:3306/keycloak?characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=UTC
+            - name: KC_DB_USERNAME
+              value: keycloak
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nowline-keycloak
+                  key: db-password
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nowline-keycloak
+                  key: admin-password
+            - name: KC_HOSTNAME
+              value: http://localhost:4189/idp
+            - name: KC_HOSTNAME_ADMIN
+              value: http://localhost:9190/idp
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HTTP_RELATIVE_PATH
+              value: /idp
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            - name: NOWLINE_PUBLIC_ORIGIN
+              value: http://localhost:4189
+          startupProbe:
+            httpGet:
+              path: /idp/health/started
+              port: management
+            periodSeconds: 3
+            timeoutSeconds: 3
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /idp/health/ready
+              port: management
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /idp/health/live
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import/nowline-realm.json
+              subPath: nowline-realm.json
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: realm
+          configMap:
+            name: nowline-keycloak-realm
+        - name: bootstrap
+          configMap:
+            name: nowline-keycloak-bootstrap
+            defaultMode: 0555
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi

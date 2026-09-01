@@ -86,9 +86,9 @@ try {
     SELECT version FROM flyway_schema_history
     WHERE success = true ORDER BY installed_rank DESC LIMIT 1
   `);
-  if (version !== '7') throw new Error(`Migration runner stopped at unexpected Flyway version: ${version}`);
-  if (firstHistory.split('\n').filter(Boolean).length !== 7) {
-    throw new Error(`Expected 7 successful SQL migrations, got:\n${firstHistory}`);
+  if (version !== '8') throw new Error(`Migration runner stopped at unexpected Flyway version: ${version}`);
+  if (firstHistory.split('\n').filter(Boolean).length !== 8) {
+    throw new Error(`Expected 8 successful SQL migrations, got:\n${firstHistory}`);
   }
 
   const secondElapsedSeconds = runMigration();
@@ -107,7 +107,7 @@ try {
   console.log(JSON.stringify({
     result: 'production migration runner verification passed',
     flywayVersion: version,
-    migrationCount: 7,
+    migrationCount: 8,
     restartChecksumsStable: true,
     firstElapsedSeconds: Number(firstElapsedSeconds.toFixed(2)),
     secondElapsedSeconds: Number(secondElapsedSeconds.toFixed(2))
