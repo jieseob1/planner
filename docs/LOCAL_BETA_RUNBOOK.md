@@ -30,6 +30,18 @@ kubectl --namespace nowline-local get pods
 npm run k8s:serve:status
 ```
 
+### Mac mini 로그인 후 자동 복구
+
+Colima는 `brew services start colima`로 로그인 시 자동 시작하고, kind control-plane 컨테이너는 `unless-stopped` 재시작 정책을 사용합니다. 다음 LaunchAgent는 Kubernetes 서비스가 준비될 때까지 최대 10분 기다린 뒤 `127.0.0.1:4189` 포트포워드를 foreground로 유지합니다. 외부에는 이 포트를 직접 열지 않고 Cloudflare Tunnel만 연결합니다.
+
+```bash
+cp ops/macos/com.nowline.local-beta.plist "$HOME/Library/LaunchAgents/com.nowline.local-beta.plist"
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.nowline.local-beta.plist"
+launchctl kickstart -k "gui/$(id -u)/com.nowline.local-beta"
+```
+
+상태는 `launchctl print "gui/$(id -u)/com.nowline.local-beta"`와 `curl --fail http://127.0.0.1:4189/healthz`로 확인합니다. 저장소 위치가 `$HOME/develop/planner`가 아니면 plist의 실행 경로를 먼저 변경해야 합니다.
+
 종료 시 포트포워드와 workload만 내립니다. MySQL PVC는 유지됩니다.
 
 ```bash
