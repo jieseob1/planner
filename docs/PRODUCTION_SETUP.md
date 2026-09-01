@@ -25,6 +25,14 @@
 | `vapid-public-key`, `vapid-private-key`, `vapid-subject` | Web Push VAPID 설정 |
 | `native-push-delivery-uri`, `native-push-bearer-token` | APNs·FCM adapter의 HTTPS 주소와 서비스 토큰 |
 
+`db-url`은 공급자의 CA 검증과 UTC를 강제해야 합니다. 예시는 다음과 같으며 `<host>`와 인증서는 실제 공급자 값으로 교체합니다.
+
+```text
+jdbc:mysql://<host>:3306/nowline?sslMode=VERIFY_IDENTITY&serverTimezone=UTC&preserveInstants=true&useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_as_ci
+```
+
+Secret Manager 연동은 `nowline-production` namespace에 정확히 `nowline-production-secrets`라는 Secret을 생성해야 합니다. 배포 workflow는 이 Secret을 만들거나 실제 값을 Git에 기록하지 않습니다.
+
 ## 2. OIDC
 
 공급자에 Authorization Code + PKCE public client를 만들고 아래 값을 정확히 등록합니다.
@@ -65,7 +73,45 @@ Google Cloud Console에서 Calendar API를 켜고 OAuth 동의 화면, 개인정
 
 ## 5. CI/CD 등록값
 
-GitHub `production` environment에는 `KUBE_CONFIG_DATA` Secret과 `VITE_OIDC_AUTHORITY`, `VITE_OIDC_CLIENT_ID` variables를 등록합니다. `mobile-production` environment에는 Android keystore/FCM과 App Store Connect API key/Team ID를 등록합니다.
+GitHub repository의 `Settings → Environments`에서 다음 이름을 그대로 등록합니다.
+
+### `production` environment
+
+| 종류 | 정확한 이름 | 값 형식·권한 |
+| --- | --- | --- |
+| Variable | `VITE_OIDC_AUTHORITY` | 운영 issuer HTTPS URL. OIDC discovery 문서에 접근 가능해야 함 |
+| Variable | `VITE_OIDC_CLIENT_ID` | Authorization Code + PKCE public client ID |
+| Secret | `KUBE_CONFIG_DATA` | 대상 cluster kubeconfig 전체를 Base64로 인코딩한 값. `nowline-production`에서 apply, Job 삭제·조회, rollout 조회 권한 필요 |
+
+Kubernetes/Secret Manager에는 위 1절의 `nowline-production-secrets` 13개 key를 정확히 생성합니다. 운영 workflow의 GitHub token은 GHCR package write와 GitHub OIDC keyless signing에만 사용됩니다.
+
+### `mobile-production` environment
+
+| 종류 | 정확한 이름 | 값 형식·발급 위치 |
+| --- | --- | --- |
+| Variable | `VITE_OIDC_AUTHORITY` | 네이티브 redirect URI가 등록된 운영 issuer URL |
+| Variable | `VITE_OIDC_CLIENT_ID` | 네이티브 callback을 허용하는 public client ID |
+| Secret | `ANDROID_KEYSTORE_BASE64` | Android upload keystore 전체 Base64 |
+| Secret | `ANDROID_KEYSTORE_PASSWORD` | upload keystore 비밀번호 |
+| Secret | `ANDROID_KEY_ALIAS` | 서명 key alias |
+| Secret | `ANDROID_KEY_PASSWORD` | alias key 비밀번호 |
+| Secret | `GOOGLE_SERVICES_JSON_BASE64` | Firebase Console의 Android `google-services.json` 전체 Base64 |
+| Secret | `APP_STORE_CONNECT_API_KEY_BASE64` | App Store Connect API `.p8` 파일 전체 Base64 |
+| Secret | `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
+| Secret | `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect issuer ID |
+| Secret | `APPLE_TEAM_ID` | Apple Developer Team ID |
+
+### 발급 주체와 최소 권한
+
+| 자산 | 발급 위치 | 필요한 최소 권한 |
+| --- | --- | --- |
+| domain/DNS/TLS | 도메인 등록기관·DNS provider·cert-manager issuer | DNS record 변경과 인증서 challenge 수행 |
+| Kubernetes | 대상 cloud/cluster IAM | `nowline-production` namespace 배포·Job·rollout 관리; cluster 전체 관리자 권한은 불필요 |
+| 관리형 MySQL | DB provider | DB·전용 사용자 생성, TLS CA 조회, 자동 backup/PITR 설정과 별도 복구 instance 생성 |
+| OIDC | 선택한 IdP의 app/client 관리 화면 | public client·redirect URI·audience·테스트 사용자 관리 |
+| Google Calendar | Google Cloud Console·OAuth consent screen·Search Console | Calendar API 활성화, OAuth client/동의 화면 편집, 도메인 소유권 검증 |
+| Android | Google Play Console·Firebase Console | App signing/upload key 관리, 내부 테스트 release, FCM 앱 설정 |
+| iOS | Apple Developer·App Store Connect | App ID/provisioning/APNs 관리와 API key 기반 build upload |
 
 릴리스 태그 또는 수동 실행은 다음 순서를 강제합니다.
 
@@ -75,6 +121,14 @@ GitHub `production` environment에는 `KUBE_CONFIG_DATA` Secret과 `VITE_OIDC_AU
 4. GitHub OIDC 기반 keyless cosign 서명
 5. 전용 migration Job 완료
 6. 이미지 digest 고정 배포와 rollout 확인
+
+### 사용자가 제공할 최소 작업
+
+1. 실제 domain과 사용할 cloud/Kubernetes·관리형 MySQL·OIDC 공급자를 결정합니다.
+2. 위 두 GitHub environment에 정확한 variable/secret 이름으로 값을 등록합니다.
+3. `nowline-production-secrets`를 Secret Manager에서 동기화하고 실제 domain으로 저장소의 예시 origin을 교체합니다.
+4. Google OAuth 테스트 계정과 Apple/Play 내부 테스트 계정을 지정합니다.
+5. 값 자체를 채팅이나 Git에 붙이지 말고 등록 완료 여부와 staging URL만 전달합니다. 이후 smoke, 실계정 Calendar, PITR, alert, 실기기 검증을 이어서 수행합니다.
 
 ## 6. 공개 전 승인표
 

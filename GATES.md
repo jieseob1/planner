@@ -49,27 +49,27 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
 
 ## Evidence-backed usability pass
 
-- [x] G10: External usability criteria are translated into a product-specific audit without treating the intentionally absent backend as a frontend defect
-  EVIDENCE: docs/USABILITY_REFERENCES.md separates WCAG 2.2 CSS-pixel criteria, Apple point guidance, Android dp guidance, Nielsen heuristics, and the internal 44 CSS px product bar. docs/USABILITY_AUDIT.md explicitly scopes all new behavior to localStorage demo state.
+- [x] G10: External usability criteria are translated into a product-specific audit, and the historical local-only findings are separated from the current production-connected verdict
+  EVIDENCE: docs/USABILITY_REFERENCES.md separates WCAG 2.2 CSS-pixel criteria, Apple point guidance, Android dp guidance, Nielsen heuristics, and the internal 44 CSS px product bar. docs/USABILITY_AUDIT.md labels the 2026-08-31 localStorage findings as history and points current readers to the production UX audit and feature matrix.
 
-- [x] G11: Every P1 finding has a local frontend resolution or an explicit backend-stage boundary
-  EVIDENCE: Local-save copy, reset confirmation, week navigation, task/plan editing, contextual carryover actions, overlap prevention, Review metric propagation, and next-week Top 3 handoff are implemented. Full history editing and multi-device persistence remain documented backend/history work.
+- [x] G11: Every historical P1 finding has a production implementation or an explicit external-validation boundary
+  EVIDENCE: Server-acknowledged save copy, conditional server reset, week navigation, task/plan editing, contextual carryover actions, overlap prevention, Review metric propagation, next-week Top 3 handoff, multi-plan history and multi-device ETag synchronization are implemented. Physical-device assistive technology and provider credentials remain external gates G41-G43.
 
 - [x] G12: Automated usability contracts and local frontend flows pass
   CHECK: rtk npm run verify:usability
   EXPECT: frontend usability verification passed
-  EVIDENCE: exit=0; Vitest 14/14 passed; active type=button controls, device-local save copy, reset confirmation, Planner/Goals/Review contracts, contrast token, scroll hints, and 44px style declarations passed; output=frontend usability verification passed.
+  EVIDENCE: exit=0; 2 Vitest files and 26 tests passed; active controls, server save/reset behavior, Planner/Goals/Review contracts, contrast token, scroll hints, offline retry, conflict preservation and 44px style declarations passed; output=frontend usability verification passed.
 
 - [x] G13: Desktop and mobile browser checks cover the revised end-to-end local flows
-  EVIDENCE: At 1440x900 and 390x844, verified quick capture Enter, manual-time undo, exact carryover split/stop context, task creation, conflict rejection plus nonconflicting placement, week navigation, combined plan edit, metric validation and Goals propagation, Review-to-next-week handoff, onboarding conflict disablement, and reset cancellation. Five mobile screens had document overflow=0 and no visible enabled target below 44x44 CSS px. Browser warning/error count=0.
+  EVIDENCE: Current production E2E at 1440x900 and 390x844 verified policy consent, onboarding, quick capture, offline retry, conflict merge, plan lifecycle, Google test-provider flow, preferences, export and deletion. Six responsive routes had document overflow=0, effective primary controls were at least 44px, and captured browser console errors were 0.
 
 - [x] G14: The complete PWA and Capacitor release verification remains green after usability changes
   CHECK: rtk npm run verify:release
   EXPECT: redesigned frontend release verification passed
-  EVIDENCE: exit=0; 14 tests passed; structure, design source, visual system, usability, TypeScript/Vite PWA build, Android sync, and iOS sync passed; output=redesigned frontend release verification passed.
+  EVIDENCE: exit=0; 26 tests passed; structure, design source, visual system, usability, TypeScript/Vite PWA build, Android sync, and iOS sync passed; output=redesigned frontend release verification passed.
 
 - [x] G15: The synchronized Android project produces a debug APK
-  EVIDENCE: JDK 21 with locally available Gradle 8.13 ran assembleDebug successfully; 93 tasks executed; output=BUILD SUCCESSFUL; artifact=android/app/build/outputs/apk/debug/app-debug.apk (4.1MB, ignored build output). The wrapper's first network download attempt was environment-blocked by Java certificate trust and was not bypassed insecurely.
+  EVIDENCE: JDK 21 with the locally cached Gradle 8.13 distribution ran assembleDebug successfully at final audit; 215 actionable tasks (27 executed, 188 up-to-date); output=BUILD SUCCESSFUL; artifact=android/app/build/outputs/apk/debug/app-debug.apk (8.1MB, ignored build output). The wrapper download was blocked by local Java certificate trust, so the verified cached distribution was used without weakening TLS.
 
 ## Java 25 backend and server synchronization
 
@@ -205,9 +205,9 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
   EVIDENCE: README, Production setup, Operations runbook, Mobile release and UX audit are linked and checked as release contracts; external ownership gates remain explicitly listed below.
 
 - [x] G44: PostgreSQL runtime dependencies are removed, existing local data is preserved and converted into a fresh MySQL 8.4 volume, and migration/recovery/concurrency safeguards are executable
-  CHECK: rtk npm run verify:migration && rtk npm run verify:recovery && rtk npm run verify:e2e && rtk npm run verify:backend
+  CHECK: rtk npm run verify:mysql-contract && rtk npm run verify:migration && rtk npm run verify:recovery && rtk npm run verify:e2e && rtk npm run verify:backend
   EXPECT: migration restart checksums stable; recovery fingerprint equal; HTTP and MySQL integration tests pass
-  EVIDENCE: neither retained PostgreSQL volume was deleted. Compose: custom-format dump SHA-256 `e6f3b9f999f91553816833c1ce745bef8f80e46c2018f2efaea838da29332939`; the importer moved 1 user, 1 active plan, 6 tasks, 4 outcomes, 4 time blocks and related rows into `nowline-mysql-data`; every table count and planner fingerprint matched, evidence SHA-256 `f9adc24d172f36488cbaa9cdee4113b013d6461a3f9364638c012b3130b1f3c9`; the migrated API returned revision 1 with all 6 tasks. Kubernetes: custom-format dump SHA-256 `187db77481335fcc75b7996c8463952d8ab229ebf7f8ea8589f902e3d235ab34`; the importer moved 6 users, 2 plans, 1 active aggregate, 7 tasks, 4 outcomes, 4 time blocks and related rows; every table count and planner fingerprint matched, evidence SHA-256 `457b87104f1bfbcd8d47f307df9b8f18fca6336f8bcf84645c15ad9aa3976245`. The old PostgreSQL workload was removed only after verification; its 5Gi PVC and both dump files remain available for recovery.
+  EVIDENCE: the automated MySQL contract scanned 111 runtime/test files and 7 current docs for PostgreSQL packages, ports, tools and dialect while asserting MySQL driver, UTC, utf8mb4, InnoDB, locks, retries, backup and test-runner contracts. Neither retained PostgreSQL volume was deleted. Compose: custom-format dump SHA-256 `e6f3b9f999f91553816833c1ce745bef8f80e46c2018f2efaea838da29332939`; the importer moved 1 user, 1 active plan, 6 tasks, 4 outcomes, 4 time blocks and related rows into `nowline-mysql-data`; every table count and planner fingerprint matched, evidence SHA-256 `f9adc24d172f36488cbaa9cdee4113b013d6461a3f9364638c012b3130b1f3c9`; the migrated API returned revision 1 with all 6 tasks. Kubernetes: custom-format dump SHA-256 `187db77481335fcc75b7996c8463952d8ab229ebf7f8ea8589f902e3d235ab34`; the importer moved 6 users, 2 plans, 1 active aggregate, 7 tasks, 4 outcomes, 4 time blocks and related rows; every table count and planner fingerprint matched, evidence SHA-256 `457b87104f1bfbcd8d47f307df9b8f18fca6336f8bcf84645c15ad9aa3976245`. The old PostgreSQL workload was removed only after verification; its 5Gi PVC and both dump files remain available for recovery.
 
 - [ ] G41: A real public staging environment with a user-owned domain and trusted TLS passes smoke, security-header, multi-replica, rollback, backup-restore, and alert-delivery checks
   EVIDENCE: pending; requires the target cloud, domain/DNS control, and production secret manager
@@ -216,4 +216,4 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
   EVIDENCE: pending; requires Google Cloud project ownership, OAuth client credentials, verified redirect domain, and a test account
 
 - [ ] G43: Signed iOS and Android release candidates pass physical-device, push-notification, deep-link, account-deletion, privacy-disclosure, and store preflight checks
-  EVIDENCE: pending; requires Apple Developer and Google Play accounts, signing identities, bundle/application IDs, and physical devices
+  EVIDENCE: pending; requires Apple Developer and Google Play accounts, signing identities, bundle/application IDs, and physical devices. Unsigned iOS simulator build was also attempted locally but the selected developer directory contains Command Line Tools rather than full Xcode; Capacitor sync and the macOS release workflow contract remain verified.

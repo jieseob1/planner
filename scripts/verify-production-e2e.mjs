@@ -154,6 +154,37 @@ const assertVisibleTargets = async (page, label) => {
   }
 };
 
+const assertVisibleControlsAreLabelled = async (page, label) => {
+  const unlabelledControls = await page.evaluate(() => {
+    const controls = [...document.querySelectorAll('button, a[href], input:not([type="hidden"]), select, textarea')]
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.bottom >= 0 && rect.top <= window.innerHeight;
+      });
+    return controls.flatMap((element) => {
+      const labelledBy = element.getAttribute('aria-labelledby');
+      const hasReferencedLabel = labelledBy?.split(/\s+/).some((id) => document.getElementById(id)?.textContent?.trim());
+      const nativeLabels = 'labels' in element ? element.labels : null;
+      const hasName = Boolean(
+        element.getAttribute('aria-label')?.trim()
+        || hasReferencedLabel
+        || (nativeLabels && nativeLabels.length > 0)
+        || element.textContent?.trim()
+        || element.getAttribute('title')?.trim()
+      );
+      if (hasName) return [];
+      return [{
+        tag: element.tagName.toLowerCase(),
+        type: element.getAttribute('type') ?? '',
+        className: element.getAttribute('class') ?? ''
+      }];
+    });
+  });
+  if (unlabelledControls.length > 0) {
+    fail(`${label} has visible controls without an accessible label: ${JSON.stringify(unlabelledControls.slice(0, 5))}`);
+  }
+};
+
 const exerciseDesktop = async (frontendUrl, backendUrl) => {
   const errors = [];
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
@@ -238,9 +269,17 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
 
   await page.goto(`${frontendUrl}/plans`);
   await page.getByRole('heading', { name: '연간·분기 계획' }).waitFor();
-  await page.getByRole('button', { name: '새 계획' }).click();
+  const newPlanButton = page.getByRole('button', { name: '새 계획' });
+  await newPlanButton.focus();
+  await page.keyboard.press('Enter');
+  const createPlanDialog = page.getByRole('dialog', { name: '새 연간·분기 계획' });
+  await createPlanDialog.waitFor();
+  const quarterFocusInput = createPlanDialog.getByLabel('이번 분기 핵심 결과');
+  if (!await quarterFocusInput.evaluate((element) => element === document.activeElement)) {
+    fail('New plan dialog did not move focus to its primary input');
+  }
   await page.getByLabel('계획 이름').fill('운영 E2E 다음 분기');
-  await page.getByLabel('이번 분기 핵심 결과').fill('공개 운영 시나리오를 자동 검증한다');
+  await quarterFocusInput.fill('공개 운영 시나리오를 자동 검증한다');
   await page.getByRole('button', { name: '초안 만들기' }).click();
   await page.getByText('운영 E2E 다음 분기').waitFor();
   await page.locator('article').filter({ hasText: '운영 E2E 다음 분기' })
@@ -273,7 +312,26 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   await page.getByRole('button', { name: /연결 해제/ }).click();
   await page.getByText('Google Calendar 연결과 저장된 토큰을 삭제했습니다.').waitFor({ timeout: 20_000 });
 
-  await page.getByRole('button', { name: /계정 삭제/ }).click();
+  const deleteAccountButton = page.getByRole('button', { name: /계정 삭제/ });
+  await deleteAccountButton.focus();
+  await page.keyboard.press('Enter');
+  const deleteDialog = page.getByRole('dialog', { name: '계정과 모든 데이터를 삭제할까요?' });
+  await deleteDialog.waitFor();
+  const closeDeleteDialogButton = deleteDialog.getByRole('button', { name: '닫기' });
+  if (!await closeDeleteDialogButton.evaluate((element) => element === document.activeElement)) {
+    fail('Delete modal did not focus its first actionable control');
+  }
+  await page.keyboard.press('Shift+Tab');
+  const cancelDeleteButton = deleteDialog.getByRole('button', { name: '취소' });
+  if (!await cancelDeleteButton.evaluate((element) => element === document.activeElement)) {
+    fail('Delete modal did not trap backward keyboard focus');
+  }
+  await page.keyboard.press('Escape');
+  await deleteDialog.waitFor({ state: 'detached' });
+  if (!await deleteAccountButton.evaluate((element) => element === document.activeElement)) {
+    fail('Delete modal did not restore focus to its trigger');
+  }
+  await page.keyboard.press('Enter');
   await page.getByLabel('확인을 위해 DELETE 입력').fill('DELETE');
   await page.getByRole('button', { name: '영구 삭제' }).click();
   await page.getByRole('heading', { name: '계획을 실행으로 연결하세요' }).waitFor({ timeout: 20_000 });
@@ -359,6 +417,7 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
     await page.goto(`${frontendUrl}${route}`);
     await page.locator('#main-content').waitFor();
     await assertNoDocumentOverflow(page, `200% zoom ${route}`);
+    await assertVisibleControlsAreLabelled(page, `Accessible labels ${route}`);
   }
 
   if (errors.length > 0) fail(`Keyboard/zoom browser emitted errors:\n${errors.join('\n')}`);

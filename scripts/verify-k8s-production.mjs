@@ -42,6 +42,18 @@ for (const name of ['nowline-backend', 'nowline-frontend']) {
 const backend = find('Deployment', 'nowline-backend');
 assert(!backend.spec.template.spec.initContainers, 'production must not wait for the local MySQL service');
 const env = Object.fromEntries(backend.spec.template.spec.containers[0].env.map((item) => [item.name, item]));
+const productionSecretKeys = new Set(Object.values(env)
+  .map((item) => item.valueFrom?.secretKeyRef)
+  .filter((reference) => reference?.name === 'nowline-production-secrets')
+  .map((reference) => reference.key));
+for (const key of [
+  'db-url', 'db-username', 'db-password', 'oidc-issuer', 'oidc-audience',
+  'integration-encryption-key-base64', 'google-client-id', 'google-client-secret',
+  'vapid-public-key', 'vapid-private-key', 'vapid-subject',
+  'native-push-delivery-uri', 'native-push-bearer-token'
+]) {
+  assert(productionSecretKeys.has(key), `nowline-production-secrets must provide ${key}`);
+}
 for (const required of [
   'SPRING_DATASOURCE_URL', 'NOWLINE_OIDC_ISSUER', 'NOWLINE_GOOGLE_CLIENT_SECRET',
   'NOWLINE_INTEGRATION_ENCRYPTION_KEY_BASE64', 'NOWLINE_VAPID_PRIVATE_KEY'

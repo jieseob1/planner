@@ -211,7 +211,7 @@ export function PlansScreen() {
               <label className="field">분기<select value={quarter} onChange={(event) => setQuarter(Number(event.target.value))}>{[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}분기</option>)}</select></label>
             </div>
             <label className="field">1년 방향<textarea value={annualDirection} maxLength={2000} onChange={(event) => setAnnualDirection(event.target.value)} /></label>
-            <label className="field">이번 분기 핵심 결과<textarea value={quarterFocus} maxLength={2000} onChange={(event) => setQuarterFocus(event.target.value)} autoFocus /></label>
+            <label className="field">이번 분기 핵심 결과<textarea value={quarterFocus} maxLength={2000} onChange={(event) => setQuarterFocus(event.target.value)} autoFocus data-autofocus /></label>
           </div>
           <div className="modal__actions">
             <button className="button button--secondary" type="button" onClick={() => setCreateOpen(false)}>취소</button>

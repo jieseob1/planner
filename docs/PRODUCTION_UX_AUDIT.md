@@ -69,14 +69,17 @@
 
 ## 남은 검증 한계
 
-- screenshot/DOM 점검만으로 screen reader announcement, iOS VoiceOver, Android TalkBack, 200% zoom 전체 흐름의 준수를 확정할 수 없습니다.
+- 자동 브라우저 QA는 skip link, 빠른 수집, 새 계획 initial focus, modal focus trap·복귀, 주요 화면의 visible control label, 44px target과 200% zoom 등가 6개 route의 overflow를 검증합니다.
+- 이 자동화만으로 screen reader announcement, iOS VoiceOver, Android TalkBack, OS 큰 글자 설정과 200% zoom에서 모든 modal의 시각적 준수를 확정할 수 없습니다.
 - OIDC 공급자 오류, 실제 Google quota/reauthorize, browser permission denial, APNs/FCM delivery와 store review는 외부 환경에서 실증해야 합니다.
 - 정책 문안은 기능 구현과 데이터 경계를 반영했지만 실제 운영 주체의 법률 검토가 필요합니다.
 
 ## 공개 전 수동 접근성 체크
 
-- [ ] 키보드만으로 동의, Today, 계획 작성, 충돌 병합, 설정, 삭제 modal 완료
+- [x] 자동 브라우저에서 skip link, 빠른 수집, 새 계획 focus, 삭제 modal focus trap·Escape·trigger focus 복귀 확인
+- [ ] 키보드만으로 동의, Today 전체 실행, 충돌 병합과 설정 전체 여정 수동 확인
 - [ ] VoiceOver/TalkBack에서 저장·충돌·동기화 상태 변경 announcement 확인
-- [ ] 200% browser zoom과 큰 글자 설정에서 modal footer/하단 navigation 가림 없음
+- [x] 200% browser zoom 등가 720×450 CSS viewport의 6개 주요 route에서 horizontal overflow 없음
+- [ ] 200% browser zoom과 OS 큰 글자 설정에서 모든 modal footer/하단 navigation 가림 없음
 - [ ] light/dark system contrast와 reduced motion 확인
 - [ ] 실제 permission denied/expired session/Google reconnect 오류의 focus 이동과 복구 문구 확인

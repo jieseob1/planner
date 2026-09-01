@@ -40,6 +40,7 @@ const requireText = (file, values) => {
   'scripts/lib/fake-google-calendar.mjs',
   'scripts/verify-production-e2e.mjs',
   'scripts/verify-production-reliability.mjs',
+  'scripts/verify-mysql-contract.mjs',
   'scripts/verify-secrets.mjs'
 ].forEach(requireFile);
 
@@ -72,7 +73,8 @@ requireText('.github/workflows/mobile-release.yml', [
 ]);
 requireText('README.md', [
   '현재 구현 상태', '공개 배포 전에 반드시 필요한 것', 'Google Calendar',
-  'verify:production:e2e', 'verify:production:reliability', 'FEATURE_QA_MATRIX.md', 'verify:secrets', 'RELIABILITY_BASELINE.md'
+  'verify:production:e2e', 'verify:production:reliability', 'verify:mysql-contract',
+  'FEATURE_QA_MATRIX.md', 'verify:secrets', 'RELIABILITY_BASELINE.md'
 ]);
 requireText('src/state/PlannerProvider.tsx', [
   'createEmptySnapshot', 'plannerReady', 'resetPlanner', 'ACTIVE_PLAN_ABSENT_KEY'
@@ -82,6 +84,11 @@ requireText('backend/src/main/java/io/nowline/planner/api/AccountController.java
 ]);
 requireText('docs/FEATURE_QA_MATRIX.md', [
   'QA 완료', '외부 자격 증명 필요', '신규 계정', 'Google Calendar', 'Kubernetes', 'secret scan'
+]);
+requireText('docs/PRODUCTION_SETUP.md', [
+  'sslMode=VERIFY_IDENTITY', 'nowline-production-secrets', 'KUBE_CONFIG_DATA',
+  'ANDROID_KEYSTORE_BASE64', 'GOOGLE_SERVICES_JSON_BASE64',
+  'APP_STORE_CONNECT_API_KEY_BASE64', 'APPLE_TEAM_ID', '사용자가 제공할 최소 작업'
 ]);
 
 for (const file of ['README.md', 'docs/BACKEND_ARCHITECTURE.md']) {

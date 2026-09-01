@@ -151,6 +151,7 @@ npm run verify:production:reliability # backend 2대 부하·soak·failover·quo
 npm run verify:migration  # 운영과 같은 one-shot Flyway runner가 V7 적용 후 정상 종료
 npm run verify:recovery   # MySQL 8.4 mysqldump/restore 무결성 drill
 npm run verify:k8s:runtime # 현재 이미지를 local cluster에 넣고 두 Pod 동시성 검증
+npm run verify:mysql-contract # production 코드·설정·테스트의 PostgreSQL 의존성 부재 검사
 npm run verify:secrets    # Git 추적 파일의 private key/provider token signature 검사
 ```
 

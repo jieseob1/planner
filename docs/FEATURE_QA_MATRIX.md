@@ -55,7 +55,7 @@
 | --- | --- | --- | --- | --- |
 | Web/PWA | production build, manifest, service worker, 오프라인 shell | 구현 완료 | QA 완료 | TypeScript/Vite/PWA release 검사 |
 | 반응형 | 1440×900 desktop, 390×844 mobile 주요 여정 | 구현 완료 | QA 완료 | 6개 route overflow와 사용자 흐름 E2E |
-| 접근성 | skip link, 키보드 빠른 수집, label/focus, 44px touch target | 구현 완료 | QA 완료 | keyboard/모바일 자동 브라우저 검사 |
+| 접근성 | skip link, 키보드 빠른 수집, modal focus trap·복귀, label/focus, 44px touch target | 구현 완료 | QA 완료 | keyboard/모바일 자동 브라우저 검사 |
 | 확대 | 200% browser zoom 등가 CSS viewport에서 6개 route overflow 없음 | 구현 완료 | QA 완료 | 720×450 layout E2E |
 | Android | Capacitor sync, secure storage/deep link/push wiring, debug APK | 구현 완료 | QA 완료 | `cap sync`, `assembleDebug` |
 | iOS | Capacitor sync, Keychain/deep link/push/privacy manifest wiring | 구현 완료 | QA 완료 | `cap sync`, 프로젝트·release workflow contract |
@@ -69,6 +69,7 @@
 | Backend | Java 25, Spring MVC virtual threads, bounded Hikari pool | 구현 완료 | QA 완료 | Maven/Testcontainers와 reliability pool 측정 |
 | API 보호 | JWT tenant, CORS, rate/body limit, security headers, safe Problem Details | 구현 완료 | QA 완료 | `PlannerApiIT`, HTTP E2E, production contracts |
 | MySQL 8.4 | InnoDB 정규화 schema, Flyway V1–V7, revision/idempotency/audit | 구현 완료 | QA 완료 | Testcontainers, migration restart/checksum, HTTP E2E |
+| DB 의존성 계약 | production 코드·설정·Docker·Kubernetes·테스트·CI의 PostgreSQL runtime 의존성 부재 | 구현 완료 | QA 완료 | `npm run verify:mysql-contract`이 MySQL driver/UTC/utf8mb4/InnoDB/lock/retry/backup 계약과 금지 패턴 검사 |
 | 복구·이관 | mysqldump/restore drill, PostgreSQL one-time import와 runbook | 구현 완료 | QA 완료 | 0-row-loss restore, table count와 planner fingerprint 대조 |
 | 보존 | operational row retention과 사용자 cascade deletion | 구현 완료 | QA 완료 | scheduler contract와 account integration test |
 | Compose | frontend → nginx → API → MySQL 저장·재조회 | 구현 완료 | QA 완료 | 격리 Compose browser/API E2E |
