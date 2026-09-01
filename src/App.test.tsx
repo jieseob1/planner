@@ -95,6 +95,23 @@ describe('Planner frontend core flows', () => {
     expect(screen.getAllByText('배포 체크리스트 확인')).toHaveLength(1);
   });
 
+  it('creates a time block from an empty Today slot', async () => {
+    const user = userEvent.setup();
+    renderRoute('/today');
+
+    await user.click(screen.getByRole('button', { name: '16:00부터 17:00까지 할 일 추가' }));
+    const dialog = screen.getByRole('dialog', { name: '시간 블록 만들기' });
+    expect(within(dialog).getByLabelText(/시작/)).toHaveValue('960');
+    expect(within(dialog).getByLabelText(/종료/)).toHaveValue('1050');
+
+    await user.click(within(dialog).getByRole('button', { name: '오늘 계획에 추가' }));
+
+    expect(screen.queryByRole('dialog', { name: '시간 블록 만들기' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: /장애 복구 흐름 다이어그램 작성, 16:00부터 17:30까지, 시간 변경/
+    })).toBeInTheDocument();
+  });
+
   it('keeps local data when reset is cancelled and restores demo data only after confirmation', async () => {
     const user = userEvent.setup();
     renderRoute('/today');
