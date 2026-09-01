@@ -32,6 +32,8 @@ import { findTimeBlockConflict, isValidTimeBlockSlot, normalizeWeekOffset } from
 
 const STORAGE_KEY = 'planner.mvp.snapshot.v1';
 const SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
+const CONFLICT_BACKUP_KEY = 'planner.mvp.last-conflict.v1';
+const ACTIVE_PLAN_ABSENT_KEY = 'nowline.active-plan.absent.v1';
 const SERVER_SYNC_DELAY_MS = 350;
 
 export type SaveStatus =
@@ -43,10 +45,29 @@ export type SaveStatus =
   | 'conflict'
   | 'storage-error';
 
+export type SnapshotSection = keyof PlannerSnapshot;
+
+export interface SyncConflict {
+  base: PlannerSnapshot | null;
+  local: PlannerSnapshot;
+  server: PlannerSnapshot;
+  serverRevision: number;
+  serverEtag: string;
+  detectedAt: string;
+}
+
 export interface PlannerContextValue extends PlannerSnapshot {
   saveStatus: SaveStatus;
   isOnline: boolean;
+  hasActivePlan: boolean;
   retrySync: () => void;
+  reloadFromServer: () => Promise<boolean>;
+  markActivePlanClosed: () => void;
+  syncConflict: SyncConflict | null;
+  resolveConflict: (
+    strategy: 'local' | 'server' | 'merge',
+    choices?: Partial<Record<SnapshotSection, 'local' | 'server'>>
+  ) => void;
   quickCapture: (title: string) => void;
   addTask: (input: AddTaskInput) => string;
   savePlan: (input: SavePlanInput) => void;
@@ -176,6 +197,15 @@ export const normalizePlannerSnapshot = (value: unknown): PlannerSnapshot => {
 
 const serializeSnapshot = (snapshot: PlannerSnapshot) => JSON.stringify(snapshot);
 
+const parseSnapshot = (value: string | null): PlannerSnapshot | null => {
+  if (!value) return null;
+  try {
+    return normalizePlannerSnapshot(JSON.parse(value) as unknown);
+  } catch {
+    return null;
+  }
+};
+
 const readSyncMetadata = (): SyncMetadata | null => {
   try {
     const value = JSON.parse(window.localStorage.getItem(SYNC_METADATA_KEY) ?? 'null') as unknown;
@@ -270,8 +300,13 @@ export function PlannerProvider({ children }: PropsWithChildren) {
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const onlineRef = useRef(isOnline);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(isOnline ? 'checking' : 'offline');
+  const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
   const [serverReady, setServerReady] = useState(false);
   const serverReadyRef = useRef(false);
+  const [hasActivePlan, setHasActivePlan] = useState(() => (
+    typeof window === 'undefined' || window.localStorage.getItem(ACTIVE_PLAN_ABSENT_KEY) !== '1'
+  ));
+  const hasActivePlanRef = useRef(hasActivePlan);
   const [syncPulse, setSyncPulse] = useState(0);
   const revisionRef = useRef<number | null>(initialState.metadata?.revision ?? null);
   const etagRef = useRef<string | null>(initialState.metadata?.etag ?? null);
@@ -294,9 +329,29 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     setServerReady(true);
   }, []);
 
-  const markConflict = useCallback(() => {
+  const markConflict = useCallback((
+    serverSnapshot?: PlannerSnapshot,
+    serverRevision?: number,
+    serverEtag?: string
+  ) => {
     conflictRef.current = true;
     dirtyRef.current = true;
+    if (serverSnapshot && serverRevision !== undefined && serverEtag) {
+      const conflict: SyncConflict = {
+        base: parseSnapshot(acknowledgedSnapshotRef.current),
+        local: structuredClone(snapshotRef.current),
+        server: structuredClone(serverSnapshot),
+        serverRevision,
+        serverEtag,
+        detectedAt: new Date().toISOString()
+      };
+      setSyncConflict(conflict);
+      try {
+        window.localStorage.setItem(CONFLICT_BACKUP_KEY, JSON.stringify(conflict));
+      } catch {
+        // The active local and server snapshots remain in React state even if backup storage is full.
+      }
+    }
     setSaveStatus('conflict');
   }, []);
 
@@ -319,9 +374,13 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     const serverSnapshotKey = serializeSnapshot(serverSnapshot);
     snapshotRef.current = serverSnapshot;
     setSnapshot(serverSnapshot);
+    hasActivePlanRef.current = true;
+    setHasActivePlan(true);
+    window.localStorage.removeItem(ACTIVE_PLAN_ABSENT_KEY);
     hasStoredSnapshotRef.current = true;
     dirtyRef.current = false;
     conflictRef.current = false;
+    setSyncConflict(null);
     pendingWriteRef.current = null;
     const localStored = writeLocalSnapshot(serverSnapshot);
     const metadataStored = acknowledgeSnapshot(revision, etag, serverSnapshotKey);
@@ -357,6 +416,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       || conflictRef.current
       || requestInFlightRef.current
       || resettingRef.current
+      || !hasActivePlanRef.current
     ) return;
 
     requestInFlightRef.current = true;
@@ -406,7 +466,20 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       if (requestEpoch !== resetEpochRef.current) return;
       if (error instanceof PlannerConflictError) {
         pendingWriteRef.current = null;
-        markConflict();
+        try {
+          const latest = await plannerApi.get(null);
+          if (latest.kind === 'found') {
+            markConflict(
+              normalizePlannerSnapshot(latest.aggregate.snapshot),
+              latest.aggregate.revision,
+              latest.etag
+            );
+          } else {
+            markConflict();
+          }
+        } catch {
+          markConflict();
+        }
       } else {
         setSaveStatus(onlineRef.current ? 'retry' : 'offline');
       }
@@ -442,8 +515,12 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         revisionRef.current = null;
         etagRef.current = null;
         acknowledgedSnapshotRef.current = null;
-        dirtyRef.current = true;
-        shouldBootstrap = true;
+        const intentionallyAbsent = window.localStorage.getItem(ACTIVE_PLAN_ABSENT_KEY) === '1';
+        hasActivePlanRef.current = !intentionallyAbsent;
+        setHasActivePlan(!intentionallyAbsent);
+        dirtyRef.current = !intentionallyAbsent;
+        shouldBootstrap = !intentionallyAbsent;
+        if (intentionallyAbsent) setSaveStatus('saved');
       } else {
         const serverSnapshot = normalizePlannerSnapshot(result.aggregate.snapshot);
         const serverSnapshotKey = serializeSnapshot(serverSnapshot);
@@ -459,7 +536,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         } else {
           revisionRef.current = result.aggregate.revision;
           etagRef.current = result.etag;
-          markConflict();
+          markConflict(serverSnapshot, result.aggregate.revision, result.etag);
         }
       }
     } catch (error) {
@@ -487,6 +564,77 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     if (serverReadyRef.current) void syncNow();
     else void initializeFromServer();
   }, [initializeFromServer, syncNow]);
+
+  const reloadFromServer = useCallback(async () => {
+    if (!onlineRef.current || requestInFlightRef.current) return false;
+    requestInFlightRef.current = true;
+    setSaveStatus('checking');
+    try {
+      const result = await plannerApi.get(null);
+      if (result.kind !== 'found') {
+        setSaveStatus(result.kind === 'missing' ? 'retry' : 'saved');
+        return false;
+      }
+      const serverSnapshot = normalizePlannerSnapshot(result.aggregate.snapshot);
+      replaceWithServerSnapshot(serverSnapshot, result.aggregate.revision, result.etag);
+      return true;
+    } catch {
+      setSaveStatus(onlineRef.current ? 'retry' : 'offline');
+      return false;
+    } finally {
+      requestInFlightRef.current = false;
+    }
+  }, [replaceWithServerSnapshot]);
+
+  const markActivePlanClosed = useCallback(() => {
+    window.localStorage.setItem(ACTIVE_PLAN_ABSENT_KEY, '1');
+    window.localStorage.removeItem(SYNC_METADATA_KEY);
+    hasActivePlanRef.current = false;
+    setHasActivePlan(false);
+    revisionRef.current = null;
+    etagRef.current = null;
+    acknowledgedSnapshotRef.current = null;
+    dirtyRef.current = false;
+    setSaveStatus('saved');
+  }, []);
+
+  const resolveConflict = useCallback((
+    strategy: 'local' | 'server' | 'merge',
+    choices: Partial<Record<SnapshotSection, 'local' | 'server'>> = {}
+  ) => {
+    if (!syncConflict) return;
+    if (strategy === 'server') {
+      replaceWithServerSnapshot(
+        syncConflict.server,
+        syncConflict.serverRevision,
+        syncConflict.serverEtag
+      );
+      return;
+    }
+
+    let resolved = structuredClone(syncConflict.local);
+    if (strategy === 'merge') {
+      resolved = structuredClone(syncConflict.server);
+      const target = resolved as unknown as Record<string, unknown>;
+      const local = syncConflict.local as unknown as Record<string, unknown>;
+      for (const section of Object.keys(syncConflict.server) as SnapshotSection[]) {
+        if (choices[section] === 'local') target[section] = structuredClone(local[section]);
+      }
+      resolved = normalizePlannerSnapshot(resolved);
+    }
+
+    const serverSnapshotKey = serializeSnapshot(syncConflict.server);
+    acknowledgeSnapshot(syncConflict.serverRevision, syncConflict.serverEtag, serverSnapshotKey);
+    snapshotRef.current = resolved;
+    setSnapshot(resolved);
+    writeLocalSnapshot(resolved);
+    pendingWriteRef.current = null;
+    conflictRef.current = false;
+    dirtyRef.current = serializeSnapshot(resolved) !== serverSnapshotKey;
+    setSyncConflict(null);
+    setSaveStatus(dirtyRef.current ? (onlineRef.current ? 'saving' : 'offline') : 'saved');
+    if (dirtyRef.current) setSyncPulse((value) => value + 1);
+  }, [acknowledgeSnapshot, replaceWithServerSnapshot, syncConflict]);
 
   useEffect(() => {
     const goOnline = () => {
@@ -746,16 +894,11 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     updateSnapshot((current) => {
       const outcomeId = safeId('outcome');
       const taskId = safeId('task');
-      const slotMap: Record<OnboardingPayload['slot'], { day: DayKey; startMinutes: number }> = {
-        'today-evening': { day: 'mon', startMinutes: 1170 },
-        'tomorrow-morning': { day: 'tue', startMinutes: 420 },
-        'saturday-morning': { day: 'sat', startMinutes: 600 }
-      };
-      const slot = slotMap[payload.slot];
       const candidate = {
-        ...slot,
+        day: payload.day,
+        startMinutes: payload.startMinutes,
         durationMinutes: Math.round(payload.estimateMinutes),
-        weekOffset: 0
+        weekOffset: payload.weekOffset
       };
       const conflict = !isValidTimeBlockSlot(candidate)
         || Boolean(findTimeBlockConflict(current.timeBlocks, candidate));
@@ -861,7 +1004,12 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     ...snapshot,
     saveStatus,
     isOnline,
+    hasActivePlan,
     retrySync,
+    reloadFromServer,
+    markActivePlanClosed,
+    syncConflict,
+    resolveConflict,
     quickCapture,
     addTask,
     savePlan,
@@ -882,7 +1030,12 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     snapshot,
     saveStatus,
     isOnline,
+    hasActivePlan,
     retrySync,
+    reloadFromServer,
+    markActivePlanClosed,
+    syncConflict,
+    resolveConflict,
     quickCapture,
     addTask,
     savePlan,

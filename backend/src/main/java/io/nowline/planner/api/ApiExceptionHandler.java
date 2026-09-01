@@ -1,6 +1,7 @@
 package io.nowline.planner.api;
 
 import io.nowline.planner.service.PlannerException;
+import io.nowline.planner.integration.calendar.CalendarIntegrationException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,12 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(exception.status()).body(detail);
     }
 
+    @ExceptionHandler(CalendarIntegrationException.class)
+    ResponseEntity<ProblemDetail> handleCalendar(CalendarIntegrationException exception) {
+        ProblemDetail detail = problem(exception.status(), exception.code(), exception.getMessage());
+        return ResponseEntity.status(exception.status()).body(detail);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> handleBodyValidation(MethodArgumentNotValidException exception) {
         List<Map<String, String>> errors = exception.getBindingResult().getFieldErrors().stream()
@@ -46,14 +53,14 @@ public class ApiExceptionHandler {
     @ExceptionHandler({MissingRequestHeaderException.class, MethodArgumentTypeMismatchException.class})
     ResponseEntity<ProblemDetail> handleHeader(Exception exception) {
         ProblemDetail detail = problem(HttpStatus.BAD_REQUEST, "invalid-request-header",
-                "X-Nowline-User-Id와 조건부 요청 헤더를 확인해 주세요.");
+                "필수 요청 헤더와 조건부 요청 헤더를 확인해 주세요.");
         return ResponseEntity.badRequest().body(detail);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> handleUnreadable(HttpMessageNotReadableException exception) {
         ProblemDetail detail = problem(HttpStatus.BAD_REQUEST, "malformed-json",
-                "PlannerSnapshot JSON 형식 또는 enum 값을 확인해 주세요.");
+                "요청 JSON 형식과 enum 값을 확인해 주세요.");
         return ResponseEntity.badRequest().body(detail);
     }
 
@@ -66,7 +73,7 @@ public class ApiExceptionHandler {
 
     private ResponseEntity<ProblemDetail> validationProblem(List<Map<String, String>> errors) {
         ProblemDetail detail = problem(HttpStatus.BAD_REQUEST, "validation-failed",
-                "요청 값이 PlannerSnapshot 규칙을 충족하지 않습니다.");
+                "요청 값이 유효성 규칙을 충족하지 않습니다.");
         detail.setProperty("errors", errors);
         return ResponseEntity.badRequest().body(detail);
     }

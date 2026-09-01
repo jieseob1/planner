@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, CloudOff, RefreshCw, TriangleAlert } from 'lucide-react';
 import clsx from 'clsx';
 import { usePlanner } from '../state/PlannerProvider';
+import { ConflictResolutionModal } from './ConflictResolutionModal';
 
 const labels = {
   checking: { label: '서버 확인 중', detail: '기기 데이터를 먼저 불러왔어요' },
@@ -19,8 +20,9 @@ const formatSavedTime = (date: Date) => date.toLocaleTimeString('ko-KR', {
 });
 
 export function SaveStatus() {
-  const { retrySync, saveStatus } = usePlanner();
+  const { retrySync, saveStatus, syncConflict } = usePlanner();
   const [lastSavedAt, setLastSavedAt] = useState(() => new Date());
+  const [conflictOpen, setConflictOpen] = useState(false);
   const Icon = saveStatus === 'offline'
     ? CloudOff
     : saveStatus === 'saved'
@@ -35,24 +37,32 @@ export function SaveStatus() {
   }, [saveStatus]);
 
   return (
-    <span
-      className={clsx('save-status', `save-status--${saveStatus}`)}
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-    >
-      <Icon size={14} aria-hidden="true" />
-      <span className="save-status__copy">
-        <strong className="save-status__label">{copy.label}</strong>
-        <span className="save-status__detail">
-          {saveStatus === 'saved' ? `${formatSavedTime(lastSavedAt)} ${copy.detail}` : copy.detail}
+    <>
+      <span
+        className={clsx('save-status', `save-status--${saveStatus}`)}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <Icon size={14} aria-hidden="true" />
+        <span className="save-status__copy">
+          <strong className="save-status__label">{copy.label}</strong>
+          <span className="save-status__detail">
+            {saveStatus === 'saved' ? `${formatSavedTime(lastSavedAt)} ${copy.detail}` : copy.detail}
+          </span>
+          {saveStatus === 'retry' ? (
+            <button className="text-button save-status__retry" type="button" onClick={retrySync}>
+              다시 시도
+            </button>
+          ) : null}
+          {saveStatus === 'conflict' && syncConflict ? (
+            <button className="text-button save-status__retry" type="button" onClick={() => setConflictOpen(true)}>
+              변경 비교
+            </button>
+          ) : null}
         </span>
-        {saveStatus === 'retry' ? (
-          <button className="text-button save-status__retry" type="button" onClick={retrySync}>
-            다시 시도
-          </button>
-        ) : null}
       </span>
-    </span>
+      {conflictOpen && <ConflictResolutionModal onClose={() => setConflictOpen(false)} />}
+    </>
   );
 }

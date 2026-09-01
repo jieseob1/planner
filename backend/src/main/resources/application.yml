@@ -31,6 +31,10 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
   forward-headers-strategy: framework
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-form-post-size: 1MB
+    max-swallow-size: 1MB
 
 management:
   endpoints:
@@ -55,6 +59,15 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: ${NOWLINE_TRACING_SAMPLING_PROBABILITY:0.1}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
 
 logging:
   pattern:
@@ -63,3 +76,31 @@ logging:
 nowline:
   cors:
     allowed-origin-patterns: ${NOWLINE_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:[*],http://127.0.0.1:[*],https://localhost:[*],https://127.0.0.1:[*],capacitor://localhost,ionic://localhost}
+  security:
+    issuer: ${NOWLINE_OIDC_ISSUER:}
+    audience: ${NOWLINE_OIDC_AUDIENCE:nowline-api}
+    hmac-secret: ${NOWLINE_DEV_JWT_SECRET:}
+    dev-subject: ${NOWLINE_DEV_SUBJECT:local-user}
+    max-request-bytes: ${NOWLINE_MAX_REQUEST_BYTES:1048576}
+    consent-required: ${NOWLINE_POLICY_CONSENT_REQUIRED:true}
+  policy:
+    version: ${NOWLINE_POLICY_VERSION:2026-09-01}
+  google-calendar:
+    client-id: ${NOWLINE_GOOGLE_CLIENT_ID:}
+    client-secret: ${NOWLINE_GOOGLE_CLIENT_SECRET:}
+    redirect-uri: ${NOWLINE_GOOGLE_REDIRECT_URI:http://localhost:8080/api/v1/integrations/google-calendar/oauth/callback}
+    frontend-success-uri: ${NOWLINE_GOOGLE_FRONTEND_SUCCESS_URI:http://localhost:5173/plans?calendar=connected}
+    webhook-uri: ${NOWLINE_GOOGLE_WEBHOOK_URI:}
+    encryption-key-base64: ${NOWLINE_INTEGRATION_ENCRYPTION_KEY_BASE64:}
+    authorization-uri: ${NOWLINE_GOOGLE_AUTHORIZATION_URI:https://accounts.google.com/o/oauth2/v2/auth}
+    token-uri: ${NOWLINE_GOOGLE_TOKEN_URI:https://oauth2.googleapis.com/token}
+    revoke-uri: ${NOWLINE_GOOGLE_REVOKE_URI:https://oauth2.googleapis.com/revoke}
+    api-base-uri: ${NOWLINE_GOOGLE_API_BASE_URI:https://www.googleapis.com/calendar/v3}
+  web-push:
+    public-key: ${NOWLINE_VAPID_PUBLIC_KEY:}
+    private-key: ${NOWLINE_VAPID_PRIVATE_KEY:}
+    subject: ${NOWLINE_VAPID_SUBJECT:}
+    allowed-host-suffixes: ${NOWLINE_WEB_PUSH_ALLOWED_HOST_SUFFIXES:fcm.googleapis.com,push.services.mozilla.com,notify.windows.com,push.apple.com}
+  native-push:
+    delivery-uri: ${NOWLINE_NATIVE_PUSH_DELIVERY_URI:}
+    bearer-token: ${NOWLINE_NATIVE_PUSH_BEARER_TOKEN:}

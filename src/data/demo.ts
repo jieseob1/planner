@@ -1,4 +1,5 @@
 import type { DayKey, Outcome, PlanContext, PlannerSnapshot, Task, TimeBlock } from '../domain/types';
+import { getToday, weekDayMeta } from '../lib/calendarDate';
 
 export const weekDays: Array<{ key: DayKey; short: string; date: string }> = [
   { key: 'mon', short: '월', date: '31' },
@@ -9,6 +10,9 @@ export const weekDays: Array<{ key: DayKey; short: string; date: string }> = [
   { key: 'sat', short: '토', date: '5' },
   { key: 'sun', short: '일', date: '6' }
 ];
+
+const demoToday = getToday();
+const demoTomorrow = weekDayMeta[(demoToday.index + 1) % 7].key;
 
 export const demoPlan: PlanContext = {
   year: 2026,
@@ -147,7 +151,7 @@ export const demoTimeBlocks: TimeBlock[] = [
     id: 'block-standup',
     taskId: null,
     title: '팀 스탠드업',
-    day: 'mon',
+    day: demoToday.key,
     startMinutes: 600,
     durationMinutes: 60,
     external: true,
@@ -157,7 +161,7 @@ export const demoTimeBlocks: TimeBlock[] = [
     id: 'block-client',
     taskId: null,
     title: '고객 미팅',
-    day: 'mon',
+    day: demoToday.key,
     startMinutes: 840,
     durationMinutes: 60,
     external: true,
@@ -167,7 +171,7 @@ export const demoTimeBlocks: TimeBlock[] = [
     id: 'block-diagram',
     taskId: 'task-diagram',
     title: '다이어그램 작성',
-    day: 'mon',
+    day: demoToday.key,
     startMinutes: 1170,
     durationMinutes: 90,
     weekOffset: 0
@@ -176,10 +180,10 @@ export const demoTimeBlocks: TimeBlock[] = [
     id: 'block-draft',
     taskId: 'task-draft',
     title: '글 초안',
-    day: 'tue',
+    day: demoTomorrow,
     startMinutes: 1170,
     durationMinutes: 90,
-    weekOffset: 0
+    weekOffset: demoToday.index === 6 ? 1 : 0
   }
 ];
 

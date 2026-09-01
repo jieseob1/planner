@@ -6,6 +6,7 @@ import type { DayKey, OnboardingPayload, TimeBlock } from '../domain/types';
 import { formatClock, formatMinutes } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
+import { getToday, weekDayMeta } from '../lib/calendarDate';
 
 interface OnboardingSlot {
   value: OnboardingPayload['slot'];
@@ -13,13 +14,25 @@ interface OnboardingSlot {
   detail: string;
   day: DayKey;
   startMinutes: number;
+  weekOffset: number;
 }
 
-const slots: OnboardingSlot[] = [
-  { value: 'today-evening', label: '오늘 저녁', detail: '19:30부터', day: 'mon', startMinutes: 1170 },
-  { value: 'tomorrow-morning', label: '내일 아침', detail: '07:00부터', day: 'tue', startMinutes: 420 },
-  { value: 'saturday-morning', label: '토요일 오전', detail: '10:00부터', day: 'sat', startMinutes: 600 }
-];
+const buildSlots = (): OnboardingSlot[] => {
+  const today = getToday();
+  const tomorrowIndex = (today.index + 1) % 7;
+  const daysUntilSaturday = (5 - today.index + 7) % 7;
+  return [
+    { value: 'today-evening', label: '오늘 저녁', detail: '19:30부터', day: today.key, startMinutes: 1170, weekOffset: 0 },
+    {
+      value: 'tomorrow-morning', label: '내일 아침', detail: '07:00부터',
+      day: weekDayMeta[tomorrowIndex].key, startMinutes: 420, weekOffset: today.index === 6 ? 1 : 0
+    },
+    {
+      value: 'saturday-morning', label: daysUntilSaturday === 0 ? '오늘 오전' : '토요일 오전', detail: '10:00부터',
+      day: 'sat', startMinutes: 600, weekOffset: today.index > 5 ? 1 : 0
+    }
+  ];
+};
 
 const stepLabels = ['결과', '다음 행동', '실행 시간'];
 
@@ -28,13 +41,14 @@ function findSlotConflict(slot: OnboardingSlot, durationMinutes: number, timeBlo
     day: slot.day,
     startMinutes: slot.startMinutes,
     durationMinutes,
-    weekOffset: 0
+    weekOffset: slot.weekOffset
   }) ?? undefined;
 }
 
 export function OnboardingScreen() {
   const navigate = useNavigate();
   const { finishOnboarding, timeBlocks } = usePlanner();
+  const [slots] = useState(buildSlots);
   const [step, setStep] = useState(1);
   const [outcomeTitle, setOutcomeTitle] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -66,7 +80,10 @@ export function OnboardingScreen() {
       outcomeTitle: outcomeTitle.trim(),
       taskTitle: taskTitle.trim(),
       slot,
-      estimateMinutes
+      estimateMinutes,
+      day: selectedSlot.day,
+      startMinutes: selectedSlot.startMinutes,
+      weekOffset: selectedSlot.weekOffset
     });
     navigate('/today');
   };

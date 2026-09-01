@@ -156,15 +156,15 @@ public class PlannerRepository {
         return Optional.of(new PlannerEnvelope(aggregate.revision(), snapshot));
     }
 
-    public void insert(UUID userId, long revision, PlannerSnapshot snapshot) {
+    public void insert(UUID userId, UUID planId, long revision, PlannerSnapshot snapshot) {
         int inserted = jdbc.update("""
                         INSERT INTO planner_aggregate (
-                            user_id, revision, snapshot_version, planner_week_offset, plan_year,
+                            user_id, plan_id, revision, snapshot_version, planner_week_offset, plan_year,
                             annual_direction, plan_quarter, quarter_focus, quarter_end_date,
                             review_blocker, review_metric_draft, review_completed_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                userId, revision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
+                userId, planId, revision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
                 snapshot.plan().annualDirection(), snapshot.plan().quarter(), snapshot.plan().quarterFocus(),
                 snapshot.plan().quarterEndDate(), snapshot.review().blocker(), snapshot.review().metricDraft(),
                 timestamp(snapshot.review().completedAt()));
@@ -172,16 +172,22 @@ public class PlannerRepository {
         insertChildren(userId, snapshot);
     }
 
-    public boolean replace(UUID userId, long expectedRevision, long nextRevision, PlannerSnapshot snapshot) {
+    public boolean replace(
+            UUID userId,
+            UUID planId,
+            long expectedRevision,
+            long nextRevision,
+            PlannerSnapshot snapshot
+    ) {
         int updated = jdbc.update("""
                         UPDATE planner_aggregate
-                        SET revision = ?,
+                        SET plan_id = ?, revision = ?,
                             snapshot_version = ?, planner_week_offset = ?, plan_year = ?, annual_direction = ?,
                             plan_quarter = ?, quarter_focus = ?, quarter_end_date = ?, review_blocker = ?,
                             review_metric_draft = ?, review_completed_at = ?, updated_at = now()
                         WHERE user_id = ? AND revision = ?
                         """,
-                nextRevision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
+                planId, nextRevision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
                 snapshot.plan().annualDirection(), snapshot.plan().quarter(), snapshot.plan().quarterFocus(),
                 snapshot.plan().quarterEndDate(), snapshot.review().blocker(), snapshot.review().metricDraft(),
                 timestamp(snapshot.review().completedAt()), userId, expectedRevision);

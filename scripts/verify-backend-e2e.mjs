@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 
 const repositoryRoot = new URL('..', import.meta.url).pathname;
 const projectName = `nowline-e2e-${process.pid}`;
-const userId = randomUUID();
+let accessToken = '';
 
 const fail = (message) => {
   throw new Error(message);
@@ -126,7 +126,7 @@ const snapshot = {
 
 const headers = (extra = {}) => ({
   'Content-Type': 'application/json',
-  'X-Nowline-User-Id': userId,
+  Authorization: `Bearer ${accessToken}`,
   ...extra
 });
 
@@ -153,6 +153,17 @@ try {
   packageBackend();
   runCompose(['up', '-d', '--build', 'postgres', 'backend'], environment);
   await waitForReady(`http://127.0.0.1:${backendPort}/actuator/health/readiness`);
+  const tokenResponse = await expectStatus(await fetch(
+    `http://127.0.0.1:${backendPort}/api/v1/auth/dev-token`,
+    { headers: { Accept: 'application/json' } }
+  ), 200, 'local token');
+  accessToken = (await tokenResponse.json()).accessToken;
+  if (!accessToken) fail('local token: missing accessToken');
+  await expectStatus(await fetch(`http://127.0.0.1:${backendPort}/api/v1/account/consent`, {
+    method: 'PUT',
+    headers: headers(),
+    body: JSON.stringify({ termsAccepted: true, privacyAccepted: true })
+  }), 200, 'policy consent');
 
   await expectStatus(await fetch(plannerUrl, { headers: headers() }), 404, 'initial GET');
 
@@ -217,7 +228,7 @@ try {
     day: 'mon',
     startMinutes: 615,
     durationMinutes: 30,
-    external: true,
+    external: false,
     weekOffset: 0
   });
   await expectStatus(await fetch(plannerUrl, {

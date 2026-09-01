@@ -60,7 +60,7 @@ const stopForwards = () => {
   }
 };
 
-const userId = randomUUID();
+let accessToken = '';
 const taskId = `task-${randomUUID()}`;
 const outcomeId = `outcome-${randomUUID()}`;
 const snapshot = {
@@ -111,7 +111,7 @@ const snapshot = {
 
 const headers = (extra = {}) => ({
   'Content-Type': 'application/json',
-  'X-Nowline-User-Id': userId,
+  Authorization: `Bearer ${accessToken}`,
   ...extra
 });
 
@@ -144,6 +144,21 @@ try {
   const frontendUrl = `http://127.0.0.1:${frontendPort}/api/v1/planner`;
   const podUrls = [firstPodPort, secondPodPort]
     .map((port) => `http://127.0.0.1:${port}/api/v1/planner`);
+
+  const tokenResponse = await expectStatus(await fetch(
+    `http://127.0.0.1:${frontendPort}/api/v1/auth/dev-token`,
+    { headers: { Accept: 'application/json' } }
+  ), 200, 'local token');
+  accessToken = (await tokenResponse.json()).accessToken;
+  if (!accessToken) fail('local token: missing accessToken');
+  await expectStatus(await fetch(
+    `http://127.0.0.1:${frontendPort}/api/v1/account/consent`,
+    {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ termsAccepted: true, privacyAccepted: true })
+    }
+  ), 200, 'policy consent');
 
   const createdResponse = await expectStatus(await fetch(frontendUrl, {
     method: 'PUT',

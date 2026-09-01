@@ -6,6 +6,7 @@ import { AppRoutes } from './App';
 import { createDemoSnapshot } from './data/demo';
 import type { PlannerSnapshot } from './domain/types';
 import { PlannerProvider } from './state/PlannerProvider';
+import { AuthProvider } from './auth/AuthProvider';
 
 const snapshotResponse = (snapshot: PlannerSnapshot, revision: number) => new Response(
   JSON.stringify({ revision, snapshot }),
@@ -44,11 +45,13 @@ afterEach(() => {
 
 function renderRoute(route: string) {
   return render(
-    <PlannerProvider>
-      <MemoryRouter initialEntries={[route]}>
-        <AppRoutes />
-      </MemoryRouter>
-    </PlannerProvider>
+    <AuthProvider>
+      <PlannerProvider>
+        <MemoryRouter initialEntries={[route]}>
+          <AppRoutes />
+        </MemoryRouter>
+      </PlannerProvider>
+    </AuthProvider>
   );
 }
 
@@ -137,6 +140,9 @@ describe('Planner frontend core flows', () => {
     await user.click(screen.getByRole('button', { name: /세금계산서 발행/ }));
     const dialog = screen.getByRole('dialog', { name: '실행 시간을 정해요' });
     const start = within(dialog).getByLabelText(/시작/);
+    const conflictDay = createDemoSnapshot().timeBlocks.find((block) => block.id === 'block-diagram')?.day ?? 'mon';
+    const dayLabel = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }[conflictDay];
+    await user.click(within(dialog).getByRole('button', { name: new RegExp(`^${dayLabel}`) }));
 
     await user.selectOptions(start, '1170');
     await user.click(within(dialog).getByRole('button', { name: '계획에 배치' }));
@@ -268,7 +274,7 @@ describe('Planner frontend core flows', () => {
 
     await user.click(screen.getByRole('button', { name: /첫 실행 만들기/ }));
     expect(screen.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' })).toBeInTheDocument();
-    expect(screen.getByText('첫 글의 실패 흐름 목차 작성')).toBeInTheDocument();
+    expect(screen.getAllByText('첫 글의 실패 흐름 목차 작성').length).toBeGreaterThan(0);
   });
 
   it('records a goal decision', async () => {

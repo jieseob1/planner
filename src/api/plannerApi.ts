@@ -1,7 +1,7 @@
 import type { PlannerAggregate, PlannerSnapshot, ProblemDetails } from '../domain/types';
+import { getAccessToken } from '../auth/accessToken';
 
 const PLANNER_PATH = '/api/v1/planner';
-const DEFAULT_LOCAL_USER_ID = '00000000-0000-4000-8000-000000000001';
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -22,8 +22,8 @@ export interface PlannerApiClient {
 
 export interface PlannerApiClientOptions {
   baseUrl?: string;
-  userId?: string;
   fetchImpl?: FetchLike;
+  accessTokenProvider?: () => Promise<string | null>;
 }
 
 export class PlannerApiError extends Error {
@@ -117,13 +117,16 @@ export const createIdempotencyKey = (): string => {
 
 export const createPlannerApiClient = ({
   baseUrl,
-  userId = DEFAULT_LOCAL_USER_ID,
-  fetchImpl = (input, init) => fetch(input, init)
+  fetchImpl = (input, init) => fetch(input, init),
+  accessTokenProvider = getAccessToken
 }: PlannerApiClientOptions = {}): PlannerApiClient => {
   const url = `${normalizeBaseUrl(baseUrl)}${PLANNER_PATH}`;
-  const commonHeaders = {
-    Accept: 'application/json',
-    'X-Nowline-User-Id': userId
+  const commonHeaders = async () => {
+    const accessToken = await accessTokenProvider();
+    return {
+      Accept: 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+    };
   };
 
   return {
@@ -131,7 +134,7 @@ export const createPlannerApiClient = ({
       const response = await fetchImpl(url, {
         method: 'GET',
         headers: {
-          ...commonHeaders,
+          ...await commonHeaders(),
           ...(etag ? { 'If-None-Match': etag } : {})
         }
       });
@@ -153,7 +156,7 @@ export const createPlannerApiClient = ({
       const response = await fetchImpl(url, {
         method: 'PUT',
         headers: {
-          ...commonHeaders,
+          ...await commonHeaders(),
           'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
           ...(revision === null
@@ -175,7 +178,7 @@ export const createPlannerApiClient = ({
       const response = await fetchImpl(url, {
         method: 'DELETE',
         headers: {
-          ...commonHeaders,
+          ...await commonHeaders(),
           'Idempotency-Key': idempotencyKey,
           'If-Match': revisionEtag(revision)
         }
@@ -187,6 +190,5 @@ export const createPlannerApiClient = ({
 };
 
 export const plannerApi = createPlannerApiClient({
-  baseUrl: import.meta.env.VITE_API_BASE_URL,
-  userId: import.meta.env.VITE_NOWLINE_USER_ID || DEFAULT_LOCAL_USER_ID
+  baseUrl: import.meta.env.VITE_API_BASE_URL
 });

@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nowline
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "5"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [app.nowline.example]
+      secretName: nowline-tls
+  rules:
+    - host: app.nowline.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nowline-frontend
+                port:
+                  name: http

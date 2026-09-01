@@ -104,6 +104,36 @@ export interface PlannerAggregate {
   snapshot: PlannerSnapshot;
 }
 
+export type PlanStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED';
+
+export interface PlanSummary {
+  id: string;
+  title: string;
+  year: number;
+  quarter: number;
+  status: PlanStatus;
+  sourceRevision: number | null;
+  createdAt: string;
+  updatedAt: string;
+  activatedAt: string | null;
+  closedAt: string | null;
+  archivedAt: string | null;
+}
+
+export interface PlanDetail {
+  plan: PlanSummary;
+  snapshot: PlannerSnapshot | null;
+}
+
+export interface PlanAuditEvent {
+  id: string;
+  planId: string;
+  action: string;
+  revision: number | null;
+  details: Record<string, unknown>;
+  occurredAt: string;
+}
+
 export interface ProblemDetails {
   type?: string;
   title?: string;
@@ -118,4 +148,7 @@ export interface OnboardingPayload {
   taskTitle: string;
   slot: 'today-evening' | 'tomorrow-morning' | 'saturday-morning';
   estimateMinutes: number;
+  day: DayKey;
+  startMinutes: number;
+  weekOffset: number;
 }

@@ -3,6 +3,7 @@ package io.nowline.planner.service;
 import io.nowline.planner.domain.PlannerEnvelope;
 import io.nowline.planner.domain.PlannerSnapshot;
 import io.nowline.planner.persistence.IdempotencyRecord;
+import io.nowline.planner.persistence.PlanHistoryRepository;
 import io.nowline.planner.persistence.PlannerRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 
 @Service
 public class PlannerService {
@@ -27,15 +29,18 @@ public class PlannerService {
     private final PlannerRepository repository;
     private final PlannerSnapshotValidator validator;
     private final ObjectMapper objectMapper;
+    private final PlanHistoryRepository planHistory;
 
     public PlannerService(
             PlannerRepository repository,
             PlannerSnapshotValidator validator,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            PlanHistoryRepository planHistory
     ) {
         this.repository = repository;
         this.validator = validator;
         this.objectMapper = objectMapper;
+        this.planHistory = planHistory;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -62,11 +67,15 @@ public class PlannerService {
 
         Optional<Long> currentRevision = repository.findRevision(userId);
         int status;
+        long writtenRevision;
+        UUID planId;
         if (precondition.mode() == PlannerPrecondition.Mode.CREATE) {
             if (currentRevision.isPresent()) {
                 throw PlannerException.preconditionFailed(currentRevision.get());
             }
-            repository.insert(userId, repository.nextRevision(userId), snapshot);
+            writtenRevision = repository.nextRevision(userId);
+            planId = planHistory.ensureActive(userId, snapshot, writtenRevision);
+            repository.insert(userId, planId, writtenRevision, snapshot);
             status = HttpStatus.CREATED.value();
         } else {
             long expected = precondition.expectedRevision();
@@ -74,9 +83,13 @@ public class PlannerService {
                 throw PlannerException.preconditionFailed(currentRevision.orElse(null));
             }
             long nextRevision = repository.nextRevision(userId);
-            if (!repository.replace(userId, expected, nextRevision, snapshot)) {
+            planId = planHistory.activePlanId(userId)
+                    .orElseGet(() -> planHistory.ensureActive(userId, snapshot, nextRevision));
+            if (!repository.replace(userId, planId, expected, nextRevision, snapshot)) {
                 throw PlannerException.preconditionFailed(repository.findRevision(userId).orElse(null));
             }
+            planHistory.updateSnapshot(userId, planId, snapshot, nextRevision);
+            planHistory.auditSnapshotUpdated(userId, planId, nextRevision);
             status = HttpStatus.OK.value();
         }
 
@@ -115,6 +128,7 @@ public class PlannerService {
         if (!repository.delete(userId, expected)) {
             throw PlannerException.preconditionFailed(repository.findRevision(userId).orElse(null));
         }
+        planHistory.archiveActiveAfterDelete(userId, deletedRevision);
         repository.saveIdempotency(
                 userId,
                 DELETE,
@@ -124,6 +138,33 @@ public class PlannerService {
                 deletedRevision,
                 null
         );
+    }
+
+    /**
+     * Applies a trusted integration change under the same per-user lock and revision clock as API writes.
+     * Calendar workers therefore cannot overwrite a concurrent browser save silently.
+     */
+    @Transactional
+    public PlannerEnvelope updateFromIntegration(
+            UUID userId,
+            UnaryOperator<PlannerSnapshot> updater,
+            String auditAction
+    ) {
+        repository.lockUser(userId);
+        PlannerEnvelope current = repository.find(userId).orElseThrow(PlannerException::notFound);
+        PlannerSnapshot updated = validator.validateAndCanonicalize(updater.apply(current.snapshot()));
+        if (updated.equals(current.snapshot())) return current;
+
+        UUID planId = planHistory.activePlanId(userId)
+                .orElseThrow(() -> new IllegalStateException("Calendar integration requires an active plan"));
+        long nextRevision = repository.nextRevision(userId);
+        if (!repository.replace(userId, planId, current.revision(), nextRevision, updated)) {
+            throw PlannerException.preconditionFailed(repository.findRevision(userId).orElse(null));
+        }
+        planHistory.updateSnapshot(userId, planId, updated, nextRevision);
+        planHistory.audit(userId, planId, auditAction, nextRevision, java.util.Map.of("source", "google-calendar"));
+        return repository.find(userId)
+                .orElseThrow(() -> new IllegalStateException("Planner disappeared inside integration write"));
     }
 
     private WriteResult replayPut(IdempotencyRecord record, String requestHash) {

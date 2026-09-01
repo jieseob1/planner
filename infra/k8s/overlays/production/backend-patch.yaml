@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nowline-backend
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: nowline-backend
+      automountServiceAccountToken: false
+      containers:
+        - name: backend
+          env:
+            - $patch: replace
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: db-url}
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: db-username}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: db-password}
+            - {name: NOWLINE_CORS_ALLOWED_ORIGIN_PATTERNS, value: "https://app.nowline.example"}
+            - name: NOWLINE_OIDC_ISSUER
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: oidc-issuer}
+            - name: NOWLINE_OIDC_AUDIENCE
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: oidc-audience}
+            - name: NOWLINE_INTEGRATION_ENCRYPTION_KEY_BASE64
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: integration-encryption-key-base64}
+            - name: NOWLINE_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: google-client-id}
+            - name: NOWLINE_GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: google-client-secret}
+            - {name: NOWLINE_GOOGLE_REDIRECT_URI, value: "https://app.nowline.example/api/v1/integrations/google-calendar/oauth/callback"}
+            - {name: NOWLINE_GOOGLE_FRONTEND_SUCCESS_URI, value: "https://app.nowline.example/settings?calendar=connected"}
+            - {name: NOWLINE_GOOGLE_WEBHOOK_URI, value: "https://app.nowline.example/api/v1/calendar/google/webhook"}
+            - name: NOWLINE_VAPID_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: vapid-public-key}
+            - name: NOWLINE_VAPID_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: vapid-private-key}
+            - name: NOWLINE_VAPID_SUBJECT
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: vapid-subject}
+            - name: NOWLINE_NATIVE_PUSH_DELIVERY_URI
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: native-push-delivery-uri}
+            - name: NOWLINE_NATIVE_PUSH_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef: {name: nowline-production-secrets, key: native-push-bearer-token}
+            - {name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, value: "http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces"}
+            - {name: NOWLINE_TRACING_SAMPLING_PROBABILITY, value: "0.1"}
+            - {name: NOWLINE_POLICY_VERSION, value: "2026-09-01"}
+            - {name: NOWLINE_POLICY_CONSENT_REQUIRED, value: "true"}
+            - {name: SPRING_FLYWAY_ENABLED, value: "false"}
+            - name: NOWLINE_INTEGRATION_WORKER_ID
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - {name: SPRING_THREADS_VIRTUAL_ENABLED, value: "true"}
+            - {name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED, value: "true"}
+            - {name: MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED, value: "true"}
+            - {name: MANAGEMENT_HEALTH_READINESSSTATE_ENABLED, value: "true"}
+            - {name: SERVER_SHUTDOWN, value: graceful}
+            - {name: SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE, value: 20s}
+            - {name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"}

@@ -36,6 +36,10 @@ services:
       SPRING_DATASOURCE_USERNAME: ${NOWLINE_POSTGRES_USER:-nowline}
       SPRING_DATASOURCE_PASSWORD: ${NOWLINE_POSTGRES_PASSWORD:-nowline-local-only}
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: local-auth
+      NOWLINE_OIDC_ISSUER: https://identity.local.nowline.invalid
+      NOWLINE_OIDC_AUDIENCE: nowline-api
+      NOWLINE_DEV_JWT_SECRET: nowline-local-development-jwt-secret-change-before-production
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
       MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"

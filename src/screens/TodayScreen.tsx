@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Modal } from '../components/Modal';
-import { weekDays } from '../data/demo';
 import { formatClock, formatMinutes, formatTimer } from '../lib/format';
 import { usePlanner } from '../state/PlannerProvider';
+import { getToday, getWeekDays } from '../lib/calendarDate';
 
 function useTimerSeconds(startedAt: number | null, accumulatedSeconds: number, paused: boolean) {
   const [now, setNow] = useState(Date.now());
@@ -56,6 +56,8 @@ export function TodayScreen() {
     taskTitle: string;
     minutes: number;
   } | null>(null);
+  const today = getToday();
+  const currentWeekDays = getWeekDays(0);
 
   const activeTasks = tasks.filter((task) => task.status !== 'done' && task.status !== 'cancelled');
   const focusTask = timer
@@ -68,12 +70,12 @@ export function TodayScreen() {
   const carryoverTask = activeTasks.find((task) => task.carryCount > 0);
   const todayBlocks = useMemo(
     () => timeBlocks
-      .filter((block) => block.day === 'mon' && (block.weekOffset ?? 0) === 0)
+      .filter((block) => block.day === today.key && (block.weekOffset ?? 0) === 0)
       .sort((a, b) => a.startMinutes - b.startMinutes),
-    [timeBlocks]
+    [timeBlocks, today.key]
   );
   const remainingWeek = useMemo(
-    () => weekDays.slice(1, 5).map((day) => {
+    () => currentWeekDays.slice(today.index + 1, 5).map((day) => {
       const blocks = timeBlocks.filter((block) => (
         block.day === day.key && !block.external && (block.weekOffset ?? 0) === 0
       ));
@@ -83,7 +85,7 @@ export function TodayScreen() {
         plannedMinutes: blocks.reduce((sum, block) => sum + block.durationMinutes, 0)
       };
     }),
-    [timeBlocks]
+    [currentWeekDays, timeBlocks, today.index]
   );
   const nextBlock = todayBlocks.find((block) => block.taskId === focusTask?.id)
     ?? todayBlocks.find((block) => !block.external)
@@ -135,7 +137,7 @@ export function TodayScreen() {
     <div className="page page--today today-nowline">
       <header className="page-header page-header--compact today-header">
         <div className="today-header__title">
-          <p className="eyebrow">오늘 · 8월 31일 월요일</p>
+          <p className="eyebrow">오늘 · {today.month}월 {today.date}일 {today.long}</p>
           <h1>오늘은 하나를 끝냅니다.</h1>
           <p className="page-header__description">계획보다 실행을 먼저 봅니다. 다음 한 줄을 끝내세요.</p>
         </div>

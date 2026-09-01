@@ -1,0 +1,146 @@
+name: Release containers
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Immutable image tag
+        required: true
+      deploy:
+        description: Deploy to the production Kubernetes environment
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+      backend-digest: ${{ steps.backend.outputs.digest }}
+      frontend-digest: ${{ steps.frontend.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: version
+        shell: bash
+        run: |
+          value="${{ inputs.version || github.ref_name }}"
+          test -n "$value"
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - run: npm ci
+      - name: Validate public client configuration
+        env:
+          OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
+          OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
+        run: test -n "$OIDC_AUTHORITY" && test -n "$OIDC_CLIENT_ID"
+      - run: npm run verify:unit && npm run build
+        env:
+          VITE_AUTH_MODE: oidc
+          VITE_API_BASE_URL: ""
+          VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
+          VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
+          VITE_OIDC_SCOPE: openid profile email offline_access
+          VITE_OIDC_WEB_REDIRECT_URI: https://app.nowline.example/auth/callback
+          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://app.nowline.example
+          VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
+          VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
+          VITE_OIDC_SILENT_REDIRECT_URI: https://app.nowline.example/auth/silent-callback
+      - run: ./mvnw -q verify package
+        working-directory: backend
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v4
+      - id: backend
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          push: true
+          tags: ghcr.io/jieseob1/planner-backend:${{ steps.version.outputs.value }}
+          provenance: mode=max
+          sbom: true
+      - id: frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/jieseob1/planner-frontend:${{ steps.version.outputs.value }}
+          provenance: mode=max
+          sbom: true
+      - uses: sigstore/cosign-installer@v4.1.2
+      - name: Sign images with GitHub OIDC
+        env:
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+        run: |
+          cosign sign --yes "ghcr.io/jieseob1/planner-backend@${BACKEND_DIGEST}"
+          cosign sign --yes "ghcr.io/jieseob1/planner-frontend@${FRONTEND_DIGEST}"
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/jieseob1/planner-backend@${{ steps.backend.outputs.digest }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/jieseob1/planner-frontend@${{ steps.frontend.outputs.digest }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure Kubernetes access
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          test -n "$KUBE_CONFIG_DATA"
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBE_CONFIG_DATA" | base64 --decode > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+      - name: Deploy immutable release
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+          BACKEND_DIGEST: ${{ needs.publish.outputs.backend-digest }}
+          FRONTEND_DIGEST: ${{ needs.publish.outputs.frontend-digest }}
+        run: |
+          sed -i "s/newTag: 0.1.0/newTag: ${VERSION}/g" infra/k8s/overlays/production/kustomization.yaml
+          kubectl apply -f infra/k8s/overlays/production/namespace.yaml
+          kubectl -n nowline-production apply -f infra/k8s/overlays/production/service-accounts.yaml
+          kubectl -n nowline-production apply -f infra/k8s/overlays/production/network-policies.yaml
+          kubectl -n nowline-production delete job nowline-migrate --ignore-not-found
+          migration_manifest="$RUNNER_TEMP/nowline-migration-job.yaml"
+          cp infra/k8s/overlays/production/migration-job.yaml "$migration_manifest"
+          sed -i "s#ghcr.io/jieseob1/planner-backend:0.1.0#ghcr.io/jieseob1/planner-backend@${BACKEND_DIGEST}#" "$migration_manifest"
+          kubectl apply -f "$migration_manifest"
+          kubectl -n nowline-production wait --for=condition=complete job/nowline-migrate --timeout=5m
+          kubectl apply -k infra/k8s/overlays/production
+          kubectl -n nowline-production set image deployment/nowline-backend backend="ghcr.io/jieseob1/planner-backend@${BACKEND_DIGEST}"
+          kubectl -n nowline-production set image deployment/nowline-frontend frontend="ghcr.io/jieseob1/planner-frontend@${FRONTEND_DIGEST}"
+          kubectl -n nowline-production rollout status deployment/nowline-backend --timeout=5m
+          kubectl -n nowline-production rollout status deployment/nowline-frontend --timeout=5m

@@ -87,13 +87,16 @@ public class PlannerSnapshotValidator {
         grouped.values().forEach(group -> {
             ArrayList<TimeBlock> ordered = new ArrayList<>(group);
             ordered.sort(Comparator.comparingInt(TimeBlock::startMinutes));
-            for (int index = 1; index < ordered.size(); index++) {
-                TimeBlock previous = ordered.get(index - 1);
-                TimeBlock current = ordered.get(index);
-                if (previous.startMinutes() + previous.durationMinutes() > current.startMinutes()) {
-                    throw PlannerException.validation("timeBlocks",
-                            "같은 주와 요일의 시간 블록이 겹칩니다: " + previous.id() + ", " + current.id());
+            ArrayList<TimeBlock> active = new ArrayList<>();
+            for (TimeBlock current : ordered) {
+                active.removeIf(previous -> previous.startMinutes() + previous.durationMinutes() <= current.startMinutes());
+                for (TimeBlock previous : active) {
+                    if (!previous.externalOrFalse() && !current.externalOrFalse()) {
+                        throw PlannerException.validation("timeBlocks",
+                                "같은 주와 요일의 시간 블록이 겹칩니다: " + previous.id() + ", " + current.id());
+                    }
                 }
+                active.add(current);
             }
         });
     }

@@ -16,6 +16,40 @@ secretGenerator:
       - database=nowline
       - username=nowline
       - password=nowline-local-only
+  - name: nowline-local-auth
+    type: Opaque
+    literals:
+      - jwt-secret=nowline-local-development-jwt-secret-change-before-production
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: nowline-backend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_PROFILES_ACTIVE
+          value: local-auth
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NOWLINE_OIDC_ISSUER
+          value: https://identity.local.nowline.invalid
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NOWLINE_OIDC_AUDIENCE
+          value: nowline-api
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NOWLINE_DEV_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nowline-local-auth
+              key: jwt-secret
 images:
   - name: nowline-backend
     newName: nowline-backend

@@ -18,7 +18,7 @@ describe('plannerApi', () => {
     const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => aggregateResponse(12));
     const client = createPlannerApiClient({
       baseUrl: 'http://10.0.2.2:8080/',
-      userId: '11111111-1111-4111-8111-111111111111',
+      accessTokenProvider: async () => 'test-access-token',
       fetchImpl
     });
 
@@ -29,13 +29,13 @@ describe('plannerApi', () => {
       method: 'GET'
     }));
     const headers = new Headers(fetchImpl.mock.calls[0][1]?.headers);
-    expect(headers.get('X-Nowline-User-Id')).toBe('11111111-1111-4111-8111-111111111111');
+    expect(headers.get('Authorization')).toBe('Bearer test-access-token');
     expect(headers.get('If-None-Match')).toBe('"11"');
   });
 
   it('uses create and update preconditions with caller-supplied idempotency keys', async () => {
     const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => aggregateResponse(1));
-    const client = createPlannerApiClient({ fetchImpl });
+    const client = createPlannerApiClient({ fetchImpl, accessTokenProvider: async () => 'test-access-token' });
     const snapshot = createDemoSnapshot();
 
     await client.put(snapshot, null, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
@@ -56,7 +56,7 @@ describe('plannerApi', () => {
     const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => (
       new Response(null, { status: 204 })
     ));
-    const client = createPlannerApiClient({ fetchImpl });
+    const client = createPlannerApiClient({ fetchImpl, accessTokenProvider: async () => 'test-access-token' });
 
     await client.delete(9, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
 
@@ -72,7 +72,7 @@ describe('plannerApi', () => {
       status: 412,
       detail: 'Expected revision 3.'
     }), { status: 412, headers: { 'Content-Type': 'application/problem+json' } }));
-    const client = createPlannerApiClient({ fetchImpl });
+    const client = createPlannerApiClient({ fetchImpl, accessTokenProvider: async () => 'test-access-token' });
 
     const error = await client.put(
       createDemoSnapshot(),

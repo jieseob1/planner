@@ -22,28 +22,10 @@ import type { DayKey, Task } from '../domain/types';
 import { formatClock, formatMinutes } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
+import { getToday, getWeekDays } from '../lib/calendarDate';
 
 const defaultPlacementStart = 1020;
 const estimateOptions = [15, 25, 40, 60, 90, 120];
-const weekDayMeta: Array<{ key: DayKey; short: string }> = [
-  { key: 'mon', short: '월' },
-  { key: 'tue', short: '화' },
-  { key: 'wed', short: '수' },
-  { key: 'thu', short: '목' },
-  { key: 'fri', short: '금' },
-  { key: 'sat', short: '토' },
-  { key: 'sun', short: '일' }
-];
-
-function getWeekDays(weekOffset: number) {
-  const monday = new Date(2026, 7, 31 + (weekOffset * 7));
-  return weekDayMeta.map((item, index) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
-    return { ...item, date: String(date.getDate()), month: date.getMonth() + 1 };
-  });
-}
-
 function getWeekLabel(weekOffset: number) {
   const days = getWeekDays(weekOffset);
   const first = days[0];
@@ -73,7 +55,7 @@ export function PlannerScreen() {
   } = usePlanner();
   const [searchParams, setSearchParams] = useSearchParams();
   const [placementTask, setPlacementTask] = useState<Task | null>(null);
-  const [placementDay, setPlacementDay] = useState<DayKey>('mon');
+  const [placementDay, setPlacementDay] = useState<DayKey>(() => getToday().key);
   const [placementStart, setPlacementStart] = useState(defaultPlacementStart);
   const [placementError, setPlacementError] = useState('');
   const [notice, setNotice] = useState('');

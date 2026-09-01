@@ -1,0 +1,9 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nowline-frontend
+spec:
+  template:
+    spec:
+      serviceAccountName: nowline-frontend
+      automountServiceAccountToken: false

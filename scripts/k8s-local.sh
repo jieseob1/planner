@@ -63,9 +63,27 @@ load_kind_images() {
     return
   fi
 
-  require_command kind
   local cluster_name="${KUBE_CONTEXT#kind-}"
-  kind load docker-image "${FRONTEND_IMAGE}" "${BACKEND_IMAGE}" --name "${cluster_name}"
+  if command -v kind >/dev/null 2>&1; then
+    kind load docker-image "${FRONTEND_IMAGE}" "${BACKEND_IMAGE}" --name "${cluster_name}"
+    return
+  fi
+
+  # OrbStack can retain a healthy kind cluster even when the kind CLI is not
+  # currently installed. Import the exact local images into every kind node's
+  # containerd store so a repeatable local verification is still possible.
+  local nodes node
+  nodes="$(docker ps \
+    --filter "label=io.x-k8s.kind.cluster=${cluster_name}" \
+    --format '{{.Names}}')"
+  if [[ -z "${nodes}" ]]; then
+    printf 'kind CLI is unavailable and no Docker nodes were found for cluster %s.\n' "${cluster_name}" >&2
+    exit 1
+  fi
+  while IFS= read -r node; do
+    docker save "${FRONTEND_IMAGE}" "${BACKEND_IMAGE}" \
+      | docker exec --interactive "${node}" ctr --namespace k8s.io images import - >/dev/null
+  done <<<"${nodes}"
 }
 
 build_images() {
@@ -158,13 +176,20 @@ verify_stack() {
     "http://127.0.0.1:${frontend_port}/healthz" >/dev/null
   curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
     "http://127.0.0.1:${backend_port}/actuator/health/readiness" >/dev/null
-  local proxy_status
-  proxy_status="$(curl --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
+  local unauthenticated_status dev_token_status
+  unauthenticated_status="$(curl --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
     --output /dev/null --write-out '%{http_code}' \
-    --header 'X-Nowline-User-Id: 00000000-0000-4000-8000-000000000001' \
     "http://127.0.0.1:${frontend_port}/api/v1/planner")"
-  if [[ "${proxy_status}" != "404" && "${proxy_status}" != "200" ]]; then
-    printf 'Frontend /api proxy returned unexpected HTTP status: %s\n' "${proxy_status}" >&2
+  if [[ "${unauthenticated_status}" != "401" ]]; then
+    printf 'Frontend /api proxy must reject an unauthenticated planner request with 401, got: %s\n' \
+      "${unauthenticated_status}" >&2
+    return 1
+  fi
+  dev_token_status="$(curl --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
+    --output /dev/null --write-out '%{http_code}' \
+    "http://127.0.0.1:${frontend_port}/api/v1/auth/dev-token")"
+  if [[ "${dev_token_status}" != "200" ]]; then
+    printf 'Frontend /api proxy could not reach the local-auth token endpoint: %s\n' "${dev_token_status}" >&2
     return 1
   fi
 

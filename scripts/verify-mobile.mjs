@@ -9,6 +9,7 @@ const required = [
   'android/app/build.gradle',
   'android/app/src/main/AndroidManifest.xml',
   'android/app/src/main/res/xml/network_security_config.xml',
+  'android/app/src/debug/res/xml/network_security_config.xml',
   'android/app/src/main/assets/capacitor.config.json',
   'android/app/src/main/assets/public/index.html'
 ];
@@ -38,23 +39,34 @@ const androidNetworkSecurity = readFileSync(
 if (!/<base-config\s+cleartextTrafficPermitted=["']false["']\s*\/>/.test(androidNetworkSecurity)) {
   throw new Error('Android cleartext traffic must be denied by default');
 }
-if (!/<domain-config\s+cleartextTrafficPermitted=["']true["']>/.test(androidNetworkSecurity)) {
-  throw new Error('Android local development hosts must have an explicit cleartext exception');
+if (/cleartextTrafficPermitted=["']true["']/.test(androidNetworkSecurity)) {
+  throw new Error('Android production network security config must not allow cleartext exceptions');
 }
-const cleartextHosts = [...androidNetworkSecurity.matchAll(
+
+const androidDebugNetworkSecurity = readFileSync(
+  resolve(root, 'android/app/src/debug/res/xml/network_security_config.xml'),
+  'utf8'
+);
+if (!/<base-config\s+cleartextTrafficPermitted=["']false["']\s*\/>/.test(androidDebugNetworkSecurity)) {
+  throw new Error('Android debug cleartext traffic must still be denied by default');
+}
+if (!/<domain-config\s+cleartextTrafficPermitted=["']true["']>/.test(androidDebugNetworkSecurity)) {
+  throw new Error('Android debug local development hosts must have an explicit cleartext exception');
+}
+const cleartextHosts = [...androidDebugNetworkSecurity.matchAll(
   /<domain\s+includeSubdomains=["']false["']>([^<]+)<\/domain>/g
 )].map((match) => match[1].trim()).sort();
 const expectedCleartextHosts = ['10.0.2.2', '127.0.0.1', 'localhost'].sort();
 if (JSON.stringify(cleartextHosts) !== JSON.stringify(expectedCleartextHosts)) {
   throw new Error(`Android cleartext allowlist must contain only local development hosts: ${cleartextHosts.join(', ')}`);
 }
-if ((androidNetworkSecurity.match(/<domain(?:\s|>)/g) ?? []).length !== expectedCleartextHosts.length) {
+if ((androidDebugNetworkSecurity.match(/<domain(?:\s|>)/g) ?? []).length !== expectedCleartextHosts.length) {
   throw new Error('Android network security config contains an unexpected domain exception');
 }
-if ((androidNetworkSecurity.match(/cleartextTrafficPermitted=["']true["']/g) ?? []).length !== 1) {
+if ((androidDebugNetworkSecurity.match(/cleartextTrafficPermitted=["']true["']/g) ?? []).length !== 1) {
   throw new Error('Android network security config must have exactly one scoped cleartext exception');
 }
-if (/includeSubdomains=["']true["']/.test(androidNetworkSecurity)) {
+if (/includeSubdomains=["']true["']/.test(androidDebugNetworkSecurity)) {
   throw new Error('Android local cleartext exceptions must not include subdomains');
 }
 

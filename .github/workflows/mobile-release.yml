@@ -1,0 +1,113 @@
+name: Mobile store artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Store version such as 1.0.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    environment: mobile-production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+      - run: npm ci
+      - name: Build and sync production web assets
+        run: npm run build && npx cap sync android
+        env:
+          VITE_AUTH_MODE: oidc
+          VITE_API_BASE_URL: https://app.nowline.example
+          VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
+          VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
+          VITE_OIDC_SCOPE: openid profile email offline_access
+          VITE_OIDC_WEB_REDIRECT_URI: https://app.nowline.example/auth/callback
+          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://app.nowline.example
+          VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
+          VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
+      - name: Install signing and Firebase configuration
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$GOOGLE_SERVICES_JSON_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/nowline-release.jks
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+      - name: Build signed Android App Bundle
+        working-directory: android
+        env:
+          NOWLINE_ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/nowline-release.jks
+          NOWLINE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          NOWLINE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          NOWLINE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease -PversionCode=${{ github.run_number }} -PversionName=${{ inputs.version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nowline-android-${{ inputs.version }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+  ios:
+    runs-on: macos-latest
+    environment: mobile-production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build and sync production web assets
+        run: npm run build && npx cap sync ios
+        env:
+          VITE_AUTH_MODE: oidc
+          VITE_API_BASE_URL: https://app.nowline.example
+          VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
+          VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
+          VITE_OIDC_SCOPE: openid profile email offline_access
+          VITE_OIDC_WEB_REDIRECT_URI: https://app.nowline.example/auth/callback
+          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://app.nowline.example
+          VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
+          VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
+      - name: Configure App Store Connect API key
+        env:
+          APP_STORE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$APP_STORE_KEY_BASE64" && test -n "$TEAM_ID"
+          printf '%s' "$APP_STORE_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          sed -i '' "s/TEAM_ID_PLACEHOLDER/${TEAM_ID}/" ios/AppStoreExportOptions.plist
+      - name: Archive signed iOS app
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -archivePath "$RUNNER_TEMP/Nowline.xcarchive" archive \
+            DEVELOPMENT_TEAM="$TEAM_ID" MARKETING_VERSION="${{ inputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID"
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Nowline.xcarchive" \
+            -exportPath "$RUNNER_TEMP/NowlineExport" -exportOptionsPlist ios/AppStoreExportOptions.plist \
+            -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nowline-ios-${{ inputs.version }}
+          path: ${{ runner.temp }}/NowlineExport/*.ipa
+          if-no-files-found: error

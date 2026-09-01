@@ -1,0 +1,69 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nowline-backend
+  labels:
+    app.kubernetes.io/name: nowline
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nowline
+      app.kubernetes.io/component: backend
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nowline-production
+  labels:
+    app.kubernetes.io/name: nowline
+spec:
+  groups:
+    - name: nowline.availability
+      rules:
+        - alert: NowlineBackendUnavailable
+          expr: sum(up{namespace="nowline-production",service="nowline-backend"}) < 1
+          for: 2m
+          labels: {severity: critical}
+          annotations:
+            summary: Nowline backend has no scrapeable replica
+            runbook_url: https://github.com/jieseob1/planner/blob/main/docs/OPERATIONS_RUNBOOK.md#api-or-worker-incident
+        - alert: NowlineApiHighErrorRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{namespace="nowline-production",status=~"5.."}[10m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count{namespace="nowline-production"}[10m])), 0.001) > 0.05
+          for: 10m
+          labels: {severity: critical}
+          annotations:
+            summary: Nowline API 5xx ratio is above 5 percent
+            runbook_url: https://github.com/jieseob1/planner/blob/main/docs/OPERATIONS_RUNBOOK.md#api-or-worker-incident
+        - alert: NowlineApiLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_server_requests_seconds_bucket{namespace="nowline-production"}[10m]))) > 2
+          for: 15m
+          labels: {severity: warning}
+          annotations:
+            summary: Nowline API p95 latency is above 2 seconds
+            runbook_url: https://github.com/jieseob1/planner/blob/main/docs/OPERATIONS_RUNBOOK.md#api-or-worker-incident
+    - name: nowline.integrations
+      rules:
+        - alert: NowlineCalendarJobErrors
+          expr: sum(increase(nowline_integration_jobs_total{namespace="nowline-production",result="error"}[15m])) > 3
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Calendar jobs are repeatedly exhausting retries
+            runbook_url: https://github.com/jieseob1/planner/blob/main/docs/OPERATIONS_RUNBOOK.md#calendar-or-notification-incident
+        - alert: NowlineNotificationFailures
+          expr: sum(increase(nowline_notifications_total{namespace="nowline-production",result=~"retry|permanent_failure"}[15m])) > 10
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: Notification delivery failures are elevated
+            runbook_url: https://github.com/jieseob1/planner/blob/main/docs/OPERATIONS_RUNBOOK.md#calendar-or-notification-incident

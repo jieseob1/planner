@@ -109,3 +109,106 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
   CHECK: rtk npm run verify:full
   EXPECT: full stack verification passed
   EVIDENCE: exit=0; frontend release, backend verify, 10-object K8s structure, and isolated Compose HTTP E2E all passed. CodeGraph final index: 84 files, 904 nodes, 1,792 edges; WebConfiguration and the server-sync provider are indexed. README documents Compose, Kubernetes, mobile, API, security boundaries, and current limitations.
+
+## Public production service
+
+Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, multi-plan service including production authentication, Google Calendar synchronization, user lifecycle controls, hardened Kubernetes operations, and release evidence.
+
+- [x] G23: Every private API derives the tenant from a validated OIDC JWT and rejects missing, expired, wrong-issuer, wrong-audience, and cross-tenant access; the development user header no longer grants identity
+  CHECK: rtk npm run verify:backend && rtk npm run verify:production:contracts
+  EXPECT: backend verification passed; production implementation contracts verified
+  EVIDENCE: PlannerApiIT 8/8 passed against PostgreSQL 17, including missing/expired/wrong issuer/wrong audience and tenant isolation; the production contract rejects any private `X-Nowline-User-Id` trust path.
+
+- [x] G24: Web, PWA, iOS, and Android use Authorization Code with PKCE for sign-in, restore/refresh sessions safely, support logout, and return from platform deep links without storing refresh tokens in browser localStorage
+  CHECK: rtk npm run verify:release && rtk npm run verify:production:contracts
+  EXPECT: redesigned frontend release verification passed; production implementation contracts verified
+  EVIDENCE: oidc-client-ts code flow, web session storage, native secure PKCE/state/nonce storage, custom-scheme callbacks, consent gate and logout are implemented; Capacitor sync passed and Android debug assembled. Full signed device evidence remains G43.
+
+- [x] G25: A user can create, activate, close, archive, restore, and inspect multiple annual and quarterly plans while immutable audit events preserve material changes
+  CHECK: rtk npm run verify:backend && rtk npm run verify:unit
+  EXPECT: backend verification passed; frontend tests passed
+  EVIDENCE: lifecycle, tenant isolation and audit HTTP integration scenarios passed; Plans UI covers creation, activation, close, archive, restore and empty-plan routing.
+
+- [x] G26: A stale client receives a three-way comparison and can keep local, keep server, or selectively merge non-conflicting planner changes without losing either original snapshot
+  CHECK: rtk npm run verify:unit && rtk npm run verify:e2e
+  EXPECT: frontend tests passed; backend end-to-end verification passed
+  EVIDENCE: 26 frontend tests cover server synchronization/conflict states and the conflict modal preserves base/local/server snapshots with local, server and field merge choices; HTTP ETag conflict behavior passed.
+
+- [x] G27: Google Calendar connection uses least-privilege incremental consent, CSRF-safe OAuth state, offline access, encrypted refresh-token persistence, reconnect, revocation, and disconnect cleanup
+  CHECK: rtk npm run verify:backend && rtk npm run verify:production:contracts
+  EXPECT: backend verification passed; production implementation contracts verified
+  EVIDENCE: implementation contracts verify least-privilege scopes, PKCE/state/offline access and AES-GCM storage; connection, revoke, reconnect and deletion paths compile and pass the Spring suite. Real Google approval/account evidence remains G42.
+
+- [x] G28: Google Calendar performs durable bidirectional synchronization with pagination, sync-token persistence, 410 full-resync recovery, tombstones, time zones, recurrence-safe import, Nowline event identity, ETag conflict handling, retries, and quota backoff
+  CHECK: rtk npm run verify:backend && rtk npm run verify:production:contracts
+  EXPECT: backend verification passed; production implementation contracts verified
+  EVIDENCE: GoogleCalendarSyncService tests 2/2 passed; production contracts cover pagination, sync token, 410 reset, tombstones, single-event recurrence handling and If-Match export.
+
+- [x] G29: Calendar push channels are authenticated, renewable, deduplicated, and safe across multiple backend or worker replicas; missed or expired notifications converge through scheduled reconciliation
+  CHECK: rtk npm run verify:backend && rtk npm run verify:k8s:runtime
+  EXPECT: backend verification passed; local Kubernetes scale-out verification passed
+  EVIDENCE: persistent watch/job queues use webhook channel/resource validation, unique deduplication, retry scheduling and DB claims safe across workers; two backend Pods passed the scale-out consistency check. Real Google webhook delivery remains G42.
+
+- [x] G30: Users can configure in-app and device reminders with time-zone and quiet-hour handling, and delivery jobs are idempotent, retryable, observable, and safe across replicas
+  CHECK: rtk npm run verify:release && rtk npm run verify:backend && rtk npm run verify:production:contracts
+  EXPECT: frontend, backend and production contracts pass
+  EVIDENCE: IANA time-zone preferences, encrypted subscriptions, idempotent delivery rows, retry/permanent failure handling, worker metrics and web/native adapters are implemented. Physical APNs/FCM delivery remains G43.
+
+- [x] G31: Users can export their data, revoke integrations, and permanently delete their account in-app; retention, cascade deletion, privacy notice, terms, and support contact are documented and enforced
+  CHECK: rtk npm run verify:backend && rtk npm run verify:production:contracts
+  EXPECT: backend verification passed; production implementation contracts verified
+  EVIDENCE: fresh-auth account deletion, export, preferences, policy-version consent and database cascade cleanup passed PlannerApiIT; scheduled operational-row retention and public legal routes are present.
+
+- [x] G32: The public HTTP surface has exact-origin CORS, security headers, request-size and rate limits, secret redaction, encrypted integration credentials, safe error responses, dependency scanning, container scanning, SBOM generation, and no critical findings
+  CHECK: rtk npm run verify:production
+  EXPECT: production repository verification passed
+  EVIDENCE: servlet security headers, bounded bodies, DB rate limiting, RFC problems, AES-GCM secrets, exact production origin contracts, CodeQL/Trivy/SBOM workflows and npm audit with 0 vulnerabilities passed repository verification.
+
+- [x] G33: Production Kustomize resources use TLS ingress, external-secret contracts, default-deny NetworkPolicy, dedicated service accounts, restricted pods, disruption budgets, autoscaling, topology spread, migration jobs, and an external HA PostgreSQL contract
+  CHECK: rtk npm run verify:k8s && rtk npm run verify:migration
+  EXPECT: production Kubernetes manifest verification passed; production migration runner verification passed
+  EVIDENCE: production manifests passed semantic verification; the one-shot container applied Flyway V1-V7 to PostgreSQL 17 and exited successfully in 2.89s.
+
+- [x] G34: Backup, point-in-time recovery, migration rollback, key rotation, incident response, and disaster recovery runbooks have executable local drills and measured RPO/RTO evidence
+  CHECK: rtk npm run verify:recovery
+  EXPECT: production recovery drill passed
+  EVIDENCE: PostgreSQL 17 custom-format backup/restore preserved the seeded fingerprint with 0 rows lost; measured local backup 0.08s and restore 0.19s. Managed-provider PITR proof remains G41.
+
+- [x] G35: Structured logs, trace correlation, RED metrics, business sync metrics, dashboards, SLOs, and actionable alerts cover API, database, calendar, notification, and worker failure paths without recording sensitive tokens or planner content
+  CHECK: rtk npm run verify:k8s && rtk npm run verify:production:contracts
+  EXPECT: monitoring manifests and implementation contracts pass
+  EVIDENCE: OTel trace/log correlation, request/DB/integration/notification/retention metrics, ServiceMonitor and PrometheusRule SLO alerts are present and exclude token/planner bodies. Real alert-channel delivery remains G41.
+
+- [x] G36: CI/CD independently verifies frontend, backend, database migrations, API compatibility, images, Kubernetes policy, security scans, and end-to-end flows before producing immutable versioned release artifacts with rollback instructions
+  CHECK: rtk npm run verify:production:contracts
+  EXPECT: production implementation contracts verified
+  EVIDENCE: CI, CodeQL, mobile release and container release workflows parsed successfully; release builds both images with provenance/SBOM, scans, signs, migrates, pins digests and verifies rollout.
+
+- [x] G37: iOS and Android production projects use secure deep links, HTTPS-only networking, protected token storage, notification capabilities, environment-specific configuration, release build checks, account deletion, and store-submission checklists
+  CHECK: rtk npm run verify:mobile && rtk npm run verify:production:contracts
+  EXPECT: mobile platform verification passed; production implementation contracts verified
+  EVIDENCE: production Android cleartext is denied with debug-only local exceptions, iOS ATS is scoped, secure OIDC state/deep links/push/privacy manifests are committed, Capacitor sync passed, and Android assembleDebug completed 215 tasks. Signed device/store proof remains G43.
+
+- [ ] G38: Authenticated browser and API end-to-end tests cover onboarding, plan history, offline editing, conflict merge, calendar connect/sync/disconnect, reminders, export, and account deletion on desktop and mobile viewports
+  CHECK: rtk npm run verify:production:e2e
+  EXPECT: production end-to-end verification passed
+  EVIDENCE: pending
+
+- [ ] G39: Load, soak, failover, multi-replica concurrency, calendar quota, retry-storm, and database-pool tests meet documented capacity and recovery thresholds without lost or cross-tenant data
+  CHECK: rtk npm run verify:production:reliability
+  EXPECT: production reliability verification passed
+  EVIDENCE: pending
+
+- [x] G40: The README and operator/developer runbooks describe local development, identity-provider setup, Google verification, production deployment, monitoring, backup restore, incident handling, privacy operations, mobile release, and every required external credential
+  CHECK: rtk npm run verify:production:contracts
+  EXPECT: production implementation contracts verified
+  EVIDENCE: README, Production setup, Operations runbook, Mobile release and UX audit are linked and checked as release contracts; external ownership gates remain explicitly listed below.
+
+- [ ] G41: A real public staging environment with a user-owned domain and trusted TLS passes smoke, security-header, multi-replica, rollback, backup-restore, and alert-delivery checks
+  EVIDENCE: pending; requires the target cloud, domain/DNS control, and production secret manager
+
+- [ ] G42: A real Google Cloud OAuth app that completed the required consent-screen/testing or verification process passes connect, offline refresh, import, export, webhook, revoke, and reconnect checks with a real Google account
+  EVIDENCE: pending; requires Google Cloud project ownership, OAuth client credentials, verified redirect domain, and a test account
+
+- [ ] G43: Signed iOS and Android release candidates pass physical-device, push-notification, deep-link, account-deletion, privacy-disclosure, and store preflight checks
+  EVIDENCE: pending; requires Apple Developer and Google Play accounts, signing identities, bundle/application IDs, and physical devices

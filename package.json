@@ -18,9 +18,14 @@
     "verify:mobile": "npm run build && cap sync && node scripts/verify-mobile.mjs",
     "verify:release": "npm run verify:unit && npm run verify:structure && npm run verify:design-source && npm run verify:visual-system && npm run verify:usability && npm run verify:build && npm run verify:mobile && node scripts/success.mjs \"redesigned frontend release verification passed\"",
     "verify:backend": "cd backend && ./mvnw -q verify && node ../scripts/success.mjs \"backend verification passed\"",
-    "verify:k8s": "node scripts/verify-k8s.mjs",
-    "verify:k8s:runtime": "scripts/k8s-local.sh verify && node scripts/verify-k8s-scaleout.mjs",
+    "verify:k8s": "node scripts/verify-k8s.mjs && node scripts/verify-k8s-production.mjs",
+    "verify:k8s:runtime": "scripts/k8s-local.sh up && scripts/k8s-local.sh verify && node scripts/verify-k8s-scaleout.mjs",
     "verify:e2e": "node scripts/verify-backend-e2e.mjs",
+    "verify:migration": "node scripts/verify-migration-runner.mjs",
+    "verify:recovery": "node scripts/verify-recovery.mjs",
+    "verify:production:contracts": "node scripts/verify-production-contracts.mjs",
+    "verify:dependencies": "npm audit --audit-level=moderate",
+    "verify:production": "npm run verify:full && npm run verify:migration && npm run verify:recovery && npm run verify:production:contracts && npm run verify:dependencies && node scripts/success.mjs \"production repository verification passed\"",
     "verify:full": "npm run verify:release && npm run verify:backend && npm run verify:k8s && npm run verify:e2e && node scripts/success.mjs \"full stack verification passed\"",
     "dev:backend": "cd backend && ./mvnw spring-boot:run",
     "dev:stack": "make compose-up",
@@ -32,11 +37,16 @@
     "app:android": "npm run cap:sync && cap open android"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
     "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.1",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "clsx": "^2.1.1",
     "lucide-react": "^1.37.0",
+    "oidc-client-ts": "^3.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3"
@@ -54,5 +64,10 @@
     "vite": "^8.2.2",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.1"
+    }
   }
 }

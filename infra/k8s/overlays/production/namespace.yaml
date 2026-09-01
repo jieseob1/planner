@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nowline-production
+  labels:
+    app.kubernetes.io/name: nowline
+    environment: production

@@ -24,12 +24,12 @@ public class WebConfiguration implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(allowedOriginPatterns)
-                .allowedMethods("GET", "PUT", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders(
                         HttpHeaders.CONTENT_TYPE,
+                        HttpHeaders.AUTHORIZATION,
                         HttpHeaders.IF_MATCH,
                         HttpHeaders.IF_NONE_MATCH,
-                        "X-Nowline-User-Id",
                         "Idempotency-Key")
                 .exposedHeaders(HttpHeaders.ETAG, HttpHeaders.LOCATION)
                 .allowCredentials(false)

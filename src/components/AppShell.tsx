@@ -1,25 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, CheckCircle2, Compass, Flag, Plus, RotateCcw, Target } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Compass, Flag, Layers3, LogOut, Plus, RotateCcw, Settings, Target } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Modal } from './Modal';
 import { SaveStatus } from './SaveStatus';
 import { usePlanner } from '../state/PlannerProvider';
+import { useAuth } from '../auth/AuthProvider';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const navItems = [
   { to: '/today', label: '오늘', desktopLabel: 'Today', contextLabel: '오늘 실행', icon: CheckCircle2 },
   { to: '/planner', label: '계획', desktopLabel: 'Planner', contextLabel: '주간 계획', icon: CalendarDays },
   { to: '/goals', label: '목표', desktopLabel: 'Goals', contextLabel: '목표와 지표', icon: Target },
-  { to: '/review', label: '회고', desktopLabel: 'Review', contextLabel: '주간 회고', icon: Flag }
+  { to: '/review', label: '회고', desktopLabel: 'Review', contextLabel: '주간 회고', icon: Flag },
+  { to: '/plans', label: '계획함', desktopLabel: 'Plans', contextLabel: '연간·분기 계획', icon: Layers3 }
 ];
 
 export function AppShell() {
   const { resetDemo } = usePlanner();
+  const { logout } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const pendingCaptureFocus = useRef(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const currentNavItem = navItems.find((item) => item.to === pathname) ?? navItems[0];
+  const currentNavItem = navItems.find((item) => item.to === pathname)
+    ?? (pathname === '/settings' ? { contextLabel: '설정과 연동' } : navItems[0]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -31,6 +37,23 @@ export function AppShell() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+    let removeListener: (() => Promise<void>) | undefined;
+    void PushNotifications.addListener('pushNotificationActionPerformed', (event) => {
+      const target = event.notification.data?.targetPath;
+      if (typeof target === 'string' && target.startsWith('/') && !target.startsWith('//')) navigate(target);
+    }).then((handle) => {
+      if (!active) void handle.remove();
+      else removeListener = handle.remove;
+    });
+    return () => {
+      active = false;
+      if (removeListener) void removeListener();
+    };
+  }, [navigate]);
 
   const focusQuickCapture = () => {
     if (pathname === '/today') {
@@ -89,6 +112,9 @@ export function AppShell() {
           </div>
           <div className="top-bar__actions">
             <SaveStatus />
+            <button className="icon-button" type="button" onClick={() => navigate('/settings')} aria-label="설정과 연동">
+              <Settings size={16} aria-hidden="true" />
+            </button>
             <button
               className="icon-button shell-reset"
               type="button"
@@ -98,6 +124,9 @@ export function AppShell() {
               aria-expanded={resetConfirmOpen}
             >
               <RotateCcw size={16} aria-hidden="true" />
+            </button>
+            <button className="icon-button" type="button" onClick={() => void logout()} aria-label="로그아웃">
+              <LogOut size={16} aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -115,9 +144,11 @@ export function AppShell() {
         ))}
       </nav>
 
-      <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label="빠른 수집">
-        <Plus size={25} aria-hidden="true" />
-      </button>
+      {!['/plans', '/settings'].includes(pathname) && (
+        <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label="빠른 수집">
+          <Plus size={25} aria-hidden="true" />
+        </button>
+      )}
 
       {resetConfirmOpen ? (
         <Modal

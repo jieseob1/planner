@@ -50,6 +50,19 @@ when permanent local data loss is intended.
 The checked-in Secret is a local-development credential, not a production
 secret-management design.
 
+## Production overlay
+
+`overlays/production` deliberately removes the local PostgreSQL StatefulSet. It expects an externally managed HA PostgreSQL and a pre-provisioned `nowline-production-secrets` Secret. It adds TLS Ingress, exact-origin configuration, dedicated tokenless ServiceAccounts, default-deny NetworkPolicy, frontend/backend PDBs, ServiceMonitor and PrometheusRule resources.
+
+```bash
+kubectl kustomize infra/k8s/overlays/production
+npm run verify:k8s
+```
+
+Do not apply the example until every `app.nowline.example` value is replaced. The release workflow applies `migration-job.yaml` first, waits for Flyway completion, then applies application resources and pins both Deployments to signed image digests. Application Pods run with Flyway disabled so replicas do not race schema rollout.
+
+The cluster must already have Ingress NGINX, metrics-server, Prometheus Operator CRDs, an OTLP collector, trusted TLS certificate automation, external Secret delivery, and network-policy enforcement. See [production setup](../docs/PRODUCTION_SETUP.md) and [operations runbook](../docs/OPERATIONS_RUNBOOK.md).
+
 ## HPA dependency
 
 The `autoscaling/v2` HPA requires [Kubernetes Metrics Server](https://github.com/kubernetes-sigs/metrics-server)

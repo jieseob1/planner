@@ -46,9 +46,33 @@ public final class PlannerException extends RuntimeException {
                 "같은 Idempotency-Key가 다른 요청에 이미 사용되었습니다.", Map.of());
     }
 
+    public static PlannerException planNotFound() {
+        return new PlannerException(HttpStatus.NOT_FOUND, "plan-not-found",
+                "요청한 계획을 찾을 수 없습니다.", Map.of());
+    }
+
+    public static PlannerException planConflict() {
+        return new PlannerException(HttpStatus.CONFLICT, "plan-id-conflict",
+                "같은 계획 ID가 다른 내용으로 이미 사용되었습니다.", Map.of());
+    }
+
+    public static PlannerException invalidPlanState(String message) {
+        return new PlannerException(HttpStatus.CONFLICT, "invalid-plan-state", message, Map.of());
+    }
+
     public static PlannerException validation(String field, String message) {
         return new PlannerException(HttpStatus.BAD_REQUEST, "invalid-planner-snapshot", message,
                 Map.of("errors", java.util.List.of(Map.of("field", field, "message", message))));
+    }
+
+    public static PlannerException reauthenticationRequired() {
+        return new PlannerException(HttpStatus.UNAUTHORIZED, "reauthentication-required",
+                "계정 삭제 전 15분 이내에 다시 로그인해 주세요.", Map.of());
+    }
+
+    public static PlannerException consentRequired() {
+        return new PlannerException(HttpStatus.FORBIDDEN, "policy-consent-required",
+                "서비스 이용 전 이용약관과 개인정보 처리방침 동의가 필요합니다.", Map.of());
     }
 
     public HttpStatus status() {
