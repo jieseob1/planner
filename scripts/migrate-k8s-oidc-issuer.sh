@@ -39,13 +39,18 @@ BACKUP_FILE="${BACKUP_DIR}/goalstotoday-issuer-$(date -u +%Y%m%dT%H%M%SZ).sql.gz
 mkdir -p -- "${BACKUP_DIR}"
 chmod 700 "${BACKUP_DIR}"
 kubectl --context "${KUBE_CONTEXT}" --namespace "${NAMESPACE}" exec "${MYSQL_POD}" -- \
-  env MYSQL_PWD="${MYSQL_PASSWORD}" mysqldump --single-transaction --quick --skip-lock-tables \
+  env MYSQL_PWD="${MYSQL_PASSWORD}" mysqldump --single-transaction --quick --skip-lock-tables --no-tablespaces \
   --user=nowline nowline | gzip -9 >"${BACKUP_FILE}"
 chmod 600 "${BACKUP_FILE}"
 if [[ ! -s "${BACKUP_FILE}" ]]; then
   printf 'MySQL backup is empty; refusing issuer migration.\n' >&2
   exit 1
 fi
+if ! gzip -t "${BACKUP_FILE}"; then
+  printf 'MySQL backup gzip verification failed; refusing issuer migration.\n' >&2
+  exit 1
+fi
+BACKUP_SHA256="$(shasum -a 256 "${BACKUP_FILE}" | awk '{print $1}')"
 
 mysql_query() {
   kubectl --context "${KUBE_CONTEXT}" --namespace "${NAMESPACE}" exec "${MYSQL_POD}" -- \
@@ -60,7 +65,7 @@ fi
 
 OLD_COUNT="$(mysql_query "SELECT COUNT(*) FROM app_user WHERE oidc_issuer = '${OLD_ISSUER}';")"
 if [[ "${OLD_COUNT}" == "0" ]]; then
-  printf 'No user rows require issuer migration. Backup: %s\n' "${BACKUP_FILE}"
+  printf 'No user rows require issuer migration. Backup: %s (sha256 %s)\n' "${BACKUP_FILE}" "${BACKUP_SHA256}"
   exit 0
 fi
 
@@ -85,4 +90,4 @@ if [[ "${REMAINING}" != "0" || "${MIGRATED}" -lt "${OLD_COUNT}" ]]; then
   exit 1
 fi
 
-printf 'Migrated %s user issuer row(s). Backup: %s\n' "${OLD_COUNT}" "${BACKUP_FILE}"
+printf 'Migrated %s user issuer row(s). Backup: %s (sha256 %s)\n' "${OLD_COUNT}" "${BACKUP_FILE}" "${BACKUP_SHA256}"
