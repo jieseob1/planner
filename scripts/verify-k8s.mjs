@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { parseAllDocuments } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const overlay = path.join(root, 'infra', 'k8s', 'overlays', 'local');
@@ -74,24 +75,14 @@ function assertSafeRolling(deployment) {
 }
 
 const rendered = runKubectl(['kustomize', overlay]);
-const documents = rendered
-  .split(/^---\s*$/m)
-  .map((document) => document.trim())
-  .filter(Boolean);
-
-assert(documents.length >= 10, `expected at least 10 rendered Kubernetes objects, found ${documents.length}`);
-
-const decoded = documents.map((document, index) => {
-  const json = runKubectl(
-    ['create', '--dry-run=client', '--validate=false', '--filename=-', '--output=json'],
-    `${document}\n`
-  );
-  try {
-    return JSON.parse(json);
-  } catch (error) {
-    throw new Error(`rendered document ${index + 1} did not decode as one Kubernetes object: ${error.message}`);
+const decoded = parseAllDocuments(rendered).map((document, index) => {
+  if (document.errors.length > 0) {
+    throw new Error(`rendered document ${index + 1} is invalid YAML: ${document.errors.join('; ')}`);
   }
-});
+  return document.toJS();
+}).filter(Boolean);
+
+assert(decoded.length >= 10, `expected at least 10 rendered Kubernetes objects, found ${decoded.length}`);
 
 const resources = new Map();
 for (const resource of decoded) {
