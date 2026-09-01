@@ -15,8 +15,13 @@ const requiredCss = [
   'font-variant-numeric: tabular-nums',
   '@media (max-width: 680px)',
   'min-height: 44px',
-  'prefers-reduced-motion'
+  'prefers-reduced-motion',
+  'color-scheme: light'
 ];
+
+if (!readFileSync(resolve(root, 'index.html'), 'utf8').includes('name="color-scheme" content="light"')) {
+  throw new Error('Nowline must keep native controls in the verified light color scheme');
+}
 
 for (const token of requiredCss) {
   if (!css.toLowerCase().includes(token)) throw new Error(`Nowline visual token is missing: ${token}`);

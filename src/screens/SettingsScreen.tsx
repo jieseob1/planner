@@ -7,6 +7,7 @@ import {
   type GoogleCalendarStatus
 } from '../api/googleCalendarApi';
 import { AccountSettingsSections } from '../components/AccountSettingsSections';
+import { FocusAlert } from '../components/FocusAlert';
 
 const directionLabels: Record<CalendarDirection, string> = {
   BIDIRECTIONAL: '양방향 — Nowline과 Google 변경을 모두 반영',
@@ -125,7 +126,7 @@ export function SettingsScreen() {
       </header>
 
       {notice && <div className="inline-success" role="status">{notice}</div>}
-      {error && <div className="inline-alert" role="alert">{error}</div>}
+      {error && <FocusAlert message={error} />}
 
       <section className="settings-card" aria-labelledby="google-calendar-title">
         <div className="settings-card__heading">

@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   color: #15251f;
   background: #f2f3ed;
@@ -24,6 +25,11 @@
   --blue-soft: #deedf2;
   --shadow-sm: 0 1px 2px rgba(18, 44, 34, 0.05), 0 8px 24px rgba(18, 44, 34, 0.04);
   --shadow-md: 0 18px 50px rgba(18, 44, 34, 0.12);
+}
+
+[role="alert"][tabindex="-1"]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent, #2e56e8) 42%, transparent);
+  outline-offset: 3px;
 }
 
 .auth-card--consent { width: min(100%, 560px); }

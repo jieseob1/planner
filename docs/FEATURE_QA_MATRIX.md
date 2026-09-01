@@ -30,7 +30,7 @@
 | Planner | 주 이동, 시간 블록 생성·수정·삭제, 내부/외부 일정 충돌 방지 | 구현 완료 | QA 완료 | frontend tests, desktop/mobile E2E, MySQL trigger overlap guard |
 | 실행 | 타이머 시작·중지와 실제/수동 시간, 실행 취소 | 구현 완료 | QA 완료 | frontend tests, desktop timer E2E |
 | Review | 지표 갱신, 방해 요인, 다음 주 Top 3와 Planner 연결 | 구현 완료 | QA 완료 | frontend tests, 4단계 desktop E2E |
-| 동기화 | local-first, 오프라인 편집, 재연결 저장 상태 | 구현 완료 | QA 완료 | offline browser E2E와 provider tests |
+| 동기화 | local-first, 오프라인 편집, 재연결 저장 상태 | 구현 완료 | QA 완료 | offline browser E2E, 304 handshake 중 로컬 변경 회귀 시나리오와 provider tests |
 | 충돌 | ETag/If-Match, 3-way 비교, local/server/선택 병합 | 구현 완료 | QA 완료 | API 412, frontend conflict tests, browser merge E2E |
 | 계정 | 다중 사용자·tenant 격리 | 구현 완료 | QA 완료 | wrong issuer/audience/expiry와 cross-tenant MySQL 통합·reliability 검사 |
 | 개인정보 | JSON export, 연동 해제, fresh-login 영구 삭제 | 구현 완료 | QA 완료 | export download와 계정 삭제 E2E; 미래/오래된 `auth_time` 거부 통합 테스트 |
@@ -55,8 +55,8 @@
 | --- | --- | --- | --- | --- |
 | Web/PWA | production build, manifest, service worker, 오프라인 shell | 구현 완료 | QA 완료 | TypeScript/Vite/PWA release 검사 |
 | 반응형 | 1440×900 desktop, 390×844 mobile 주요 여정 | 구현 완료 | QA 완료 | 6개 route overflow와 사용자 흐름 E2E |
-| 접근성 | skip link, 키보드 빠른 수집, modal focus trap·복귀, label/focus, 44px touch target | 구현 완료 | QA 완료 | keyboard/모바일 자동 브라우저 검사 |
-| 확대 | 200% browser zoom 등가 CSS viewport에서 6개 route overflow 없음 | 구현 완료 | QA 완료 | 720×450 layout E2E |
+| 접근성 | skip link, 키보드 전체 주요 여정, modal focus trap·복귀, 오류 alert focus, label/focus, 44px touch target | 구현 완료 | QA 완료 | keyboard/모바일 자동 브라우저와 local K8s 네트워크 실패·복구 검사 |
+| 확대·선호 | 200% browser zoom 등가 6개 route·핵심 modal, light-only OS 색상, reduced motion | 구현 완료 | QA 완료 | 720×450 modal/layout 및 browser preference E2E |
 | Android | Capacitor sync, secure storage/deep link/push wiring, debug APK | 구현 완료 | QA 완료 | `cap sync`, `assembleDebug` |
 | iOS | Capacitor sync, Keychain/deep link/push/privacy manifest wiring | 구현 완료 | QA 완료 | `cap sync`, 프로젝트·release workflow contract |
 | 서명 앱 | Android AAB·iOS IPA 서명, 실기기·스토어 preflight | 외부 자격 증명 필요 | 외부 자격 증명 필요 | Apple/Play 계정, signing key, bundle/application ID와 실기기 필요 |
@@ -89,6 +89,8 @@
 | 미래 `auth_time`이 절댓값 계산으로 fresh-login 검사를 통과함 | 조작된 토큰의 계정 삭제 허용 가능성 | 미래 30초 초과와 15분 경과를 각각 거부하는 통합 테스트 |
 | 알림 gateway 실패 분류의 회귀 테스트가 없음 | 일시 장애에서 device 영구 비활성화 가능 | transient/permanent/success/빈 device 4개 단위 테스트 |
 | 저장 debounce를 기다리지 않던 E2E | 실제 server persistence 누락을 통과로 오인 | 모든 변경 뒤 `서버에 저장됨`과 PUT 성공을 확인 |
+| 서버 304 확인 중 수정하면 로컬 변경을 저장 완료로 오인 | 화면에는 바뀌었지만 서버 PUT이 생략될 수 있음 | handshake 중 변경을 dirty로 유지하고 응답 종료 후 후속 동기화; 운영 E2E가 실제 PUT을 확인 |
+| `autoFocus` 자식이 있는 modal에서 닫은 뒤 trigger focus 유실 | 키보드 사용자가 문서 처음부터 다시 탐색 | modal render 시 trigger를 보존하고 unit/E2E에서 Escape 후 복귀 검증 |
 | 설정의 법률 링크 터치 높이가 16px | 모바일 오탭과 접근성 저하 | 링크 hit area 44px, 대상 이름을 출력하는 자동 검사 |
 
 ## QA 실행 기록

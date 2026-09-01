@@ -11,6 +11,11 @@ interface ModalProps extends PropsWithChildren {
 export function Modal({ title, description, onClose, children, className = '' }: ModalProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
+  const returnFocusRef = useRef<HTMLElement | null>(
+    typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+  );
   const titleId = useId();
   const descriptionId = useId();
 
@@ -19,7 +24,6 @@ export function Modal({ title, description, onClose, children, className = '' }:
   }, [onClose]);
 
   useEffect(() => {
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
     const initialFocus = dialog?.querySelector<HTMLElement>('[data-autofocus]')
       ?? dialog?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
@@ -43,7 +47,7 @@ export function Modal({ title, description, onClose, children, className = '' }:
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      previouslyFocused?.focus();
+      returnFocusRef.current?.focus();
     };
   }, []);
 

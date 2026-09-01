@@ -27,8 +27,8 @@ soak 시간은 `NOWLINE_RELIABILITY_SOAK_SECONDS`로 늘릴 수 있으며 최소
 
 측정일: 2026-09-01. 환경: macOS Docker runtime, MySQL 8.4.10, Java 25 backend 2개. 아래 값은 마지막 통과 실행 후 갱신한다.
 
-- 순간 부하: 400건 / concurrency 32 / 총 2224.3ms / p95 282.9ms / 오류 0건
-- 제한된 soak: 30초 / 300건 / p95 35.5ms / 오류 0건
+- 순간 부하: 400건 / concurrency 32 / 총 3110.9ms / p95 633.9ms / 오류 0건
+- 제한된 soak: 30초 / 299건 / p95 37.1ms / 오류 0건
 - 동시 수정: 1 성공 / 19 precondition rejection
 - 장애 전환: 100 / 100 성공
 - DB pool: 인스턴스별 최대 8, 대기 0

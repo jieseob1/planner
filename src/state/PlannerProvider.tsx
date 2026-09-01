@@ -442,6 +442,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       };
     pendingWriteRef.current = pendingWrite;
     setSaveStatus('saving');
+    let scheduleFollowUp = false;
 
     try {
       const result = await plannerApi.put(
@@ -463,7 +464,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         setSaveStatus('storage-error');
       } else if (hasNewerLocalChanges) {
         setSaveStatus(onlineRef.current ? 'saving' : 'offline');
-        setSyncPulse((value) => value + 1);
+        scheduleFollowUp = onlineRef.current;
       } else {
         setSaveStatus(onlineRef.current ? 'saved' : 'offline');
       }
@@ -490,6 +491,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       }
     } finally {
       requestInFlightRef.current = false;
+      if (scheduleFollowUp) setSyncPulse((value) => value + 1);
     }
   }, [acknowledgeSnapshot, markConflict]);
 
@@ -502,16 +504,21 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     const localSnapshotKeyAtStart = serializeSnapshot(snapshotRef.current);
     const canUseCachedEtag = acknowledgedSnapshotRef.current === localSnapshotKeyAtStart
       && revisionRef.current !== null;
-    let shouldBootstrap = false;
+    let shouldSyncAfterHandshake = false;
     let handshakeComplete = false;
 
     try {
       const result = await plannerApi.get(canUseCachedEtag ? etagRef.current : null);
       if (requestEpoch !== resetEpochRef.current) return;
       handshakeComplete = true;
+      const changedWhileLoading = localChangeCountRef.current !== startedAtLocalChange;
       if (result.kind === 'not-modified') {
         if (!canUseCachedEtag || revisionRef.current === null) {
           setSaveStatus('retry');
+        } else if (changedWhileLoading) {
+          dirtyRef.current = true;
+          shouldSyncAfterHandshake = true;
+          setSaveStatus(onlineRef.current ? 'saving' : 'offline');
         } else {
           dirtyRef.current = false;
           setSaveStatus('saved');
@@ -524,20 +531,26 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         hasActivePlanRef.current = hasUnsyncedLocalPlan;
         setHasActivePlan(hasUnsyncedLocalPlan);
         dirtyRef.current = hasUnsyncedLocalPlan;
-        shouldBootstrap = hasUnsyncedLocalPlan;
+        shouldSyncAfterHandshake = hasUnsyncedLocalPlan;
         if (!hasUnsyncedLocalPlan) setSaveStatus('saved');
       } else {
         const serverSnapshot = normalizePlannerSnapshot(result.aggregate.snapshot);
         const serverSnapshotKey = serializeSnapshot(serverSnapshot);
         const currentLocalSnapshotKey = serializeSnapshot(snapshotRef.current);
-        const changedWhileLoading = localChangeCountRef.current !== startedAtLocalChange;
         const localWasAcknowledged = acknowledgedSnapshotRef.current === currentLocalSnapshotKey;
         const sameSnapshot = serverSnapshotKey === currentLocalSnapshotKey;
+        const serverStillMatchesStart = canUseCachedEtag && serverSnapshotKey === localSnapshotKeyAtStart;
         const canHydrate = sameSnapshot
           || (!changedWhileLoading && (!hasStoredSnapshotRef.current || !dirtyRef.current || localWasAcknowledged));
 
         if (canHydrate) {
           replaceWithServerSnapshot(serverSnapshot, result.aggregate.revision, result.etag);
+        } else if (changedWhileLoading && serverStillMatchesStart) {
+          revisionRef.current = result.aggregate.revision;
+          etagRef.current = result.etag;
+          dirtyRef.current = true;
+          shouldSyncAfterHandshake = true;
+          setSaveStatus(onlineRef.current ? 'saving' : 'offline');
         } else {
           revisionRef.current = result.aggregate.revision;
           etagRef.current = result.etag;
@@ -562,7 +575,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       }
     }
 
-    if (shouldBootstrap) void syncNow();
+    if (shouldSyncAfterHandshake) void syncNow();
   }, [markConflict, markServerReady, replaceWithServerSnapshot, syncNow]);
 
   const retrySync = useCallback(() => {

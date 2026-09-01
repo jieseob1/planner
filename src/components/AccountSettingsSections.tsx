@@ -3,6 +3,7 @@ import { Bell, BellOff, Download, ShieldCheck, Trash2 } from 'lucide-react';
 import { accountApi, type AccountPreferences, type NotificationConfiguration } from '../api/accountApi';
 import { useAuth } from '../auth/AuthProvider';
 import { Modal } from './Modal';
+import { FocusAlert } from './FocusAlert';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Link } from 'react-router-dom';
@@ -176,7 +177,7 @@ export function AccountSettingsSections() {
   return (
     <>
       {notice && <div className="inline-success" role="status">{notice}</div>}
-      {error && <div className="inline-alert" role="alert">{error}</div>}
+      {error && <FocusAlert message={error} />}
 
       <section className="settings-card" aria-labelledby="notification-title">
         <div className="settings-card__heading">

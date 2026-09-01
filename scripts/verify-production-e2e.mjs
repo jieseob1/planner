@@ -63,6 +63,27 @@ const expectResponse = async (response, expected, label) => {
   return response;
 };
 
+const activateByKeyboard = async (page, locator, key = 'Enter') => {
+  await locator.focus();
+  await page.keyboard.press(key);
+};
+
+const runAndWaitForPlannerSave = async (page, action, label) => {
+  const responsePromise = page.waitForResponse((response) => (
+    response.request().method() === 'PUT' && response.url().endsWith('/api/v1/planner')
+  ), { timeout: 20_000 });
+  await action();
+  const response = await responsePromise;
+  if (!response.ok()) {
+    fail(`${label} save failed with ${response.status()}: ${await response.text()}`);
+  }
+  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+};
+
+const activateAndWaitForPlannerSave = async (page, locator, label, key = 'Enter') => (
+  runAndWaitForPlannerSave(page, () => activateByKeyboard(page, locator, key), label)
+);
+
 const runCompose = (args, environment, allowFailure = false) => {
   const result = spawnSync('docker', [
     'compose', '-p', projectName, '-f', 'compose.yaml', '-f', overrideFile, ...args
@@ -98,23 +119,23 @@ const attachErrorCapture = (page, errors, captureState = {
 const acceptConsent = async (page) => {
   await page.getByRole('heading', { name: '내 계획을 안전하게 관리하기 위한 동의' }).waitFor();
   const checks = page.getByRole('checkbox');
-  await checks.nth(0).check();
-  await checks.nth(1).check();
-  await page.getByRole('button', { name: '동의하고 시작하기' }).click();
+  await activateByKeyboard(page, checks.nth(0), 'Space');
+  await activateByKeyboard(page, checks.nth(1), 'Space');
+  await activateByKeyboard(page, page.getByRole('button', { name: '동의하고 시작하기' }));
   await page.getByRole('heading', { name: '이번 분기에 무엇을 바꿀까요?' }).waitFor();
 };
 
 const completeOnboarding = async (page, prefix) => {
   await page.getByPlaceholder('예: 기술 글 6개를 발행한다').fill(`${prefix} 결과를 검증한다`);
-  await page.getByRole('button', { name: '계속' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: '계속' }));
   await page.getByPlaceholder('예: 첫 글의 제목과 목차를 정한다').fill(`${prefix} 첫 실행을 완료한다`);
-  await page.getByRole('button', { name: '계속' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: '계속' }));
   const availableSlot = page.locator('button[role="radio"]:not([disabled])').first();
-  await availableSlot.click();
+  await activateByKeyboard(page, availableSlot);
   const onboardingSavePromise = page.waitForResponse((response) => (
     response.request().method() === 'PUT' && response.url().endsWith('/api/v1/planner')
   ));
-  await page.getByRole('button', { name: /첫 실행 만들기/ }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: /첫 실행 만들기/ }));
   const onboardingSave = await onboardingSavePromise;
   if (!onboardingSave.ok()) {
     fail(`Onboarding save failed with ${onboardingSave.status()}: ${await onboardingSave.text()}`);
@@ -185,6 +206,35 @@ const assertVisibleControlsAreLabelled = async (page, label) => {
   }
 };
 
+const assertDialogFitsViewport = async (dialog, label) => {
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => (
+      animation.finished.catch(() => undefined)
+    )));
+  });
+  const metrics = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      left: rect.left,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight
+    };
+  });
+  if (
+    metrics.top < -1
+    || metrics.left < -1
+    || metrics.right > metrics.viewportWidth + 1
+    || metrics.bottom > metrics.viewportHeight + 1
+  ) {
+    fail(`${label} escapes the zoomed viewport: ${JSON.stringify(metrics)}`);
+  }
+};
+
 const exerciseDesktop = async (frontendUrl, backendUrl) => {
   const errors = [];
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
@@ -198,36 +248,61 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '운영 E2E');
 
-  await page.getByRole('button', { name: /지금 시작/ }).click();
-  await page.getByRole('button', { name: /종료/ }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: /지금 시작/ }));
+  await activateByKeyboard(page, page.getByRole('button', { name: /종료/ }));
   await page.getByRole('dialog', { name: '이번 실행을 정리할까요?' }).waitFor();
   await page.getByPlaceholder('예: 다이어그램 초안 링크, 확인한 실패 케이스').fill('운영 E2E 실행 근거');
-  await page.getByRole('button', { name: /이 작업은 완료/ }).click();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('button', { name: /이 작업은 완료/ }),
+    'Task completion'
+  );
 
   await page.goto(`${frontendUrl}/planner`);
-  await page.getByRole('button', { name: /다음 행동 추가/ }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: /다음 행동 추가/ }));
   await page.getByRole('dialog', { name: '다음 행동 추가' }).getByLabel('실행할 행동').fill('운영 E2E 회고 준비');
-  await page.getByRole('dialog', { name: '다음 행동 추가' }).getByRole('button', { name: '목록에 추가' }).click();
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('dialog', { name: '다음 행동 추가' }).getByRole('button', { name: '목록에 추가' }),
+    'Planner task creation'
+  );
   await page.getByRole('button', { name: /운영 E2E 회고 준비/ }).waitFor();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
 
   await page.goto(`${frontendUrl}/goals`);
-  await page.getByRole('button', { name: /계획 편집/ }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: /계획 편집/ }));
   const planEditor = page.getByRole('dialog', { name: '계획 편집' });
   await planEditor.getByLabel('연간 방향').fill('운영 가능한 계획 서비스 완성');
-  await planEditor.getByRole('button', { name: '계획 반영' }).click();
+  await activateAndWaitForPlannerSave(
+    page,
+    planEditor.getByRole('button', { name: '계획 반영' }),
+    'Goal plan update'
+  );
   await page.getByText('운영 가능한 계획 서비스 완성').waitFor();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
 
   await page.goto(`${frontendUrl}/review`);
   await page.getByPlaceholder('예: 24').fill('1');
-  await page.getByRole('button', { name: '반영', exact: true }).click();
-  await page.getByRole('radio', { name: /일이 너무 컸어요/ }).click();
-  await page.getByRole('button', { name: /운영 E2E 회고 준비/ }).click();
-  await page.getByRole('button', { name: /주간 점검 완료/ }).click();
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('button', { name: '반영', exact: true }),
+    'Review metric update'
+  );
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('radio', { name: /일이 너무 컸어요/ }),
+    'Review blocker update',
+    'Space'
+  );
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('button', { name: /운영 E2E 회고 준비/ }),
+    'Review priority selection'
+  );
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('button', { name: /주간 점검 완료/ }),
+    'Review completion'
+  );
   await page.getByRole('heading', { name: '다음 주의 기준이 정해졌습니다.' }).waitFor();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
   await page.goto(`${frontendUrl}/today`);
   await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
 
@@ -261,11 +336,14 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   captureState.allowExpectedOfflineErrors = false;
   captureState.allowedHttpStatusConsole.add(412);
   await page.getByText('서버 저장 충돌').waitFor({ timeout: 20_000 });
-  await page.getByRole('button', { name: '변경 비교' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: '변경 비교' }));
   await page.getByRole('heading', { name: '기기와 서버의 변경을 비교합니다' }).waitFor({ timeout: 20_000 });
   captureState.allowedHttpStatusConsole.delete(412);
-  await page.getByRole('button', { name: '선택 항목 병합' }).click();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('button', { name: '선택 항목 병합' }),
+    'Conflict merge'
+  );
 
   await page.goto(`${frontendUrl}/plans`);
   await page.getByRole('heading', { name: '연간·분기 계획' }).waitFor();
@@ -280,27 +358,28 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   }
   await page.getByLabel('계획 이름').fill('운영 E2E 다음 분기');
   await quarterFocusInput.fill('공개 운영 시나리오를 자동 검증한다');
-  await page.getByRole('button', { name: '초안 만들기' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: '초안 만들기' }));
   await page.getByText('운영 E2E 다음 분기').waitFor();
   await page.locator('article').filter({ hasText: '운영 E2E 다음 분기' })
-    .getByRole('button', { name: '변경 이력' }).click();
+    .getByRole('button', { name: '변경 이력' }).focus();
+  await page.keyboard.press('Enter');
   await page.getByRole('heading', { name: '운영 E2E 다음 분기 변경 이력' }).waitFor();
   await page.getByText('계획 생성').waitFor();
-  await page.getByRole('button', { name: '닫기' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: '닫기' }));
 
   await page.goto(`${frontendUrl}/settings`);
   await page.getByRole('heading', { name: '설정과 연동' }).waitFor();
-  await page.getByRole('button', { name: 'Google Calendar 연결' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: 'Google Calendar 연결' }));
   await page.getByText('Google Calendar 연결을 완료했습니다').waitFor({ timeout: 20_000 });
   await page.locator('option').filter({ hasText: 'Nowline E2E Calendar' })
     .waitFor({ state: 'attached', timeout: 20_000 });
-  await page.getByRole('button', { name: /지금 동기화/ }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: /지금 동기화/ }));
   await page.getByText('동기화를 요청했습니다').waitFor();
 
   await page.getByLabel('시간대').selectOption('Asia/Seoul');
   await page.getByLabel('오늘 계획 알림', { exact: true }).fill('09:15');
   await page.getByLabel('매일 오늘 계획 알림 받기').check();
-  await page.getByRole('button', { name: '알림 시간 저장' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: '알림 시간 저장' }));
   await page.getByText('알림 시간과 시간대를 저장했습니다.').waitFor();
 
   const downloadPromise = page.waitForEvent('download');
@@ -333,7 +412,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   }
   await page.keyboard.press('Enter');
   await page.getByLabel('확인을 위해 DELETE 입력').fill('DELETE');
-  await page.getByRole('button', { name: '영구 삭제' }).click();
+  await activateByKeyboard(page, page.getByRole('button', { name: '영구 삭제' }));
   await page.getByRole('heading', { name: '계획을 실행으로 연결하세요' }).waitFor({ timeout: 20_000 });
 
   if (errors.length > 0) fail(`Desktop browser emitted errors:\n${errors.join('\n')}`);
@@ -353,9 +432,12 @@ const exerciseMobile = async (frontendUrl) => {
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '모바일 E2E');
   await page.getByPlaceholder('예: API 응답 비교하기').fill('모바일에서 추가한 다음 행동');
-  await page.getByRole('button', { name: '수집함에 추가' }).click();
+  await runAndWaitForPlannerSave(
+    page,
+    () => page.getByRole('button', { name: '수집함에 추가' }).click(),
+    'Mobile quick capture'
+  );
   await page.getByText('수집함에 넣었어요.').waitFor();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
   await assertNoDocumentOverflow(page, 'Mobile Today');
   await assertVisibleTargets(page, 'Mobile Today');
 
@@ -364,9 +446,12 @@ const exerciseMobile = async (frontendUrl) => {
   await page.getByRole('button', { name: /다음 행동 추가/ }).click();
   const addDialog = page.getByRole('dialog', { name: '다음 행동 추가' });
   await addDialog.getByLabel('실행할 행동').fill('모바일 계획함 QA');
-  await addDialog.getByRole('button', { name: '목록에 추가' }).click();
+  await runAndWaitForPlannerSave(
+    page,
+    () => addDialog.getByRole('button', { name: '목록에 추가' }).click(),
+    'Mobile planner task creation'
+  );
   await page.getByRole('button', { name: /모바일 계획함 QA/ }).waitFor();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
   await assertNoDocumentOverflow(page, 'Mobile Planner');
 
   await page.goto(`${frontendUrl}/goals`);
@@ -420,8 +505,62 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
     await assertVisibleControlsAreLabelled(page, `Accessible labels ${route}`);
   }
 
+  await page.goto(`${frontendUrl}/plans`);
+  const newPlanButton = page.getByRole('button', { name: '새 계획' });
+  await activateByKeyboard(page, newPlanButton);
+  const newPlanDialog = page.getByRole('dialog', { name: '새 연간·분기 계획' });
+  await newPlanDialog.waitFor();
+  await assertDialogFitsViewport(newPlanDialog, '200% zoom new-plan dialog');
+  await page.keyboard.press('Escape');
+  await newPlanDialog.waitFor({ state: 'detached' });
+  if (!await newPlanButton.evaluate((element) => element === document.activeElement)) {
+    fail('Zoomed new-plan dialog did not restore trigger focus');
+  }
+
+  await page.goto(`${frontendUrl}/settings`);
+  const deleteAccountButton = page.getByRole('button', { name: '계정 삭제' });
+  await activateByKeyboard(page, deleteAccountButton);
+  const deleteDialog = page.getByRole('dialog', { name: '계정과 모든 데이터를 삭제할까요?' });
+  await deleteDialog.waitFor();
+  await assertDialogFitsViewport(deleteDialog, '200% zoom delete-account dialog');
+  await page.keyboard.press('Escape');
+  await deleteDialog.waitFor({ state: 'detached' });
+
   if (errors.length > 0) fail(`Keyboard/zoom browser emitted errors:\n${errors.join('\n')}`);
   await context.close();
+
+  const preferenceContext = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    colorScheme: 'dark',
+    reducedMotion: 'reduce'
+  });
+  const preferencePage = await preferenceContext.newPage();
+  await preferencePage.goto(`${frontendUrl}/today`, { waitUntil: 'domcontentloaded' });
+  await preferencePage.locator('#main-content').waitFor();
+  const preferenceStyles = await preferencePage.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const control = getComputedStyle(document.querySelector('button:not([disabled])'));
+    return {
+      colorScheme: root.colorScheme,
+      animationDuration: control.animationDuration,
+      transitionDuration: control.transitionDuration,
+      reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches
+    };
+  });
+  if (!preferenceStyles.colorScheme.split(/\s+/).includes('light')) {
+    fail(`Dark OS mode changed the verified light-only color scheme: ${JSON.stringify(preferenceStyles)}`);
+  }
+  if (!preferenceStyles.reducedMotion || !preferenceStyles.darkMode) {
+    fail(`Browser preference emulation was not applied: ${JSON.stringify(preferenceStyles)}`);
+  }
+  const isEffectivelyDisabled = (value) => value.split(',').every((duration) => (
+    Number.parseFloat(duration) <= 0.00001
+  ));
+  if (!isEffectivelyDisabled(preferenceStyles.animationDuration) || !isEffectivelyDisabled(preferenceStyles.transitionDuration)) {
+    fail(`Reduced-motion styles were not applied: ${JSON.stringify(preferenceStyles)}`);
+  }
+  await preferenceContext.close();
 };
 
 const backendPort = await reservePort();

@@ -7,7 +7,7 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
 - [x] G1: Core product screens and state rules are covered by automated frontend tests
   CHECK: rtk npm run verify:unit
   EXPECT: frontend tests passed
-  EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=bac1cdb55d49/23 entries; output=Duration  1.56s (transform 103ms, setup 103ms, import 194ms, tests 670ms, environment 489ms) | frontend tests passed
+  EVIDENCE: exit=0; 4 test files and 29 tests passed, including error-alert focus and modal trigger-focus restoration regressions; output=frontend tests passed
 
 - [x] G2: The repository contains the required Today, Planner, Goals, Review, onboarding, responsive navigation, and local persistence structure
   CHECK: rtk npm run verify:structure
@@ -58,15 +58,15 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
 - [x] G12: Automated usability contracts and local frontend flows pass
   CHECK: rtk npm run verify:usability
   EXPECT: frontend usability verification passed
-  EVIDENCE: exit=0; 2 Vitest files and 26 tests passed; active controls, server save/reset behavior, Planner/Goals/Review contracts, contrast token, scroll hints, offline retry, conflict preservation and 44px style declarations passed; output=frontend usability verification passed.
+  EVIDENCE: exit=0; 4 Vitest files and 29 tests passed; active controls, server save/reset behavior, Planner/Goals/Review contracts, alert focus, modal focus restoration, contrast token, scroll hints, offline retry, conflict preservation and 44px style declarations passed; output=frontend usability verification passed.
 
 - [x] G13: Desktop and mobile browser checks cover the revised end-to-end local flows
-  EVIDENCE: Current production E2E at 1440x900 and 390x844 verified policy consent, onboarding, quick capture, offline retry, conflict merge, plan lifecycle, Google test-provider flow, preferences, export and deletion. Six responsive routes had document overflow=0, effective primary controls were at least 44px, and captured browser console errors were 0.
+  EVIDENCE: Current production E2E at 1440x900 and 390x844 verified policy consent, onboarding, keyboard-operated Today/Planner/Goals/Review, offline retry, conflict merge, plan lifecycle, Google test-provider flow, preferences, export and deletion. Six responsive routes had document overflow=0, effective primary controls were at least 44px, 720x450 new-plan/delete modals fit and restored focus, light-only/reduced-motion preferences held, and captured browser console errors were 0.
 
 - [x] G14: The complete PWA and Capacitor release verification remains green after usability changes
   CHECK: rtk npm run verify:release
   EXPECT: redesigned frontend release verification passed
-  EVIDENCE: exit=0; 26 tests passed; structure, design source, visual system, usability, TypeScript/Vite PWA build, Android sync, and iOS sync passed; output=redesigned frontend release verification passed.
+  EVIDENCE: exit=0; 29 tests passed; structure, design source, visual system, usability, TypeScript/Vite PWA build, Android sync, and iOS sync passed; output=redesigned frontend release verification passed.
 
 - [x] G15: The synchronized Android project produces a debug APK
   EVIDENCE: JDK 21 with the locally cached Gradle 8.13 distribution ran assembleDebug successfully at final audit; 215 actionable tasks (27 executed, 188 up-to-date); output=BUILD SUCCESSFUL; artifact=android/app/build/outputs/apk/debug/app-debug.apk (8.1MB, ignored build output). The wrapper download was blocked by local Java certificate trust, so the verified cached distribution was used without weakening TLS.
@@ -86,7 +86,7 @@ Scope: Deliver the responsive React/PWA/Capacitor planner, a Java 25 Spring API 
 - [x] G18: The frontend remains local-first while server hydration, acknowledged saves, offline retry, and explicit conflict preservation pass the complete PWA and native verification
   CHECK: rtk npm run verify:release
   EXPECT: redesigned frontend release verification passed
-  EVIDENCE: exit=0; 2 test files and 26 tests passed; structure, design source, visual system, usability, TypeScript/Vite PWA build, Android sync, iOS sync, and restricted local-network configuration passed.
+  EVIDENCE: exit=0; 4 test files and 29 tests passed; structure, design source, visual system, usability, TypeScript/Vite PWA build, Android sync, iOS sync, and restricted local-network configuration passed.
 
 ## Local Kubernetes scale-out
 
@@ -132,7 +132,7 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
 - [x] G26: A stale client receives a three-way comparison and can keep local, keep server, or selectively merge non-conflicting planner changes without losing either original snapshot
   CHECK: rtk npm run verify:unit && rtk npm run verify:e2e
   EXPECT: frontend tests passed; backend end-to-end verification passed
-  EVIDENCE: 26 frontend tests cover server synchronization/conflict states and the conflict modal preserves base/local/server snapshots with local, server and field merge choices; HTTP ETag conflict behavior passed.
+  EVIDENCE: 29 frontend tests cover server synchronization/conflict states and the conflict modal preserves base/local/server snapshots with local, server and field merge choices; HTTP ETag conflict behavior passed.
 
 - [x] G27: Google Calendar connection uses least-privilege incremental consent, CSRF-safe OAuth state, offline access, encrypted refresh-token persistence, reconnect, revocation, and disconnect cleanup
   CHECK: rtk npm run verify:backend && rtk npm run verify:production:contracts
@@ -192,12 +192,12 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
 - [x] G38: Authenticated browser and API end-to-end tests cover onboarding, plan history, offline editing, conflict merge, calendar connect/sync/disconnect, reminders, export, and account deletion on desktop and mobile viewports
   CHECK: rtk npm run verify:production:e2e
   EXPECT: production authenticated browser end-to-end verification passed
-  EVIDENCE: exit=0; isolated MySQL/backend/frontend/fake Google runtime completed policy consent, onboarding, offline quick capture, three-way conflict comparison and merge, plan creation and audit, Google connect/calendar/sync/disconnect/revoke, reminder preferences, export, fresh-auth account deletion and logout in branded Chrome; 390x844 mobile Today/Plans/Settings had no horizontal overflow and effective primary controls were at least 44px.
+  EVIDENCE: exit=0; isolated MySQL/backend/frontend/fake Google runtime completed policy consent, keyboard-operated Today/Planner/Goals/Review, offline quick capture, three-way conflict comparison and merge, plan creation and audit, Google connect/calendar/sync/disconnect/revoke, reminder preferences, export, fresh-auth account deletion and logout in branded Chrome. Every planner mutation waited for an actual successful PUT. 390x844 mobile screens had no horizontal overflow and effective primary controls were at least 44px; 720x450 core modals, focus restoration, light-only dark-OS behavior and reduced motion passed.
 
 - [x] G39: Load, soak, failover, multi-replica concurrency, calendar quota, retry-storm, and database-pool tests meet documented capacity and recovery thresholds without lost or cross-tenant data
   CHECK: rtk npm run verify:production:reliability
   EXPECT: production reliability verification passed
-  EVIDENCE: exit=0 against MySQL 8.4.10 and two Java 25 backend instances; 400 requests at concurrency 32 completed in 2224.3ms with p95 282.9ms and 0 failures; the 30-second soak completed 300 requests at p95 35.5ms with 0 failures; concurrent writes produced 1 success and 19 precondition rejections; 100/100 failover reads succeeded; each pool stayed at maximum 8 with no pending acquisition; 50 Calendar sync requests deduplicated to 1 active job and recovered from one Google 429 on the second attempt.
+  EVIDENCE: exit=0 against MySQL 8.4.10 and two Java 25 backend instances; 400 requests at concurrency 32 completed in 3110.9ms with p95 633.9ms and 0 failures; the 30-second soak completed 299 requests at p95 37.1ms with 0 failures; concurrent writes produced 1 success and 19 precondition rejections; 100/100 failover reads succeeded; each pool stayed at maximum 8; 50 Calendar sync requests deduplicated to 1 active job and recovered from one Google 429 on the second attempt with provider concurrency 1.
 
 - [x] G40: The README and operator/developer runbooks describe local development, identity-provider setup, Google verification, production deployment, monitoring, backup restore, incident handling, privacy operations, mobile release, and every required external credential
   CHECK: rtk npm run verify:production:contracts
