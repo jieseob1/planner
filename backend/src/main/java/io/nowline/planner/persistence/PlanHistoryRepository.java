@@ -15,6 +15,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static io.nowline.planner.persistence.JdbcValues.id;
+import static io.nowline.planner.persistence.JdbcValues.nullableUuid;
+import static io.nowline.planner.persistence.JdbcValues.uuid;
+
 @Repository
 public class PlanHistoryRepository {
 
@@ -38,10 +42,10 @@ public class PlanHistoryRepository {
                         INSERT INTO planner_plan (
                             plan_id, user_id, title, plan_year, plan_quarter, status,
                             snapshot, source_revision, activated_at
-                        ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', CAST(? AS jsonb), ?, now())
+                        ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, CURRENT_TIMESTAMP(6))
                         """,
-                planId,
-                userId,
+                id(planId),
+                id(userId),
                 defaultTitle(snapshot),
                 snapshot.plan().year(),
                 snapshot.plan().quarter(),
@@ -54,24 +58,24 @@ public class PlanHistoryRepository {
     public Optional<UUID> activePlanId(UUID userId) {
         List<UUID> rows = jdbc.query(
                 "SELECT plan_id FROM planner_plan WHERE user_id = ? AND status = 'ACTIVE'",
-                (resultSet, rowNumber) -> resultSet.getObject(1, UUID.class),
-                userId);
+                (resultSet, rowNumber) -> UUID.fromString(resultSet.getString(1)),
+                id(userId));
         return rows.stream().findFirst();
     }
 
     public void updateSnapshot(UUID userId, UUID planId, PlannerSnapshot snapshot, long revision) {
         int updated = jdbc.update("""
                         UPDATE planner_plan
-                        SET plan_year = ?, plan_quarter = ?, snapshot = CAST(? AS jsonb),
-                            source_revision = ?, updated_at = now()
+                        SET plan_year = ?, plan_quarter = ?, snapshot = ?,
+                            source_revision = ?, updated_at = CURRENT_TIMESTAMP(6)
                         WHERE plan_id = ? AND user_id = ? AND status = 'ACTIVE'
                         """,
                 snapshot.plan().year(),
                 snapshot.plan().quarter(),
                 json(snapshot),
                 revision,
-                planId,
-                userId);
+                id(planId),
+                id(userId));
         if (updated != 1) throw new IllegalStateException("Active plan snapshot could not be updated");
     }
 
@@ -83,22 +87,21 @@ public class PlanHistoryRepository {
         activePlanId(userId).ifPresent(planId -> {
             jdbc.update("""
                             UPDATE planner_plan
-                            SET status = 'ARCHIVED', archived_at = now(), updated_at = now(), source_revision = ?
+                            SET status = 'ARCHIVED', archived_at = CURRENT_TIMESTAMP(6), updated_at = CURRENT_TIMESTAMP(6), source_revision = ?
                             WHERE user_id = ? AND plan_id = ? AND status = 'ACTIVE'
-                            """, revision, userId, planId);
+                            """, revision, id(userId), id(planId));
             audit(userId, planId, "ACTIVE_PLAN_DELETED", revision, Map.of());
         });
     }
 
     public boolean create(UUID userId, UUID planId, String title, PlannerSnapshot snapshot) {
         int inserted = jdbc.update("""
-                        INSERT INTO planner_plan (
+                        INSERT IGNORE INTO planner_plan (
                             plan_id, user_id, title, plan_year, plan_quarter, status, snapshot
-                        ) VALUES (?, ?, ?, ?, ?, 'DRAFT', CAST(? AS jsonb))
-                        ON CONFLICT (plan_id) DO NOTHING
+                        ) VALUES (?, ?, ?, ?, ?, 'DRAFT', ?)
                         """,
-                planId,
-                userId,
+                id(planId),
+                id(userId),
                 title.trim(),
                 snapshot.plan().year(),
                 snapshot.plan().quarter(),
@@ -115,20 +118,20 @@ public class PlanHistoryRepository {
                         WHERE user_id = ?
                         ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'DRAFT' THEN 1 WHEN 'CLOSED' THEN 2 ELSE 3 END,
                                  updated_at DESC
-                        """, (rs, row) -> summary(rs), userId);
+                        """, (rs, row) -> summary(rs), id(userId));
     }
 
     public Optional<PlanHistory.Detail> find(UUID userId, UUID planId) {
         return jdbc.query("""
                         SELECT plan_id, title, plan_year, plan_quarter, status, source_revision,
-                               snapshot::text, created_at, updated_at, activated_at, closed_at, archived_at
+                               snapshot, created_at, updated_at, activated_at, closed_at, archived_at
                         FROM planner_plan WHERE user_id = ? AND plan_id = ?
                         """, rs -> {
             if (!rs.next()) return Optional.empty();
             String snapshotJson = rs.getString("snapshot");
             PlannerSnapshot snapshot = snapshotJson == null ? null : read(snapshotJson, PlannerSnapshot.class);
             return Optional.of(new PlanHistory.Detail(summary(rs), snapshot));
-        }, userId, planId);
+        }, id(userId), id(planId));
     }
 
     public Optional<PlanHistory.Summary> transition(
@@ -143,11 +146,11 @@ public class PlanHistoryRepository {
             case ARCHIVED -> "archived_at";
             case DRAFT -> null;
         };
-        String timestampChange = timestampColumn == null ? "" : ", " + timestampColumn + " = now()";
+        String timestampChange = timestampColumn == null ? "" : ", " + timestampColumn + " = CURRENT_TIMESTAMP(6)";
         int updated = jdbc.update("""
-                        UPDATE planner_plan SET status = ?, updated_at = now()%s
+                        UPDATE planner_plan SET status = ?, updated_at = CURRENT_TIMESTAMP(6)%s
                         WHERE user_id = ? AND plan_id = ? AND status = ?
-                        """.formatted(timestampChange), target.name(), userId, planId, expected.name());
+                        """.formatted(timestampChange), target.name(), id(userId), id(planId), expected.name());
         if (updated != 1) return Optional.empty();
         audit(userId, planId, "PLAN_" + target.name(), null, Map.of("from", expected.name()));
         return find(userId, planId).map(PlanHistory.Detail::plan);
@@ -157,42 +160,42 @@ public class PlanHistoryRepository {
         List<UUID> closing = jdbc.query("""
                         SELECT plan_id FROM planner_plan
                         WHERE user_id = ? AND status = 'ACTIVE' AND plan_id <> ?
-                        """, (rs, row) -> rs.getObject(1, UUID.class), userId, exceptPlanId);
+                        """, (rs, row) -> UUID.fromString(rs.getString(1)), id(userId), id(exceptPlanId));
         int updated = jdbc.update("""
-                        UPDATE planner_plan SET status = 'CLOSED', closed_at = now(), updated_at = now()
+                        UPDATE planner_plan SET status = 'CLOSED', closed_at = CURRENT_TIMESTAMP(6), updated_at = CURRENT_TIMESTAMP(6)
                         WHERE user_id = ? AND status = 'ACTIVE' AND plan_id <> ?
-                        """, userId, exceptPlanId);
+                        """, id(userId), id(exceptPlanId));
         closing.forEach(planId -> audit(userId, planId, "PLAN_CLOSED", null, Map.of("reason", "another-plan-activated")));
         return updated;
     }
 
     public List<PlanHistory.AuditEvent> auditEvents(UUID userId, UUID planId) {
         return jdbc.query("""
-                        SELECT event_id, plan_id, action, revision, details::text, occurred_at
+                        SELECT event_id, plan_id, action, revision, details, occurred_at
                         FROM planner_audit_event
                         WHERE user_id = ? AND plan_id = ?
                         ORDER BY occurred_at DESC, event_id DESC
                         LIMIT 500
                         """, (rs, row) -> new PlanHistory.AuditEvent(
-                rs.getObject("event_id", UUID.class),
-                rs.getObject("plan_id", UUID.class),
+                uuid(rs, "event_id"),
+                nullableUuid(rs, "plan_id"),
                 rs.getString("action"),
                 rs.getObject("revision", Long.class),
                 read(rs.getString("details"), new TypeReference<>() {}),
-                rs.getTimestamp("occurred_at").toInstant()), userId, planId);
+                rs.getTimestamp("occurred_at").toInstant()), id(userId), id(planId));
     }
 
     public void audit(UUID userId, UUID planId, String action, Long revision, Map<String, Object> details) {
         jdbc.update("""
                         INSERT INTO planner_audit_event (
                             event_id, user_id, plan_id, action, revision, details
-                        ) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb))
-                        """, UUID.randomUUID(), userId, planId, action, revision, json(details));
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """, id(UUID.randomUUID()), id(userId), id(planId), action, revision, json(details));
     }
 
     private PlanHistory.Summary summary(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new PlanHistory.Summary(
-                rs.getObject("plan_id", UUID.class),
+                uuid(rs, "plan_id"),
                 rs.getString("title"),
                 rs.getInt("plan_year"),
                 rs.getInt("plan_quarter"),

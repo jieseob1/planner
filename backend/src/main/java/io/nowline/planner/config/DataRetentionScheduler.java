@@ -9,6 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Component
 @ConditionalOnProperty(name = "nowline.workers.enabled", havingValue = "true", matchIfMissing = true)
 public class DataRetentionScheduler {
@@ -25,17 +27,24 @@ public class DataRetentionScheduler {
     @Scheduled(cron = "${nowline.retention.cron:0 35 3 * * *}", zone = "UTC")
     @Transactional
     public void purgeExpiredOperationalRows() {
-        Boolean owner = jdbc.queryForObject(
-                "SELECT pg_try_advisory_xact_lock(hashtext('nowline-data-retention'))", Boolean.class);
-        if (!Boolean.TRUE.equals(owner)) return;
+        List<String> ownership = jdbc.query("""
+                SELECT lock_name FROM maintenance_lock
+                WHERE lock_name = 'nowline-data-retention'
+                FOR UPDATE SKIP LOCKED
+                """, (rs, row) -> rs.getString(1));
+        if (ownership.isEmpty()) return;
+        jdbc.update("""
+                UPDATE maintenance_lock SET last_acquired_at = CURRENT_TIMESTAMP(6)
+                WHERE lock_name = 'nowline-data-retention'
+                """);
 
         int deleted = 0;
-        deleted += jdbc.update("DELETE FROM api_rate_limit WHERE window_start < now() - interval '2 hours'");
-        deleted += jdbc.update("DELETE FROM google_oauth_state WHERE expires_at < now() - interval '1 day'");
-        deleted += jdbc.update("DELETE FROM planner_idempotency WHERE created_at < now() - interval '30 days'");
-        deleted += jdbc.update("DELETE FROM integration_job WHERE status = 'SUCCEEDED' AND updated_at < now() - interval '30 days'");
-        deleted += jdbc.update("DELETE FROM integration_job WHERE status = 'DEAD' AND updated_at < now() - interval '90 days'");
-        deleted += jdbc.update("DELETE FROM notification_delivery WHERE created_at < now() - interval '365 days'");
+        deleted += jdbc.update("DELETE FROM api_rate_limit WHERE window_started_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 2 HOUR)");
+        deleted += jdbc.update("DELETE FROM google_oauth_state WHERE expires_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 1 DAY)");
+        deleted += jdbc.update("DELETE FROM planner_idempotency WHERE created_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 30 DAY)");
+        deleted += jdbc.update("DELETE FROM integration_job WHERE status = 'SUCCEEDED' AND updated_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 30 DAY)");
+        deleted += jdbc.update("DELETE FROM integration_job WHERE status = 'DEAD' AND updated_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 90 DAY)");
+        deleted += jdbc.update("DELETE FROM notification_delivery WHERE created_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 365 DAY)");
 
         meters.counter("nowline.retention.runs", "result", "success").increment();
         meters.counter("nowline.retention.rows.deleted").increment(deleted);

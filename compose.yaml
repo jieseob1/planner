@@ -1,14 +1,20 @@
 services:
-  postgres:
-    image: postgres:17.6-alpine3.22
+  mysql:
+    image: mysql:8.4.10
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_as_ci
+      - --default-time-zone=+00:00
+      - --log-bin-trust-function-creators=1
     environment:
-      POSTGRES_DB: ${NOWLINE_POSTGRES_DB:-nowline}
-      POSTGRES_USER: ${NOWLINE_POSTGRES_USER:-nowline}
-      POSTGRES_PASSWORD: ${NOWLINE_POSTGRES_PASSWORD:-nowline-local-only}
+      MYSQL_DATABASE: ${NOWLINE_MYSQL_DB:-nowline}
+      MYSQL_USER: ${NOWLINE_MYSQL_USER:-nowline}
+      MYSQL_PASSWORD: ${NOWLINE_MYSQL_PASSWORD:-nowline-local-only}
+      MYSQL_ROOT_PASSWORD: ${NOWLINE_MYSQL_ROOT_PASSWORD:-nowline-root-local-only}
     healthcheck:
       test:
         - CMD-SHELL
-        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+        - mysqladmin ping -h 127.0.0.1 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent
       interval: 5s
       timeout: 3s
       retries: 20
@@ -16,11 +22,11 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     volumes:
-      - nowline-postgres-data:/var/lib/postgresql/data
+      - nowline-mysql-data:/var/lib/mysql
     networks:
       default:
         aliases:
-          - nowline-postgres
+          - nowline-mysql
 
   backend:
     image: nowline-backend:local
@@ -29,12 +35,12 @@ services:
       dockerfile: Dockerfile
     init: true
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${NOWLINE_POSTGRES_DB:-nowline}
-      SPRING_DATASOURCE_USERNAME: ${NOWLINE_POSTGRES_USER:-nowline}
-      SPRING_DATASOURCE_PASSWORD: ${NOWLINE_POSTGRES_PASSWORD:-nowline-local-only}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${NOWLINE_MYSQL_DB:-nowline}?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_as_ci&serverTimezone=UTC&preserveInstants=true
+      SPRING_DATASOURCE_USERNAME: ${NOWLINE_MYSQL_USER:-nowline}
+      SPRING_DATASOURCE_PASSWORD: ${NOWLINE_MYSQL_PASSWORD:-nowline-local-only}
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
       SPRING_PROFILES_ACTIVE: local-auth
       NOWLINE_OIDC_ISSUER: https://identity.local.nowline.invalid
@@ -95,5 +101,5 @@ services:
       - "${NOWLINE_FRONTEND_PORT:-8088}:8080"
 
 volumes:
-  nowline-postgres-data:
-    name: ${NOWLINE_POSTGRES_VOLUME:-nowline-postgres-data}
+  nowline-mysql-data:
+    name: ${NOWLINE_MYSQL_VOLUME:-nowline-mysql-data}

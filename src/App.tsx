@@ -14,14 +14,21 @@ import { PrivacyScreen, TermsScreen } from './screens/LegalScreen';
 import { usePlanner } from './state/PlannerProvider';
 
 function RequireActivePlan({ children }: { children: ReactNode }) {
-  const { hasActivePlan } = usePlanner();
-  return hasActivePlan ? children : <Navigate to="/plans" replace />;
+  const { hasActivePlan, plannerReady } = usePlanner();
+  if (!plannerReady) return <main className="route-loading" role="status">계획을 불러오고 있습니다…</main>;
+  return hasActivePlan ? children : <Navigate to="/onboarding" replace />;
+}
+
+function RequireNoActivePlan({ children }: { children: ReactNode }) {
+  const { hasActivePlan, plannerReady } = usePlanner();
+  if (!plannerReady) return <main className="route-loading" role="status">계획을 불러오고 있습니다…</main>;
+  return hasActivePlan ? <Navigate to="/today" replace /> : children;
 }
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/onboarding" element={<RequireActivePlan><OnboardingScreen /></RequireActivePlan>} />
+      <Route path="/onboarding" element={<RequireNoActivePlan><OnboardingScreen /></RequireNoActivePlan>} />
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/today" replace />} />
         <Route path="/today" element={<RequireActivePlan><TodayScreen /></RequireActivePlan>} />

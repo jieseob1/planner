@@ -101,7 +101,7 @@ build_images() {
 }
 
 wait_for_rollouts() {
-  kubectl_nowline --namespace "${NAMESPACE}" rollout status statefulset/nowline-postgres --timeout="${WAIT_TIMEOUT}"
+  kubectl_nowline --namespace "${NAMESPACE}" rollout status statefulset/nowline-mysql --timeout="${WAIT_TIMEOUT}"
   kubectl_nowline --namespace "${NAMESPACE}" rollout status deployment/nowline-backend --timeout="${WAIT_TIMEOUT}"
   kubectl_nowline --namespace "${NAMESPACE}" rollout status deployment/nowline-frontend --timeout="${WAIT_TIMEOUT}"
 }
@@ -204,15 +204,15 @@ down_stack() {
     poddisruptionbudget/nowline-backend \
     deployment/nowline-frontend \
     deployment/nowline-backend \
-    statefulset/nowline-postgres \
+    statefulset/nowline-mysql \
     service/nowline-frontend \
     service/nowline-backend \
-    service/nowline-postgres \
-    secret/nowline-postgres \
+    service/nowline-mysql \
+    secret/nowline-mysql \
     --ignore-not-found \
     --wait=true \
     --timeout="${WAIT_TIMEOUT}"
-  printf '%s\n' 'Nowline workloads removed; namespace and PostgreSQL PVC retained.'
+  printf '%s\n' 'Nowline workloads removed; namespace and MySQL PVC retained.'
 }
 
 usage() {

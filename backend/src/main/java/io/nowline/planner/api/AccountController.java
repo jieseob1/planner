@@ -73,7 +73,10 @@ public class AccountController {
             throw PlannerException.validation("confirmation", "확인을 위해 DELETE를 정확히 입력해 주세요.");
         }
         Instant authTime = jwt.getClaimAsInstant("auth_time");
-        if (authTime == null || Duration.between(authTime, Instant.now()).abs().compareTo(Duration.ofMinutes(15)) > 0) {
+        Instant now = Instant.now();
+        if (authTime == null
+                || authTime.isAfter(now.plusSeconds(30))
+                || authTime.isBefore(now.minus(Duration.ofMinutes(15)))) {
             throw PlannerException.reauthenticationRequired();
         }
         accounts.delete(currentUser.resolve(jwt));

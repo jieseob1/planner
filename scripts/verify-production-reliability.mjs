@@ -5,7 +5,7 @@ import { startFakeGoogleCalendar } from './lib/fake-google-calendar.mjs';
 const repositoryRoot = new URL('..', import.meta.url).pathname;
 const runId = `nowline-reliability-${process.pid}`;
 const networkName = `${runId}-network`;
-const databaseContainer = `${runId}-postgres`;
+const databaseContainer = `${runId}-mysql`;
 const backendContainers = [`${runId}-backend-a`, `${runId}-backend-b`];
 const imageName = `${runId}:local`;
 const databasePassword = randomBytes(24).toString('hex');
@@ -147,7 +147,8 @@ const snapshot = {
 };
 
 const databaseQuery = (sql) => run('docker', [
-  'exec', databaseContainer, 'psql', '-U', 'nowline', '-d', 'nowline', '-At', '-c', sql
+  'exec', '--env', `MYSQL_PWD=${databasePassword}`, databaseContainer,
+  'mysql', '--user=nowline', '--database=nowline', '--batch', '--skip-column-names', '--execute', sql
 ]).stdout.trim();
 
 const containerPort = (name) => {
@@ -159,7 +160,7 @@ const containerPort = (name) => {
 };
 
 const backendEnvironment = (workerId) => [
-  '--env', 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/nowline',
+  '--env', 'SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/nowline?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_as_ci&serverTimezone=UTC&preserveInstants=true',
   '--env', 'SPRING_DATASOURCE_USERNAME=nowline',
   '--env', `SPRING_DATASOURCE_PASSWORD=${databasePassword}`,
   '--env', 'SPRING_PROFILES_ACTIVE=local-auth',
@@ -226,14 +227,20 @@ try {
   run('docker', ['network', 'create', networkName]);
   run('docker', [
     'run', '--detach', '--name', databaseContainer,
-    '--network', networkName, '--network-alias', 'postgres',
-    '--env', 'POSTGRES_DB=nowline',
-    '--env', 'POSTGRES_USER=nowline',
-    '--env', `POSTGRES_PASSWORD=${databasePassword}`,
-    'postgres:17.6-alpine3.22'
+    '--network', networkName, '--network-alias', 'mysql',
+    '--env', 'MYSQL_DATABASE=nowline',
+    '--env', 'MYSQL_USER=nowline',
+    '--env', `MYSQL_PASSWORD=${databasePassword}`,
+    '--env', `MYSQL_ROOT_PASSWORD=${databasePassword}-root`,
+    'mysql:8.4.10',
+    '--character-set-server=utf8mb4',
+    '--collation-server=utf8mb4_0900_as_ci',
+    '--default-time-zone=+00:00',
+    '--log-bin-trust-function-creators=1'
   ]);
-  await waitFor('PostgreSQL readiness', () => run('docker', [
-    'exec', databaseContainer, 'pg_isready', '-U', 'nowline', '-d', 'nowline'
+  await waitFor('MySQL readiness', () => run('docker', [
+    'exec', '--env', `MYSQL_PWD=${databasePassword}`, databaseContainer,
+    'mysqladmin', 'ping', '-h', '127.0.0.1', '-u', 'nowline', '--silent'
   ], { allowFailure: true }).status === 0, 90_000);
 
   startBackend(backendContainers[0], 'reliability-a');
@@ -409,7 +416,7 @@ try {
 
   const completedJob = await waitFor('Google Calendar quota retry', () => {
     const result = databaseQuery(
-      `SELECT status || '|' || attempts FROM integration_job WHERE user_id = '${userId}' AND job_type = 'GOOGLE_CALENDAR_SYNC' ORDER BY created_at DESC LIMIT 1`
+      `SELECT CONCAT(status, '|', attempts) FROM integration_job WHERE user_id = '${userId}' AND job_type = 'GOOGLE_CALENDAR_SYNC' ORDER BY created_at DESC LIMIT 1`
     );
     return result.startsWith('SUCCEEDED|') ? result : false;
   }, 45_000, 500);

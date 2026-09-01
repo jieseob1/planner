@@ -519,7 +519,7 @@ export function PlannerScreen() {
       {addOpen && (
         <Modal
           title="다음 행동 추가"
-          description="추가한 내용은 현재 프론트엔드 데모에서 이 기기에만 저장됩니다."
+          description="추가한 내용은 이 기기에 즉시 저장되고 연결 상태가 되면 서버에 동기화됩니다."
           onClose={() => setAddOpen(false)}
         >
           <form onSubmit={submitTask}>

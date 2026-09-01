@@ -13,10 +13,10 @@ help:
 	@printf '%s\n' \
 	  'compose-config  Validate the resolved Compose model' \
 	  'compose-build   Build frontend and backend images' \
-	  'compose-up      Build and start frontend, backend, and PostgreSQL' \
+	  'compose-up      Build and start frontend, backend, and MySQL' \
 	  'compose-verify  Check frontend and backend HTTP health' \
 	  'compose-logs    Follow logs for the three named services' \
-	  'compose-down    Stop the stack and retain the PostgreSQL volume' \
+	  'compose-down    Stop the stack and retain the MySQL volume' \
 	  'k8s-render      Render and structurally verify the local overlay' \
 	  'k8s-build       Build images and load them when the context is kind' \
 	  'k8s-up          Apply the local overlay and wait for rollouts' \
@@ -43,7 +43,7 @@ compose-verify:
 	curl --fail --silent --show-error --max-time 5 http://127.0.0.1:$(NOWLINE_BACKEND_PORT)/actuator/health/readiness
 
 compose-logs:
-	$(COMPOSE) logs --follow postgres backend frontend
+	$(COMPOSE) logs --follow mysql backend frontend
 
 compose-down:
 	$(COMPOSE) down --remove-orphans

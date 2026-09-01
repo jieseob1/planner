@@ -11,6 +11,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
+import static io.nowline.planner.persistence.JdbcValues.id;
+
 @Service
 public class CurrentUserService {
 
@@ -48,13 +50,13 @@ public class CurrentUserService {
         jdbc.sql("""
                         INSERT INTO app_user (
                             user_id, oidc_issuer, oidc_subject, email, display_name, last_seen_at
-                        ) VALUES (:userId, :issuer, :subject, :email, :displayName, now())
-                        ON CONFLICT (oidc_issuer, oidc_subject) DO UPDATE SET
-                            email = COALESCE(EXCLUDED.email, app_user.email),
-                            display_name = COALESCE(EXCLUDED.display_name, app_user.display_name),
-                            last_seen_at = now()
+                        ) VALUES (:userId, :issuer, :subject, :email, :displayName, CURRENT_TIMESTAMP(6)) AS new
+                        ON DUPLICATE KEY UPDATE
+                            email = COALESCE(new.email, app_user.email),
+                            display_name = COALESCE(new.display_name, app_user.display_name),
+                            last_seen_at = CURRENT_TIMESTAMP(6)
                         """)
-                .param("userId", userId)
+                .param("userId", id(userId))
                 .param("issuer", issuer)
                 .param("subject", subject)
                 .param("email", normalizedClaim(jwt.getClaimAsString("email"), 320))
@@ -63,11 +65,12 @@ public class CurrentUserService {
 
         return jdbc.sql("""
                         SELECT user_id FROM app_user
-                        WHERE oidc_issuer = :issuer AND oidc_subject = :subject AND deleted_at IS NULL
+                        WHERE identity_key = SHA2(CONCAT(:issuer, CHAR(0), :subject), 256)
+                          AND oidc_issuer = :issuer AND oidc_subject = :subject AND deleted_at IS NULL
                         """)
                 .param("issuer", issuer)
                 .param("subject", subject)
-                .query(UUID.class)
+                .query((rs, row) -> UUID.fromString(rs.getString("user_id")))
                 .single();
     }
 
@@ -77,7 +80,7 @@ public class CurrentUserService {
                         SELECT terms_accepted_at, privacy_accepted_at, policy_version
                         FROM app_user WHERE user_id = ? AND deleted_at IS NULL
                         """)
-                .param(userId)
+                .param(id(userId))
                 .query((rs, row) -> new ConsentStatus(
                         rs.getTimestamp("terms_accepted_at") != null
                                 && rs.getTimestamp("privacy_accepted_at") != null
@@ -89,12 +92,12 @@ public class CurrentUserService {
     @Transactional
     public ConsentStatus acceptConsent(UUID userId) {
         jdbc.sql("""
-                        UPDATE app_user SET terms_accepted_at = now(), privacy_accepted_at = now(),
-                            policy_version = :version, last_seen_at = now()
+                        UPDATE app_user SET terms_accepted_at = CURRENT_TIMESTAMP(6), privacy_accepted_at = CURRENT_TIMESTAMP(6),
+                            policy_version = :version, last_seen_at = CURRENT_TIMESTAMP(6)
                         WHERE user_id = :userId AND deleted_at IS NULL
                         """)
                 .param("version", currentPolicyVersion)
-                .param("userId", userId)
+                .param("userId", id(userId))
                 .update();
         return consentStatus(userId);
     }

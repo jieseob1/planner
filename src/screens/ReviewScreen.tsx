@@ -138,7 +138,7 @@ export function ReviewScreen() {
           <span className="review-complete__icon"><CheckCircle2 size={34} /></span>
           <p className="eyebrow">WEEK CLOSED · LOCAL DEMO</p>
           <h1>다음 주의 기준이 정해졌습니다.</h1>
-          <p>선택한 결과 수치와 방해 요인, Top 3를 이 기기의 데모 상태에 반영했습니다.</p>
+          <p>선택한 결과 수치와 방해 요인, Top 3를 현재 계획에 반영했습니다.</p>
           <div className="review-complete__summary">
             <div><strong>{review.selectedTopTaskIds.length}</strong><span>우선 실행</span></div>
             <div><strong>{formatMinutes(selectedMinutes)}</strong><span>계획 시간</span></div>
@@ -165,7 +165,7 @@ export function ReviewScreen() {
           <h1>한 주를 닫고, 다음 주를 고릅니다.</h1>
           <p className="page-header__description">달라진 수치와 가장 큰 방해만 확인한 뒤, 다음 주 Top 3를 시간에 연결하세요.</p>
         </div>
-        <div className="review-header__status"><span>로컬 데모 · 4단계 · 약 5분</span></div>
+        <div className="review-header__status"><span>자동 저장 · 4단계 · 약 5분</span></div>
       </header>
 
       <section className="review-overview" aria-label="이번 주 요약과 점검 진행 상황">
@@ -311,7 +311,7 @@ export function ReviewScreen() {
         <section className={clsx('review-step', 'review-stage', 'review-stage--confirm', ready && 'is-complete')}>
           <header className="review-step__header">
             <span className="review-step__number">04</span>
-            <div><p className="eyebrow">CONFIRM PLAN</p><h2>선택을 데모 상태에 반영하고 다음 주로 넘깁니다.</h2></div>
+            <div><p className="eyebrow">CONFIRM PLAN</p><h2>선택을 현재 계획에 반영하고 다음 주로 넘깁니다.</h2></div>
             <span className="review-step__time">마지막</span>
           </header>
           <div className="review-step__body">

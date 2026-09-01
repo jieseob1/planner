@@ -19,3 +19,4 @@ android/app/src/main/assets/public
 .unlazy-hook-state.json
 .codegraph/
 .tools/
+.local-backups/

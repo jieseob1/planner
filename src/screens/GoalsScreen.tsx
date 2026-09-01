@@ -329,7 +329,7 @@ export function GoalsScreen() {
       {editorOpen ? (
         <Modal
           title="계획 편집"
-          description="연간 방향과 현재 분기, 선택한 결과를 이 기기의 데모 상태에서 수정합니다."
+          description="연간 방향과 현재 분기, 선택한 결과를 수정하면 기기에 즉시 보관되고 서버에 동기화됩니다."
           className="plan-editor-modal"
           onClose={() => setEditorOpen(false)}
         >
@@ -384,7 +384,7 @@ export function GoalsScreen() {
       {stopOutcome ? (
         <Modal
           title={`${stopOutcome.title} 중단 확인`}
-          description="중단 결정은 이 기기의 데모 상태에만 반영됩니다."
+          description="중단 결정은 현재 계획에 즉시 반영되고 서버에 동기화됩니다."
           className="stop-confirm-modal"
           onClose={closeStopConfirmation}
         >

@@ -36,6 +36,8 @@ const createStatefulApiMock = () => {
 
 beforeEach(() => {
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+  window.localStorage.clear();
+  window.localStorage.setItem('planner.mvp.snapshot.v1', JSON.stringify(createDemoSnapshot()));
   vi.stubGlobal('fetch', createStatefulApiMock());
 });
 
@@ -98,26 +100,27 @@ describe('Planner frontend core flows', () => {
     expect(screen.getAllByText('배포 체크리스트 확인')).toHaveLength(1);
   });
 
-  it('keeps local data when reset is cancelled and restores demo data only after confirmation', async () => {
+  it('keeps the current plan when reset is cancelled and opens clean onboarding after confirmation', async () => {
     const user = userEvent.setup();
     renderRoute('/today');
 
     await user.type(screen.getByLabelText('빠른 메모'), '초기화 전에 남길 작업{Enter}');
-    await user.click(screen.getByRole('button', { name: '데모 초기화' }));
+    await user.click(screen.getByRole('button', { name: '현재 계획 초기화' }));
 
-    const firstDialog = screen.getByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' });
+    const firstDialog = screen.getByRole('dialog', { name: '현재 계획을 초기화할까요?' });
     await user.click(within(firstDialog).getByRole('button', { name: '취소' }));
-    expect(screen.queryByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '현재 계획을 초기화할까요?' })).not.toBeInTheDocument();
 
     await openRouteFromNavigation(user, 'Planner');
     expect(screen.getByText('초기화 전에 남길 작업')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '데모 초기화' }));
-    const secondDialog = screen.getByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' });
-    await user.click(within(secondDialog).getByRole('button', { name: '기기·서버 데이터 초기화' }));
+    await user.click(screen.getByRole('button', { name: '현재 계획 초기화' }));
+    const secondDialog = screen.getByRole('dialog', { name: '현재 계획을 초기화할까요?' });
+    await user.click(within(secondDialog).getByRole('button', { name: '현재 계획 초기화' }));
 
+    expect(await screen.findByRole('heading', { name: '이번 분기에 무엇을 바꿀까요?' })).toBeInTheDocument();
     expect(screen.queryByText('초기화 전에 남길 작업')).not.toBeInTheDocument();
-    expect(screen.getByText('세금계산서 발행')).toBeInTheDocument();
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toBeNull();
   });
 
   it('adds a next action to the Planner backlog', async () => {
@@ -258,23 +261,22 @@ describe('Planner frontend core flows', () => {
     expect(screen.getAllByText('기술 글 8개 발행').length).toBeGreaterThan(0);
   });
 
-  it('prevents onboarding from choosing an overlapping recommended slot', async () => {
+  it('routes a new account to clean onboarding and creates only the user first plan', async () => {
+    window.localStorage.clear();
     const user = userEvent.setup();
-    renderRoute('/onboarding');
+    renderRoute('/today');
 
+    expect(await screen.findByRole('heading', { name: '이번 분기에 무엇을 바꿀까요?' })).toBeInTheDocument();
     await user.type(screen.getByLabelText('결과 한 문장'), '운영 자동화 글 3개 발행');
     await user.click(screen.getByRole('button', { name: /계속/ }));
     await user.type(screen.getByLabelText('첫 번째 다음 행동'), '첫 글의 실패 흐름 목차 작성');
     await user.click(screen.getByRole('button', { name: /계속/ }));
 
-    const conflictingSlot = screen.getByRole('radio', { name: /오늘 저녁.*시간 겹침.*19:30 다이어그램 작성/ });
-    expect(conflictingSlot).toBeDisabled();
-    expect(conflictingSlot).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByRole('radio', { name: /내일 아침/ })).toHaveAttribute('aria-checked', 'true');
-
     await user.click(screen.getByRole('button', { name: /첫 실행 만들기/ }));
     expect(screen.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' })).toBeInTheDocument();
     expect(screen.getAllByText('첫 글의 실패 흐름 목차 작성').length).toBeGreaterThan(0);
+    expect(screen.queryByText('세금계산서 발행')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('운영 자동화 글 3개 발행');
   });
 
   it('records a goal decision', async () => {
@@ -326,6 +328,7 @@ describe('Planner API synchronization', () => {
   });
 
   it('hydrates the server snapshot when no local snapshot exists', async () => {
+    window.localStorage.clear();
     const serverSnapshot = createDemoSnapshot();
     serverSnapshot.tasks = [
       { ...serverSnapshot.tasks[0], id: 'task-from-server', title: '서버에서 불러온 작업' },
@@ -453,16 +456,16 @@ describe('Planner API synchronization', () => {
 
     await user.type(screen.getByLabelText('빠른 메모'), '초기화할 충돌 작업{Enter}');
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '데모 초기화' }));
-    const dialog = screen.getByRole('dialog', { name: '데모 데이터로 모두 초기화할까요?' });
-    await user.click(within(dialog).getByRole('button', { name: '기기·서버 데이터 초기화' }));
+    await user.click(screen.getByRole('button', { name: '현재 계획 초기화' }));
+    const dialog = screen.getByRole('dialog', { name: '현재 계획을 초기화할까요?' });
+    await user.click(within(dialog).getByRole('button', { name: '현재 계획 초기화' }));
 
     await waitFor(() => {
       const deleteRequest = apiMock.mock.calls.find(([, init]) => init?.method === 'DELETE');
       expect(deleteRequest).toBeDefined();
       expect(new Headers(deleteRequest?.[1]?.headers).get('If-Match')).toBe('"8"');
     });
-    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '이번 분기에 무엇을 바꿀까요?' })).toBeInTheDocument();
     expect(screen.queryByText('초기화할 충돌 작업')).not.toBeInTheDocument();
   });
 

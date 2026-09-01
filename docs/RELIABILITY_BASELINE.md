@@ -2,7 +2,7 @@
 
 ## 목적과 범위
 
-`npm run verify:production:reliability`는 공개 배포 전에 저장소에서 반복 가능한 최소 신뢰성 게이트다. Java 25 backend 두 인스턴스와 PostgreSQL 17, 가짜 Google Calendar 공급자를 격리된 Docker network에 올려 tenant 격리, 동시성, 부하, 제한된 soak, 장애 전환, 외부 API quota 재시도를 확인한다.
+`npm run verify:production:reliability`는 공개 배포 전에 저장소에서 반복 가능한 최소 신뢰성 게이트다. Java 25 backend 두 인스턴스와 MySQL 8.4, 가짜 Google Calendar 공급자를 격리된 Docker network에 올려 tenant 격리, 동시성, 부하, 제한된 soak, 장애 전환, 외부 API quota 재시도를 확인한다.
 
 이 검증은 실제 cloud 장기 부하 시험이나 운영 SLA 증거를 대신하지 않는다. 실제 domain/TLS, 관리형 DB의 PITR, alert 전달과 장시간 soak은 G41에서 별도로 확인해야 한다.
 
@@ -25,10 +25,10 @@ soak 시간은 `NOWLINE_RELIABILITY_SOAK_SECONDS`로 늘릴 수 있으며 최소
 
 ## 최근 로컬 측정
 
-측정일: 2026-09-01. 환경: macOS Docker runtime, PostgreSQL 17.6, Java 25 backend 2개. 아래 값은 마지막 통과 실행 후 갱신한다.
+측정일: 2026-09-01. 환경: macOS Docker runtime, MySQL 8.4.10, Java 25 backend 2개. 아래 값은 마지막 통과 실행 후 갱신한다.
 
-- 순간 부하: 400건 / concurrency 32 / 총 900.6ms / p95 134.0ms / 오류 0건
-- 제한된 soak: 30초 / 298건 / p95 31.9ms / 오류 0건
+- 순간 부하: 400건 / concurrency 32 / 총 2224.3ms / p95 282.9ms / 오류 0건
+- 제한된 soak: 30초 / 300건 / p95 35.5ms / 오류 0건
 - 동시 수정: 1 성공 / 19 precondition rejection
 - 장애 전환: 100 / 100 성공
 - DB pool: 인스턴스별 최대 8, 대기 0

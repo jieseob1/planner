@@ -57,7 +57,7 @@ spec:
               app.kubernetes.io/name: nowline
               app.kubernetes.io/component: backend
       initContainers:
-        - name: wait-for-postgres
+        - name: wait-for-mysql
           image: nowline-backend:local
           imagePullPolicy: IfNotPresent
           command:
@@ -65,12 +65,12 @@ spec:
             - -ec
             - |
               for attempt in $(seq 1 90); do
-                if nc -z -w 2 nowline-postgres 5432; then
+                if nc -z -w 2 nowline-mysql 3306; then
                   exit 0
                 fi
                 sleep 2
               done
-              echo "PostgreSQL did not become reachable within 180 seconds" >&2
+              echo "MySQL did not become reachable within 180 seconds" >&2
               exit 1
           resources:
             requests:
@@ -93,16 +93,16 @@ spec:
               containerPort: 8080
           env:
             - name: SPRING_DATASOURCE_URL
-              value: jdbc:postgresql://nowline-postgres:5432/nowline
+              value: jdbc:mysql://nowline-mysql:3306/nowline?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_as_ci&serverTimezone=UTC&preserveInstants=true
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: nowline-postgres
+                  name: nowline-mysql
                   key: username
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: nowline-postgres
+                  name: nowline-mysql
                   key: password
             - name: SPRING_THREADS_VIRTUAL_ENABLED
               value: "true"

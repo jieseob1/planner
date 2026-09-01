@@ -145,13 +145,13 @@ const environment = {
   ...process.env,
   NOWLINE_BACKEND_PORT: String(backendPort),
   NOWLINE_FRONTEND_PORT: String(frontendPort),
-  NOWLINE_POSTGRES_VOLUME: `${projectName}-postgres-data`
+  NOWLINE_MYSQL_VOLUME: `${projectName}-mysql-data`
 };
 const plannerUrl = `http://127.0.0.1:${backendPort}/api/v1/planner`;
 
 try {
   packageBackend();
-  runCompose(['up', '-d', '--build', 'postgres', 'backend'], environment);
+  runCompose(['up', '-d', '--build', 'mysql', 'backend'], environment);
   await waitForReady(`http://127.0.0.1:${backendPort}/actuator/health/readiness`);
   const tokenResponse = await expectStatus(await fetch(
     `http://127.0.0.1:${backendPort}/api/v1/auth/dev-token`,
@@ -250,7 +250,7 @@ try {
 
   console.log('backend end-to-end verification passed');
 } catch (error) {
-  const logs = runCompose(['logs', '--no-color', '--tail', '160', 'backend', 'postgres'], environment, true);
+  const logs = runCompose(['logs', '--no-color', '--tail', '160', 'backend', 'mysql'], environment, true);
   if (logs.stdout) process.stderr.write(logs.stdout);
   if (logs.stderr) process.stderr.write(logs.stderr);
   throw error;

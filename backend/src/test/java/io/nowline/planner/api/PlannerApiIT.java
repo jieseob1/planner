@@ -7,20 +7,23 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import io.nowline.planner.PlannerFixtures;
+import io.nowline.planner.config.DatabaseWriteExecutor;
 import io.nowline.planner.domain.PlannerEnvelope;
 import io.nowline.planner.domain.PlannerSnapshot;
+import io.nowline.planner.integration.calendar.CalendarIntegrationRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.ObjectMapper;
@@ -36,7 +39,10 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.nowline.planner.persistence.JdbcValues.id;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -50,16 +56,21 @@ class PlannerApiIT {
     private static final String TEST_SECRET = "nowline-integration-test-secret-key-32-bytes-minimum";
 
     @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine")
+    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4.10")
             .withDatabaseName("nowline")
             .withUsername("nowline")
-            .withPassword("nowline");
+            .withPassword("nowline")
+            .withCommand(
+                    "--character-set-server=utf8mb4",
+                    "--collation-server=utf8mb4_0900_as_ci",
+                    "--default-time-zone=+00:00",
+                    "--log-bin-trust-function-creators=1");
 
     @DynamicPropertySource
-    static void postgresProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    static void mysqlProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+        registry.add("spring.datasource.username", MYSQL::getUsername);
+        registry.add("spring.datasource.password", MYSQL::getPassword);
         registry.add("nowline.security.issuer", () -> TEST_ISSUER);
         registry.add("nowline.security.audience", () -> TEST_AUDIENCE);
         registry.add("nowline.security.hmac-secret", () -> TEST_SECRET);
@@ -81,6 +92,12 @@ class PlannerApiIT {
 
     @Autowired
     DataSource dataSource;
+
+    @Autowired
+    CalendarIntegrationRepository calendarJobs;
+
+    @Autowired
+    DatabaseWriteExecutor databaseWrites;
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -171,7 +188,7 @@ class PlannerApiIT {
                             user_id, block_id, sort_order, task_id, title, day_key,
                             start_minutes, duration_minutes, external, week_offset
                         ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, false, ?)
-                        """, constrainedUser, "direct-overlap", 99, "DB overlap", "tue", 1_200, 30, 0))
+                        """, id(constrainedUser), "direct-overlap", 99, "DB overlap", "tue", 1_200, 30, 0))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -339,12 +356,58 @@ class PlannerApiIT {
 
         assertProblem(jsonRequest("DELETE", "/api/v1/account", accessToken,
                 "{\"confirmation\":\"wrong\"}"), 400, "invalid-planner-snapshot");
+
+        String futureAuthentication = token(
+                subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900, Instant.now().plusSeconds(120));
+        assertProblem(jsonRequest("DELETE", "/api/v1/account", futureAuthentication,
+                "{\"confirmation\":\"DELETE\"}"), 401, "reauthentication-required");
+
+        String staleAuthentication = token(
+                subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900, Instant.now().minus(Duration.ofMinutes(16)));
+        assertProblem(jsonRequest("DELETE", "/api/v1/account", staleAuthentication,
+                "{\"confirmation\":\"DELETE\"}"), 401, "reauthentication-required");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE oidc_subject = ?", Long.class, subject))
+                .isOne();
         assertThat(jsonRequest("DELETE", "/api/v1/account", accessToken,
                 "{\"confirmation\":\"DELETE\"}").statusCode()).isEqualTo(204);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE oidc_subject = ?", Long.class, subject))
                 .isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM planner_aggregate WHERE user_id = ?", Long.class, userId))
                 .isZero();
+    }
+
+    @Test
+    void claimsOneMySqlJobAcrossVirtualThreadsAndRetriesTransientDeadlocks() throws Exception {
+        String subject = "mysql-concurrency-" + UUID.randomUUID();
+        String token = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        assertThat(put(token, "mysql-concurrency-create", null, "*", PlannerFixtures.snapshot()).statusCode())
+                .isEqualTo(201);
+        UUID userId = UUID.fromString(jdbc.queryForObject(
+                "SELECT user_id FROM app_user WHERE oidc_issuer = ? AND oidc_subject = ?",
+                String.class,
+                TEST_ISSUER,
+                subject));
+        calendarJobs.enqueue(userId, "MYSQL_CONCURRENCY_TEST", "single-claim");
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var claims = executor.invokeAll(java.util.stream.IntStream.range(0, 24)
+                    .<java.util.concurrent.Callable<Boolean>>mapToObj(index ->
+                            () -> calendarJobs.claimJob("mysql-it-" + index).isPresent())
+                    .toList());
+            long claimed = 0;
+            for (var claim : claims) {
+                if (claim.get()) claimed += 1;
+            }
+            assertThat(claimed).isOne();
+        }
+
+        AtomicInteger attempts = new AtomicInteger();
+        assertThat(databaseWrites.execute(() -> {
+            int attempt = attempts.incrementAndGet();
+            if (attempt < 3) throw new CannotAcquireLockException("simulated MySQL deadlock");
+            return attempt;
+        })).isEqualTo(3);
     }
 
     private void assertAllowedPreflight(String origin) throws IOException, InterruptedException {
@@ -440,6 +503,16 @@ class PlannerApiIT {
             List<String> audience,
             long expiresInSeconds
     ) throws Exception {
+        return token(subject, issuer, audience, expiresInSeconds, Instant.now().minusSeconds(5));
+    }
+
+    private String token(
+            String subject,
+            String issuer,
+            List<String> audience,
+            long expiresInSeconds,
+            Instant authenticationTime
+    ) throws Exception {
         Instant now = Instant.now();
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),
@@ -453,7 +526,7 @@ class PlannerApiIT {
                         .claim("email", subject + "@example.test")
                         .claim("name", subject)
                         .claim("scope", "metrics.read")
-                        .claim("auth_time", Date.from(now.minusSeconds(5)))
+                        .claim("auth_time", Date.from(authenticationTime))
                         .build());
         jwt.sign(new MACSigner(TEST_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         return jwt.serialize();

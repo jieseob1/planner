@@ -69,7 +69,7 @@ spec:
   egress:
     - ports:
         - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: 5432}
+        - {protocol: TCP, port: 3306}
         - {protocol: TCP, port: 4318}
 ---
 apiVersion: networking.k8s.io/v1
@@ -85,4 +85,4 @@ spec:
   egress:
     - ports:
         - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: 5432}
+        - {protocol: TCP, port: 3306}

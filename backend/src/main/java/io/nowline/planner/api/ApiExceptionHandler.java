@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.List;
@@ -21,6 +23,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(PlannerException.class)
     ResponseEntity<ProblemDetail> handlePlanner(PlannerException exception) {
@@ -66,6 +70,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ProblemDetail> handleIntegrity(DataIntegrityViolationException exception) {
+        log.warn("Planner integrity conflict", exception);
         ProblemDetail detail = problem(HttpStatus.CONFLICT, "planner-integrity-conflict",
                 "플래너 데이터 관계 또는 시간 블록 충돌을 해결한 뒤 다시 저장해 주세요.");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(detail);

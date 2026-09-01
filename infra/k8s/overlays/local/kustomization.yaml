@@ -10,12 +10,13 @@ generatorOptions:
     app.kubernetes.io/name: nowline
     app.kubernetes.io/component: database-credentials
 secretGenerator:
-  - name: nowline-postgres
+  - name: nowline-mysql
     type: Opaque
     literals:
       - database=nowline
       - username=nowline
       - password=nowline-local-only
+      - root-password=nowline-root-local-only
   - name: nowline-local-auth
     type: Opaque
     literals:

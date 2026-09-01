@@ -2,6 +2,7 @@ package io.nowline.planner.service;
 
 import io.nowline.planner.domain.PlannerEnvelope;
 import io.nowline.planner.domain.PlannerSnapshot;
+import io.nowline.planner.config.DatabaseWriteExecutor;
 import io.nowline.planner.persistence.IdempotencyRecord;
 import io.nowline.planner.persistence.PlanHistoryRepository;
 import io.nowline.planner.persistence.PlannerRepository;
@@ -30,17 +31,20 @@ public class PlannerService {
     private final PlannerSnapshotValidator validator;
     private final ObjectMapper objectMapper;
     private final PlanHistoryRepository planHistory;
+    private final DatabaseWriteExecutor writes;
 
     public PlannerService(
             PlannerRepository repository,
             PlannerSnapshotValidator validator,
             ObjectMapper objectMapper,
-            PlanHistoryRepository planHistory
+            PlanHistoryRepository planHistory,
+            DatabaseWriteExecutor writes
     ) {
         this.repository = repository;
         this.validator = validator;
         this.objectMapper = objectMapper;
         this.planHistory = planHistory;
+        this.writes = writes;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -48,8 +52,16 @@ public class PlannerService {
         return repository.find(userId).orElseThrow(PlannerException::notFound);
     }
 
-    @Transactional
     public WriteResult put(
+            UUID userId,
+            String idempotencyKey,
+            PlannerPrecondition precondition,
+            PlannerSnapshot requestedSnapshot
+    ) {
+        return writes.execute(() -> putOnce(userId, idempotencyKey, precondition, requestedSnapshot));
+    }
+
+    private WriteResult putOnce(
             UUID userId,
             String idempotencyKey,
             PlannerPrecondition precondition,
@@ -107,8 +119,11 @@ public class PlannerService {
         return new WriteResult(status, envelope);
     }
 
-    @Transactional
     public void delete(UUID userId, String idempotencyKey, PlannerPrecondition precondition) {
+        writes.run(() -> deleteOnce(userId, idempotencyKey, precondition));
+    }
+
+    private void deleteOnce(UUID userId, String idempotencyKey, PlannerPrecondition precondition) {
         validateIdempotencyKey(idempotencyKey);
         String requestHash = hash(DELETE, precondition.canonicalValue(), null);
 
@@ -144,8 +159,15 @@ public class PlannerService {
      * Applies a trusted integration change under the same per-user lock and revision clock as API writes.
      * Calendar workers therefore cannot overwrite a concurrent browser save silently.
      */
-    @Transactional
     public PlannerEnvelope updateFromIntegration(
+            UUID userId,
+            UnaryOperator<PlannerSnapshot> updater,
+            String auditAction
+    ) {
+        return writes.execute(() -> updateFromIntegrationOnce(userId, updater, auditAction));
+    }
+
+    private PlannerEnvelope updateFromIntegrationOnce(
             UUID userId,
             UnaryOperator<PlannerSnapshot> updater,
             String auditAction

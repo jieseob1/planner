@@ -2,6 +2,7 @@ package io.nowline.planner.service;
 
 import io.nowline.planner.domain.PlanHistory;
 import io.nowline.planner.domain.PlannerSnapshot;
+import io.nowline.planner.config.DatabaseWriteExecutor;
 import io.nowline.planner.persistence.PlanHistoryRepository;
 import io.nowline.planner.persistence.PlannerRepository;
 import org.springframework.stereotype.Service;
@@ -16,15 +17,18 @@ public class PlanLifecycleService {
     private final PlanHistoryRepository plans;
     private final PlannerRepository planner;
     private final PlannerSnapshotValidator validator;
+    private final DatabaseWriteExecutor writes;
 
     public PlanLifecycleService(
             PlanHistoryRepository plans,
             PlannerRepository planner,
-            PlannerSnapshotValidator validator
+            PlannerSnapshotValidator validator,
+            DatabaseWriteExecutor writes
     ) {
         this.plans = plans;
         this.planner = planner;
         this.validator = validator;
+        this.writes = writes;
     }
 
     @Transactional(readOnly = true)
@@ -37,8 +41,11 @@ public class PlanLifecycleService {
         return plans.find(userId, planId).orElseThrow(PlannerException::planNotFound);
     }
 
-    @Transactional
     public PlanHistory.Detail create(UUID userId, UUID planId, String title, PlannerSnapshot requested) {
+        return writes.execute(() -> createOnce(userId, planId, title, requested));
+    }
+
+    private PlanHistory.Detail createOnce(UUID userId, UUID planId, String title, PlannerSnapshot requested) {
         planner.lockUser(userId);
         PlannerSnapshot snapshot = validator.validateAndCanonicalize(requested);
         if (!plans.create(userId, planId, title, snapshot)) {
@@ -50,8 +57,11 @@ public class PlanLifecycleService {
         return get(userId, planId);
     }
 
-    @Transactional
     public PlanHistory.Detail activate(UUID userId, UUID planId) {
+        return writes.execute(() -> activateOnce(userId, planId));
+    }
+
+    private PlanHistory.Detail activateOnce(UUID userId, UUID planId) {
         planner.lockUser(userId);
         PlanHistory.Detail target = get(userId, planId);
         if (target.plan().status() == PlanHistory.Status.ACTIVE) return target;
@@ -80,18 +90,19 @@ public class PlanLifecycleService {
         return new PlanHistory.Detail(activated, target.snapshot());
     }
 
-    @Transactional
     public PlanHistory.Summary close(UUID userId, UUID planId) {
-        return transition(userId, planId, PlanHistory.Status.CLOSED);
+        return writes.execute(() -> transition(userId, planId, PlanHistory.Status.CLOSED));
     }
 
-    @Transactional
     public PlanHistory.Summary archive(UUID userId, UUID planId) {
-        return transition(userId, planId, PlanHistory.Status.ARCHIVED);
+        return writes.execute(() -> transition(userId, planId, PlanHistory.Status.ARCHIVED));
     }
 
-    @Transactional
     public PlanHistory.Summary restore(UUID userId, UUID planId) {
+        return writes.execute(() -> restoreOnce(userId, planId));
+    }
+
+    private PlanHistory.Summary restoreOnce(UUID userId, UUID planId) {
         planner.lockUser(userId);
         PlanHistory.Detail plan = get(userId, planId);
         if (plan.plan().status() == PlanHistory.Status.DRAFT) return plan.plan();

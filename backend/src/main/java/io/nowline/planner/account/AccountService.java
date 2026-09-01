@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static io.nowline.planner.persistence.JdbcValues.id;
+import static io.nowline.planner.persistence.JdbcValues.uuid;
+
 @Service
 public class AccountService {
 
@@ -53,7 +56,7 @@ public class AccountService {
                 """, rs -> {
             if (!rs.next()) return Map.of();
             LinkedHashMap<String, Object> user = new LinkedHashMap<>();
-            user.put("id", rs.getObject("user_id", UUID.class));
+            user.put("id", uuid(rs, "user_id"));
             user.put("issuer", rs.getString("oidc_issuer"));
             user.put("subject", rs.getString("oidc_subject"));
             user.put("email", rs.getString("email"));
@@ -66,7 +69,7 @@ public class AccountService {
                     ? null : rs.getTimestamp("privacy_accepted_at").toInstant());
             user.put("policyVersion", rs.getString("policy_version"));
             return user;
-        }, userId));
+        }, id(userId)));
         result.put("preferences", preferences.get(userId));
         result.put("activePlanner", planner.find(userId).orElse(null));
 
@@ -95,7 +98,7 @@ public class AccountService {
             item.put("status", rs.getString("status"));
             item.put("createdAt", rs.getTimestamp("created_at").toInstant());
             return item;
-        }, userId));
+        }, id(userId)));
         return result;
     }
 

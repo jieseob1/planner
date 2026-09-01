@@ -24,23 +24,23 @@ patches:
       group: apps
       version: v1
       kind: StatefulSet
-      name: nowline-postgres
+      name: nowline-mysql
     patch: |-
       $patch: delete
       apiVersion: apps/v1
       kind: StatefulSet
       metadata:
-        name: nowline-postgres
+        name: nowline-mysql
   - target:
       version: v1
       kind: Service
-      name: nowline-postgres
+      name: nowline-mysql
     patch: |-
       $patch: delete
       apiVersion: v1
       kind: Service
       metadata:
-        name: nowline-postgres
+        name: nowline-mysql
 images:
   - name: nowline-backend
     newName: ghcr.io/jieseob1/planner-backend

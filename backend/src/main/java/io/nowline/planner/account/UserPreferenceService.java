@@ -10,6 +10,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
+import static io.nowline.planner.persistence.JdbcValues.id;
+
 @Service
 public class UserPreferenceService {
 
@@ -32,7 +34,7 @@ public class UserPreferenceService {
                     rs.getBoolean("daily_reminder_enabled"),
                     rs.getObject("daily_reminder_time", LocalTime.class),
                     rs.getInt("block_reminder_minutes"));
-        }, userId);
+        }, id(userId));
     }
 
     @Transactional
@@ -42,14 +44,14 @@ public class UserPreferenceService {
                 INSERT INTO user_preference (
                     user_id, timezone, locale, daily_reminder_enabled, daily_reminder_time, block_reminder_minutes
                 ) VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    timezone = EXCLUDED.timezone,
-                    locale = EXCLUDED.locale,
-                    daily_reminder_enabled = EXCLUDED.daily_reminder_enabled,
-                    daily_reminder_time = EXCLUDED.daily_reminder_time,
-                    block_reminder_minutes = EXCLUDED.block_reminder_minutes,
-                    updated_at = now()
-                """, userId, requested.timezone(), requested.locale(), requested.dailyReminderEnabled(),
+                ON DUPLICATE KEY UPDATE
+                    timezone = VALUES(timezone),
+                    locale = VALUES(locale),
+                    daily_reminder_enabled = VALUES(daily_reminder_enabled),
+                    daily_reminder_time = VALUES(daily_reminder_time),
+                    block_reminder_minutes = VALUES(block_reminder_minutes),
+                    updated_at = CURRENT_TIMESTAMP(6)
+                """, id(userId), requested.timezone(), requested.locale(), requested.dailyReminderEnabled(),
                 requested.dailyReminderTime(), requested.blockReminderMinutes());
         return get(userId);
     }
@@ -62,7 +64,7 @@ public class UserPreferenceService {
                 FROM user_preference
                 WHERE daily_reminder_enabled OR block_reminder_minutes >= 0
                 """, (rs, row) -> new PreferenceRow(
-                rs.getObject("user_id", UUID.class),
+                UUID.fromString(rs.getString("user_id")),
                 new Preferences(
                         rs.getString("timezone"), rs.getString("locale"),
                         rs.getBoolean("daily_reminder_enabled"),
@@ -72,10 +74,9 @@ public class UserPreferenceService {
 
     private void ensure(UUID userId) {
         jdbc.update("""
-                INSERT INTO user_preference (user_id, timezone, locale)
+                INSERT IGNORE INTO user_preference (user_id, timezone, locale)
                 SELECT user_id, timezone, locale FROM app_user WHERE user_id = ?
-                ON CONFLICT DO NOTHING
-                """, userId);
+                """, id(userId));
     }
 
     private void validate(Preferences value) {

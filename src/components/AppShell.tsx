@@ -18,12 +18,14 @@ const navItems = [
 ];
 
 export function AppShell() {
-  const { resetDemo } = usePlanner();
+  const { hasActivePlan, isOnline, resetPlanner } = usePlanner();
   const { logout } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const pendingCaptureFocus = useRef(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState('');
   const currentNavItem = navItems.find((item) => item.to === pathname)
     ?? (pathname === '/settings' ? { contextLabel: '설정과 연동' } : navItems[0]);
 
@@ -64,9 +66,19 @@ export function AppShell() {
     navigate('/today');
   };
 
-  const confirmDemoReset = () => {
-    resetDemo();
+  const confirmPlannerReset = async () => {
+    setResetBusy(true);
+    setResetError('');
+    const reset = await resetPlanner();
+    setResetBusy(false);
+    if (!reset) {
+      setResetError(isOnline
+        ? '서버에서 최신 계획을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+        : '오프라인에서는 서버 계획을 안전하게 초기화할 수 없습니다. 연결 후 다시 시도해 주세요.');
+      return;
+    }
     setResetConfirmOpen(false);
+    navigate('/onboarding', { replace: true });
   };
 
   return (
@@ -115,22 +127,27 @@ export function AppShell() {
             <button className="icon-button" type="button" onClick={() => navigate('/settings')} aria-label="설정과 연동">
               <Settings size={16} aria-hidden="true" />
             </button>
-            <button
-              className="icon-button shell-reset"
-              type="button"
-              onClick={() => setResetConfirmOpen(true)}
-              aria-label="데모 초기화"
-              aria-haspopup="dialog"
-              aria-expanded={resetConfirmOpen}
-            >
-              <RotateCcw size={16} aria-hidden="true" />
-            </button>
+            {hasActivePlan ? (
+              <button
+                className="icon-button shell-reset"
+                type="button"
+                onClick={() => {
+                  setResetError('');
+                  setResetConfirmOpen(true);
+                }}
+                aria-label="현재 계획 초기화"
+                aria-haspopup="dialog"
+                aria-expanded={resetConfirmOpen}
+              >
+                <RotateCcw size={16} aria-hidden="true" />
+              </button>
+            ) : null}
             <button className="icon-button" type="button" onClick={() => void logout()} aria-label="로그아웃">
               <LogOut size={16} aria-hidden="true" />
             </button>
           </div>
         </header>
-        <main id="main-content" className="main-content">
+        <main id="main-content" className="main-content" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
@@ -152,21 +169,25 @@ export function AppShell() {
 
       {resetConfirmOpen ? (
         <Modal
-          title="데모 데이터로 모두 초기화할까요?"
-          description="이 기기와 연결된 서버에 저장한 목표, 작업, 시간 기록과 회고를 처음 제공된 데모 데이터로 되돌립니다. 이 작업은 되돌릴 수 없습니다."
-          onClose={() => setResetConfirmOpen(false)}
+          title="현재 계획을 초기화할까요?"
+          description="현재 활성 계획과 실행 화면의 목표, 작업, 시간 기록, 회고를 보관하고 새 계획 온보딩으로 이동합니다. 이 작업은 되돌릴 수 없습니다."
+          onClose={() => {
+            if (!resetBusy) setResetConfirmOpen(false);
+          }}
         >
+          {resetError ? <p className="form-error" role="alert">{resetError}</p> : null}
           <div className="modal__actions">
             <button
               className="button button--secondary"
               type="button"
               data-autofocus
+              disabled={resetBusy}
               onClick={() => setResetConfirmOpen(false)}
             >
               취소
             </button>
-            <button className="button button--warning" type="button" onClick={confirmDemoReset}>
-              기기·서버 데이터 초기화
+            <button className="button button--warning" type="button" disabled={resetBusy} onClick={() => void confirmPlannerReset()}>
+              {resetBusy ? '초기화 중…' : '현재 계획 초기화'}
             </button>
           </div>
         </Modal>

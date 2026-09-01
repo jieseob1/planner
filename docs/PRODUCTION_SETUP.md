@@ -9,16 +9,16 @@
 - Kubernetes 1.30 이상, Ingress NGINX, metrics-server
 - Prometheus Operator CRD(`ServiceMonitor`, `PrometheusRule`)와 OTLP collector
 - TLS 인증서를 발급하는 cert-manager 또는 동일 역할의 인증서 운영 체계
-- 다중 AZ 관리형 PostgreSQL 17, 자동 백업과 PITR(point-in-time recovery)
+- 다중 AZ 관리형 MySQL 8.4, 자동 백업과 PITR(point-in-time recovery)
 - Kubernetes Secret을 공급하는 외부 Secret Manager
 - OIDC 공급자, Google Cloud OAuth 앱, VAPID 키
 - 앱 알림을 사용할 경우 APNs·FCM을 호출하는 내부 push adapter
 
-프로덕션 overlay는 단일 PostgreSQL을 포함하지 않습니다. `nowline-production-secrets`가 먼저 만들어져 있어야 하며 Git에 실제 Secret을 넣으면 안 됩니다.
+프로덕션 overlay는 단일 MySQL을 포함하지 않습니다. `nowline-production-secrets`가 먼저 만들어져 있어야 하며 Git에 실제 Secret을 넣으면 안 됩니다.
 
 | Secret key | 의미 |
 | --- | --- |
-| `db-url`, `db-username`, `db-password` | TLS를 강제한 외부 PostgreSQL 접속 정보 |
+| `db-url`, `db-username`, `db-password` | TLS와 UTC를 강제한 외부 MySQL 8.4 접속 정보 |
 | `oidc-issuer`, `oidc-audience` | JWT 발급자 URL과 Nowline API audience |
 | `integration-encryption-key-base64` | 32바이트 난수를 Base64로 인코딩한 AES-256-GCM 키 |
 | `google-client-id`, `google-client-secret` | Google OAuth 웹 애플리케이션 자격 증명 |
@@ -61,7 +61,7 @@ Google Cloud Console에서 Calendar API를 켜고 OAuth 동의 화면, 개인정
 - `.github/workflows/mobile-release.yml`
 - `.env.example`
 
-`kubectl kustomize infra/k8s/overlays/production` 출력에 로컬 PostgreSQL, 개발 JWT secret, `latest` 이미지가 없어야 합니다.
+`kubectl kustomize infra/k8s/overlays/production` 출력에 로컬 MySQL, 개발 JWT secret, `latest` 이미지가 없어야 합니다.
 
 ## 5. CI/CD 등록값
 
@@ -83,7 +83,7 @@ GitHub `production` environment에는 `KUBE_CONFIG_DATA` Secret과 `VITE_OIDC_AU
 - [ ] 실제 domain/DNS/TLS와 정확한 CORS origin
 - [ ] OIDC wrong issuer/audience/expiry와 두 사용자 격리 실증
 - [ ] Google OAuth 게시·검증 상태와 실계정 전체 연동 실증
-- [ ] 관리형 PostgreSQL 자동 백업/PITR 복구 리허설
+- [ ] 관리형 MySQL 자동 백업/PITR 복구 리허설
 - [ ] Prometheus alerts가 실제 온콜 채널로 전달됨
 - [ ] iOS·Android 서명, 실기기 deep link·push·계정 삭제
 - [ ] 개인정보 처리방침의 사업자·담당자·보관기간을 실제 운영 주체 기준으로 법률 검토

@@ -22,7 +22,7 @@ const migration = JSON.parse(run([
 ]));
 
 assert(!documents.some((item) => item.kind === 'StatefulSet'), 'production must not bundle a single-node database');
-assert(!find('Service', 'nowline-postgres'), 'production must use an external HA PostgreSQL service');
+assert(!find('Service', 'nowline-mysql'), 'production must use an external HA MySQL service');
 assert(find('Ingress', 'nowline')?.spec?.tls?.[0]?.secretName === 'nowline-tls', 'TLS ingress is required');
 assert(find('NetworkPolicy', 'default-deny'), 'default-deny NetworkPolicy is required');
 assert(documents.filter((item) => item.kind === 'NetworkPolicy').length >= 4, 'explicit network allow rules are required');
@@ -39,7 +39,7 @@ for (const name of ['nowline-backend', 'nowline-frontend']) {
 }
 
 const backend = find('Deployment', 'nowline-backend');
-assert(!backend.spec.template.spec.initContainers, 'production must not wait for the local PostgreSQL service');
+assert(!backend.spec.template.spec.initContainers, 'production must not wait for the local MySQL service');
 const env = Object.fromEntries(backend.spec.template.spec.containers[0].env.map((item) => [item.name, item]));
 for (const required of [
   'SPRING_DATASOURCE_URL', 'NOWLINE_OIDC_ISSUER', 'NOWLINE_GOOGLE_CLIENT_SECRET',

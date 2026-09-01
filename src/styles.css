@@ -4648,6 +4648,12 @@ textarea:focus-visible,
   font-size: 0.84rem;
 }
 
+.settings-hint a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+
 .settings-card--privacy {
   margin-bottom: 32px;
 }

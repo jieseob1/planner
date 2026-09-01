@@ -108,28 +108,28 @@ for (const resource of decoded) {
 const namespace = get(resources, 'Namespace', 'nowline-local');
 assert(namespace.metadata.labels?.['pod-security.kubernetes.io/enforce'] === 'baseline', 'local namespace must enforce the baseline Pod Security profile');
 
-const secret = get(resources, 'Secret', 'nowline-postgres');
-for (const field of ['database', 'username', 'password']) {
-  assert(typeof secret.data?.[field] === 'string' && secret.data[field].length > 0, `Secret/nowline-postgres is missing data.${field}`);
+const secret = get(resources, 'Secret', 'nowline-mysql');
+for (const field of ['database', 'username', 'password', 'root-password']) {
+  assert(typeof secret.data?.[field] === 'string' && secret.data[field].length > 0, `Secret/nowline-mysql is missing data.${field}`);
 }
 
-const postgresService = get(resources, 'Service', 'nowline-postgres');
-assert(postgresService.spec?.clusterIP === 'None', 'PostgreSQL Service must be headless for StatefulSet identity');
-assert(postgresService.spec?.ports?.some((port) => port.port === 5432), 'PostgreSQL Service must expose 5432');
+const mysqlService = get(resources, 'Service', 'nowline-mysql');
+assert(mysqlService.spec?.clusterIP === 'None', 'MySQL Service must be headless for StatefulSet identity');
+assert(mysqlService.spec?.ports?.some((port) => port.port === 3306), 'MySQL Service must expose 3306');
 
-const postgres = get(resources, 'StatefulSet', 'nowline-postgres');
-assert(postgres.spec?.replicas === 1, 'PostgreSQL StatefulSet must have one local replica');
-assert(postgres.spec?.serviceName === 'nowline-postgres', 'PostgreSQL StatefulSet must use its governing Service');
-assert(postgres.spec?.persistentVolumeClaimRetentionPolicy?.whenDeleted === 'Retain', 'PostgreSQL PVC must be retained when the StatefulSet is deleted');
-assert(postgres.spec?.updateStrategy?.type === 'RollingUpdate', 'PostgreSQL StatefulSet must use RollingUpdate');
-const postgresClaim = postgres.spec?.volumeClaimTemplates?.find((claim) => claim.metadata?.name === 'data');
-assert(postgresClaim?.spec?.resources?.requests?.storage === '5Gi', 'PostgreSQL must request the 5Gi data PVC');
-const postgresContainer = namedContainer(postgres, 'postgres');
-assertExecProbes(postgresContainer, 'postgres container');
-assertResources(postgresContainer, 'postgres container');
-for (const variable of ['POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD']) {
-  const env = postgresContainer.env?.find((entry) => entry.name === variable);
-  assert(env?.valueFrom?.secretKeyRef?.name === 'nowline-postgres', `${variable} must come from the PostgreSQL Secret`);
+const mysql = get(resources, 'StatefulSet', 'nowline-mysql');
+assert(mysql.spec?.replicas === 1, 'MySQL StatefulSet must have one local replica');
+assert(mysql.spec?.serviceName === 'nowline-mysql', 'MySQL StatefulSet must use its governing Service');
+assert(mysql.spec?.persistentVolumeClaimRetentionPolicy?.whenDeleted === 'Retain', 'MySQL PVC must be retained when the StatefulSet is deleted');
+assert(mysql.spec?.updateStrategy?.type === 'RollingUpdate', 'MySQL StatefulSet must use RollingUpdate');
+const mysqlClaim = mysql.spec?.volumeClaimTemplates?.find((claim) => claim.metadata?.name === 'data');
+assert(mysqlClaim?.spec?.resources?.requests?.storage === '5Gi', 'MySQL must request the 5Gi data PVC');
+const mysqlContainer = namedContainer(mysql, 'mysql');
+assertExecProbes(mysqlContainer, 'mysql container');
+assertResources(mysqlContainer, 'mysql container');
+for (const variable of ['MYSQL_DATABASE', 'MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_ROOT_PASSWORD']) {
+  const env = mysqlContainer.env?.find((entry) => entry.name === variable);
+  assert(env?.valueFrom?.secretKeyRef?.name === 'nowline-mysql', `${variable} must come from the MySQL Secret`);
 }
 
 const backendService = get(resources, 'Service', 'nowline-backend');
@@ -142,10 +142,10 @@ assertSafeRolling(backend);
 assert(backend.spec?.template?.spec?.topologySpreadConstraints?.some((constraint) => constraint.topologyKey === 'kubernetes.io/hostname'), 'backend needs hostname topology spreading');
 const backendVolumes = backend.spec?.template?.spec?.volumes ?? [];
 assert(backendVolumes.every((volume) => volume.emptyDir), 'backend must remain stateless and use only emptyDir pod volumes');
-const databaseWaiter = backend.spec?.template?.spec?.initContainers?.find((container) => container.name === 'wait-for-postgres');
-assert(databaseWaiter?.image === 'nowline-backend:local', 'backend must reuse its local image for the PostgreSQL wait initContainer');
-assert(databaseWaiter.command?.join(' ').includes('nc -z -w 2 nowline-postgres 5432'), 'backend initContainer must wait for PostgreSQL TCP readiness');
-assertResources(databaseWaiter, 'backend PostgreSQL wait initContainer');
+const databaseWaiter = backend.spec?.template?.spec?.initContainers?.find((container) => container.name === 'wait-for-mysql');
+assert(databaseWaiter?.image === 'nowline-backend:local', 'backend must reuse its local image for the MySQL wait initContainer');
+assert(databaseWaiter.command?.join(' ').includes('nc -z -w 2 nowline-mysql 3306'), 'backend initContainer must wait for MySQL TCP readiness');
+assertResources(databaseWaiter, 'backend MySQL wait initContainer');
 const backendContainer = namedContainer(backend, 'backend');
 assert(backendContainer.image === 'nowline-backend:local', 'backend must use nowline-backend:local');
 assertHttpProbes(backendContainer, {
@@ -155,7 +155,7 @@ assertHttpProbes(backendContainer, {
 }, 'backend container');
 assertResources(backendContainer, 'backend container');
 assert(backendContainer.env?.some((entry) => entry.name === 'SPRING_THREADS_VIRTUAL_ENABLED' && entry.value === 'true'), 'backend must enable Java virtual threads');
-assert(backendContainer.env?.some((entry) => entry.name === 'SPRING_DATASOURCE_PASSWORD' && entry.valueFrom?.secretKeyRef?.name === 'nowline-postgres'), 'backend database password must come from the Secret');
+assert(backendContainer.env?.some((entry) => entry.name === 'SPRING_DATASOURCE_PASSWORD' && entry.valueFrom?.secretKeyRef?.name === 'nowline-mysql'), 'backend database password must come from the Secret');
 
 const frontendService = get(resources, 'Service', 'nowline-frontend');
 assert(frontendService.spec?.type === 'ClusterIP', 'frontend Service must be internal ClusterIP');
@@ -185,7 +185,7 @@ const pdb = get(resources, 'PodDisruptionBudget', 'nowline-backend');
 assert(String(pdb.spec?.minAvailable) === '1', 'backend PDB must keep at least one replica available');
 assert(pdb.spec?.selector?.matchLabels?.['app.kubernetes.io/component'] === 'backend', 'backend PDB selector must target backend pods');
 
-for (const workload of [postgres, backend, frontend]) {
+for (const workload of [mysql, backend, frontend]) {
   for (const container of workload.spec?.template?.spec?.containers ?? []) {
     assert(!container.image.endsWith(':latest'), `${keyFor(workload)} must not use a latest image tag`);
   }
@@ -194,7 +194,7 @@ for (const workload of [postgres, backend, frontend]) {
   }
 }
 
-for (const service of [postgresService, backendService, frontendService]) {
+for (const service of [mysqlService, backendService, frontendService]) {
   assert(!['LoadBalancer', 'NodePort'].includes(service.spec?.type), `${keyFor(service)} must not expose the local cluster externally`);
 }
 

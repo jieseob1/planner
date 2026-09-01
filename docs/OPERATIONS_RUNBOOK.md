@@ -8,9 +8,9 @@
 | API 지연 | p95 2초 이하 |
 | 캘린더 동기화 | 정상 공급자 상태에서 99%가 5분 내 수렴 |
 | 알림 | 예약 시각 이후 5분 내 95% 공급자 인계 |
-| 데이터 RPO/RTO | 관리형 PostgreSQL PITR RPO 5분, 서비스 RTO 60분 |
+| 데이터 RPO/RTO | 관리형 MySQL PITR RPO 5분, 서비스 RTO 60분 |
 
-로컬 `npm run verify:recovery`는 모든 Flyway migration을 적용한 PostgreSQL 17을 custom-format으로 백업하고 새 DB에 복구한 뒤 식별 지문을 비교합니다. 이는 복구 도구와 schema 호환성 증거이며, 관리형 DB의 실제 PITR 증거를 대신하지 않습니다.
+로컬 `npm run verify:recovery`는 모든 Flyway migration을 적용한 MySQL 8.4를 `mysqldump --single-transaction --routines --triggers`로 백업하고 새 DB에 복구한 뒤 식별 지문을 비교합니다. 이는 복구 도구와 schema 호환성 증거이며, 관리형 DB의 실제 PITR 증거를 대신하지 않습니다.
 
 ## 배포와 롤백
 
@@ -68,4 +68,4 @@ OIDC/Google/VAPID/push adapter secret은 새 값을 Secret Manager에 등록하�
 
 ## Retention
 
-하루 한 번 DB advisory lock을 획득한 replica 하나가 rate-limit 2시간, 만료 OAuth state 1일, idempotency 30일, 성공 integration job 30일, dead job 90일, notification delivery 365일 기준으로 운영 row를 정리합니다. Planner와 plan audit은 계정이 유지되는 동안 보관하고 계정 삭제 시 cascade 삭제합니다. 실제 법적 보관기간이 이 기준과 다르면 공개 전에 정책·문서·SQL을 함께 변경합니다.
+하루 한 번 MySQL `maintenance_lock` 행을 `FOR UPDATE SKIP LOCKED`로 획득한 replica 하나가 rate-limit 2시간, 만료 OAuth state 1일, idempotency 30일, 성공 integration job 30일, dead job 90일, notification delivery 365일 기준으로 운영 row를 정리합니다. Planner와 plan audit은 계정이 유지되는 동안 보관하고 계정 삭제 시 cascade 삭제합니다. 실제 법적 보관기간이 이 기준과 다르면 공개 전에 정책·문서·SQL을 함께 변경합니다.

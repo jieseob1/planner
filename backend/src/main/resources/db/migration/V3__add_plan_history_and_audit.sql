@@ -1,47 +1,51 @@
 CREATE TABLE planner_plan (
-    plan_id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES app_user(user_id) ON DELETE CASCADE,
-    title VARCHAR(200) NOT NULL CHECK (btrim(title) <> ''),
+    plan_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    title VARCHAR(200) NOT NULL CHECK (TRIM(title) <> ''),
     plan_year INTEGER NOT NULL CHECK (plan_year BETWEEN 1900 AND 9999),
     plan_quarter SMALLINT NOT NULL CHECK (plan_quarter BETWEEN 1 AND 4),
-    status VARCHAR(16) NOT NULL CHECK (status IN ('DRAFT', 'ACTIVE', 'CLOSED', 'ARCHIVED')),
-    snapshot JSONB,
+    status VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL CHECK (status IN ('DRAFT', 'ACTIVE', 'CLOSED', 'ARCHIVED')),
+    active_slot TINYINT
+        GENERATED ALWAYS AS (CASE WHEN status = 'ACTIVE' THEN 1 ELSE NULL END) STORED,
+    snapshot JSON,
     source_revision BIGINT CHECK (source_revision IS NULL OR source_revision > 0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    activated_at TIMESTAMPTZ,
-    closed_at TIMESTAMPTZ,
-    archived_at TIMESTAMPTZ
-);
-
-CREATE UNIQUE INDEX planner_plan_one_active_per_user_idx
-    ON planner_plan(user_id)
-    WHERE status = 'ACTIVE';
-
-CREATE INDEX planner_plan_user_status_updated_idx
-    ON planner_plan(user_id, status, updated_at DESC);
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    activated_at DATETIME(6),
+    closed_at DATETIME(6),
+    archived_at DATETIME(6),
+    UNIQUE KEY planner_plan_one_active_per_user_idx (user_id, active_slot),
+    KEY planner_plan_user_status_updated_idx (user_id, status, updated_at DESC),
+    CONSTRAINT planner_plan_user_fk FOREIGN KEY (user_id) REFERENCES app_user(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 CREATE TABLE planner_audit_event (
-    event_id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES app_user(user_id) ON DELETE CASCADE,
-    plan_id UUID REFERENCES planner_plan(plan_id) ON DELETE SET NULL,
-    action VARCHAR(64) NOT NULL CHECK (btrim(action) <> ''),
+    event_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    plan_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+    action VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL CHECK (TRIM(action) <> ''),
     revision BIGINT,
-    details JSONB NOT NULL DEFAULT '{}'::jsonb,
-    occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+    details JSON NOT NULL DEFAULT (JSON_OBJECT()),
+    occurred_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    KEY planner_audit_event_user_plan_time_idx (user_id, plan_id, occurred_at DESC),
+    CONSTRAINT planner_audit_user_fk FOREIGN KEY (user_id) REFERENCES app_user(user_id) ON DELETE CASCADE,
+    CONSTRAINT planner_audit_plan_fk FOREIGN KEY (plan_id) REFERENCES planner_plan(plan_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
 
-CREATE INDEX planner_audit_event_user_plan_time_idx
-    ON planner_audit_event(user_id, plan_id, occurred_at DESC);
-
-INSERT INTO planner_plan (
+INSERT IGNORE INTO planner_plan (
     plan_id, user_id, title, plan_year, plan_quarter, status, source_revision,
     created_at, updated_at, activated_at
 )
 SELECT
-    md5(aggregate.user_id::text || ':active-plan')::uuid,
+    LOWER(CONCAT(
+        SUBSTRING(MD5(CONCAT(aggregate.user_id, ':active-plan')), 1, 8), '-',
+        SUBSTRING(MD5(CONCAT(aggregate.user_id, ':active-plan')), 9, 4), '-',
+        SUBSTRING(MD5(CONCAT(aggregate.user_id, ':active-plan')), 13, 4), '-',
+        SUBSTRING(MD5(CONCAT(aggregate.user_id, ':active-plan')), 17, 4), '-',
+        SUBSTRING(MD5(CONCAT(aggregate.user_id, ':active-plan')), 21, 12)
+    )),
     aggregate.user_id,
-    aggregate.plan_year::text || '년 ' || aggregate.plan_quarter::text || '분기',
+    CONCAT(aggregate.plan_year, '년 ', aggregate.plan_quarter, '분기'),
     aggregate.plan_year,
     aggregate.plan_quarter,
     'ACTIVE',
@@ -49,18 +53,22 @@ SELECT
     aggregate.created_at,
     aggregate.updated_at,
     aggregate.created_at
-FROM planner_aggregate aggregate
-ON CONFLICT (plan_id) DO NOTHING;
+FROM planner_aggregate aggregate;
 
-ALTER TABLE planner_aggregate ADD COLUMN plan_id UUID;
+ALTER TABLE planner_aggregate
+    ADD COLUMN plan_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin;
 
 UPDATE planner_aggregate
-SET plan_id = md5(user_id::text || ':active-plan')::uuid
+SET plan_id = LOWER(CONCAT(
+    SUBSTRING(MD5(CONCAT(user_id, ':active-plan')), 1, 8), '-',
+    SUBSTRING(MD5(CONCAT(user_id, ':active-plan')), 9, 4), '-',
+    SUBSTRING(MD5(CONCAT(user_id, ':active-plan')), 13, 4), '-',
+    SUBSTRING(MD5(CONCAT(user_id, ':active-plan')), 17, 4), '-',
+    SUBSTRING(MD5(CONCAT(user_id, ':active-plan')), 21, 12)
+))
 WHERE plan_id IS NULL;
 
 ALTER TABLE planner_aggregate
-    ALTER COLUMN plan_id SET NOT NULL,
-    ADD CONSTRAINT planner_aggregate_plan_fk
-        FOREIGN KEY (plan_id) REFERENCES planner_plan(plan_id);
-
-CREATE UNIQUE INDEX planner_aggregate_plan_idx ON planner_aggregate(plan_id);
+    MODIFY plan_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    ADD CONSTRAINT planner_aggregate_plan_fk FOREIGN KEY (plan_id) REFERENCES planner_plan(plan_id) ON DELETE CASCADE,
+    ADD UNIQUE KEY planner_aggregate_plan_idx (plan_id);

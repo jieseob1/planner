@@ -6,6 +6,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+import static io.nowline.planner.persistence.JdbcValues.id;
+
 @Repository
 public class AccountDeletionRepository {
 
@@ -17,6 +19,6 @@ public class AccountDeletionRepository {
 
     @Transactional
     public void deleteLocal(UUID userId) {
-        jdbc.update("DELETE FROM app_user WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM app_user WHERE user_id = ?", id(userId));
     }
 }

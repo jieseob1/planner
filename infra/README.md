@@ -15,10 +15,10 @@ make compose-down
 The frontend is available at `http://localhost:8088` and the backend at
 `http://localhost:8080` by default. Set `NOWLINE_FRONTEND_PORT` or
 `NOWLINE_BACKEND_PORT` to avoid a local port collision. `compose-down` keeps the
-named PostgreSQL volume; it does not erase planner data.
+named MySQL volume; it does not erase planner data.
 
 The password in `compose.yaml` is intentionally a local-only default. Override
-`NOWLINE_POSTGRES_PASSWORD` when the local machine is shared.
+`NOWLINE_MYSQL_PASSWORD` and `NOWLINE_MYSQL_ROOT_PASSWORD` when the local machine is shared.
 
 ## Existing local Kubernetes cluster
 
@@ -44,7 +44,7 @@ cluster runtimes must make the two image names available themselves.
 
 `down` deletes only the named Nowline workloads, services, HPA, PDB, and local
 Secret. It deliberately keeps the `nowline-local` namespace and the StatefulSet
-PVC (`data-nowline-postgres-0`) so planner data survives. Delete that PVC only
+PVC (`data-nowline-mysql-0`) so planner data survives. Delete that PVC only
 when permanent local data loss is intended.
 
 The checked-in Secret is a local-development credential, not a production
@@ -52,7 +52,7 @@ secret-management design.
 
 ## Production overlay
 
-`overlays/production` deliberately removes the local PostgreSQL StatefulSet. It expects an externally managed HA PostgreSQL and a pre-provisioned `nowline-production-secrets` Secret. It adds TLS Ingress, exact-origin configuration, dedicated tokenless ServiceAccounts, default-deny NetworkPolicy, frontend/backend PDBs, ServiceMonitor and PrometheusRule resources.
+`overlays/production` deliberately removes the local MySQL StatefulSet. It expects an externally managed HA MySQL 8.4 service and a pre-provisioned `nowline-production-secrets` Secret. It adds TLS Ingress, exact-origin configuration, dedicated tokenless ServiceAccounts, default-deny NetworkPolicy, frontend/backend PDBs, ServiceMonitor and PrometheusRule resources.
 
 ```bash
 kubectl kustomize infra/k8s/overlays/production

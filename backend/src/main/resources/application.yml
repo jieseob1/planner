@@ -5,7 +5,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: ${NOWLINE_DB_URL:jdbc:postgresql://localhost:5432/nowline}
+    url: ${NOWLINE_DB_URL:jdbc:mysql://localhost:3306/nowline?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_as_ci&serverTimezone=UTC&preserveInstants=true}
     username: ${NOWLINE_DB_USER:nowline}
     password: ${NOWLINE_DB_PASSWORD:nowline}
     hikari:
@@ -17,6 +17,8 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1500000
       auto-commit: true
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+      connection-init-sql: SET time_zone = '+00:00'
   flyway:
     enabled: true
     clean-disabled: true

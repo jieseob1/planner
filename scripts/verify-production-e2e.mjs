@@ -101,8 +101,57 @@ const acceptConsent = async (page) => {
   await checks.nth(0).check();
   await checks.nth(1).check();
   await page.getByRole('button', { name: '동의하고 시작하기' }).click();
+  await page.getByRole('heading', { name: '이번 분기에 무엇을 바꿀까요?' }).waitFor();
+};
+
+const completeOnboarding = async (page, prefix) => {
+  await page.getByPlaceholder('예: 기술 글 6개를 발행한다').fill(`${prefix} 결과를 검증한다`);
+  await page.getByRole('button', { name: '계속' }).click();
+  await page.getByPlaceholder('예: 첫 글의 제목과 목차를 정한다').fill(`${prefix} 첫 실행을 완료한다`);
+  await page.getByRole('button', { name: '계속' }).click();
+  const availableSlot = page.locator('button[role="radio"]:not([disabled])').first();
+  await availableSlot.click();
+  const onboardingSavePromise = page.waitForResponse((response) => (
+    response.request().method() === 'PUT' && response.url().endsWith('/api/v1/planner')
+  ));
+  await page.getByRole('button', { name: /첫 실행 만들기/ }).click();
+  const onboardingSave = await onboardingSavePromise;
+  if (!onboardingSave.ok()) {
+    fail(`Onboarding save failed with ${onboardingSave.status()}: ${await onboardingSave.text()}`);
+  }
   await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor();
   await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+};
+
+const assertNoDocumentOverflow = async (page, label) => {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (overflow > 1) fail(`${label} has ${overflow}px horizontal overflow`);
+};
+
+const assertVisibleTargets = async (page, label) => {
+  const undersizedTargets = await page.evaluate(() => {
+    const controls = [...document.querySelectorAll('button:not([disabled]), a[href], input, select, textarea')]
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.bottom >= 0 && rect.top <= window.innerHeight;
+      });
+    return controls.flatMap((element) => {
+      const labelledControl = element.matches('input[type="checkbox"], input[type="radio"]')
+        ? element.closest('label')
+        : null;
+      const rect = (labelledControl ?? element).getBoundingClientRect();
+      if (rect.height >= 44) return [];
+      return [{
+        height: Math.round(rect.height * 100) / 100,
+        tag: element.tagName.toLowerCase(),
+        label: element.getAttribute('aria-label') ?? element.textContent?.trim() ?? '',
+        className: element.getAttribute('class') ?? ''
+      }];
+    });
+  });
+  if (undersizedTargets.length > 0) {
+    fail(`${label} interactive target is below 44 CSS px: ${JSON.stringify(undersizedTargets.slice(0, 5))}`);
+  }
 };
 
 const exerciseDesktop = async (frontendUrl, backendUrl) => {
@@ -116,23 +165,39 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   await page.goto(frontendUrl, { waitUntil: 'domcontentloaded' });
   await acceptConsent(page);
   captureState.allowedHttpStatusConsole.delete(404);
+  await completeOnboarding(page, '운영 E2E');
 
-  await page.goto(`${frontendUrl}/onboarding`);
-  await page.getByPlaceholder('예: 기술 글 6개를 발행한다').fill('운영 E2E 결과를 검증한다');
-  await page.getByRole('button', { name: '계속' }).click();
-  await page.getByPlaceholder('예: 첫 글의 제목과 목차를 정한다').fill('인증 전체 흐름을 실행한다');
-  await page.getByRole('button', { name: '계속' }).click();
-  const availableSlot = page.locator('button[role="radio"]:not([disabled])').first();
-  await availableSlot.click();
-  const onboardingSavePromise = page.waitForResponse((response) => (
-    response.request().method() === 'PUT' && response.url().endsWith('/api/v1/planner')
-  ));
-  await page.getByRole('button', { name: /첫 실행 만들기/ }).click();
-  const onboardingSave = await onboardingSavePromise;
-  if (!onboardingSave.ok()) {
-    fail(`Onboarding save failed with ${onboardingSave.status()}: ${await onboardingSave.text()}`);
-  }
-  await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor();
+  await page.getByRole('button', { name: /지금 시작/ }).click();
+  await page.getByRole('button', { name: /종료/ }).click();
+  await page.getByRole('dialog', { name: '이번 실행을 정리할까요?' }).waitFor();
+  await page.getByPlaceholder('예: 다이어그램 초안 링크, 확인한 실패 케이스').fill('운영 E2E 실행 근거');
+  await page.getByRole('button', { name: /이 작업은 완료/ }).click();
+  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+
+  await page.goto(`${frontendUrl}/planner`);
+  await page.getByRole('button', { name: /다음 행동 추가/ }).click();
+  await page.getByRole('dialog', { name: '다음 행동 추가' }).getByLabel('실행할 행동').fill('운영 E2E 회고 준비');
+  await page.getByRole('dialog', { name: '다음 행동 추가' }).getByRole('button', { name: '목록에 추가' }).click();
+  await page.getByRole('button', { name: /운영 E2E 회고 준비/ }).waitFor();
+  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+
+  await page.goto(`${frontendUrl}/goals`);
+  await page.getByRole('button', { name: /계획 편집/ }).click();
+  const planEditor = page.getByRole('dialog', { name: '계획 편집' });
+  await planEditor.getByLabel('연간 방향').fill('운영 가능한 계획 서비스 완성');
+  await planEditor.getByRole('button', { name: '계획 반영' }).click();
+  await page.getByText('운영 가능한 계획 서비스 완성').waitFor();
+  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+
+  await page.goto(`${frontendUrl}/review`);
+  await page.getByPlaceholder('예: 24').fill('1');
+  await page.getByRole('button', { name: '반영', exact: true }).click();
+  await page.getByRole('radio', { name: /일이 너무 컸어요/ }).click();
+  await page.getByRole('button', { name: /운영 E2E 회고 준비/ }).click();
+  await page.getByRole('button', { name: /주간 점검 완료/ }).click();
+  await page.getByRole('heading', { name: '다음 주의 기준이 정해졌습니다.' }).waitFor();
+  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await page.goto(`${frontendUrl}/today`);
   await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
 
   const accessToken = await page.evaluate(() => window.sessionStorage.getItem('nowline.local-access-token'));
@@ -228,28 +293,75 @@ const exerciseMobile = async (frontendUrl) => {
   await page.goto(`${frontendUrl}/today`, { waitUntil: 'domcontentloaded' });
   await acceptConsent(page);
   captureState.allowedHttpStatusConsole.delete(404);
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  if (overflow > 1) fail(`Mobile Today has ${overflow}px horizontal overflow`);
+  await completeOnboarding(page, '모바일 E2E');
+  await page.getByPlaceholder('예: API 응답 비교하기').fill('모바일에서 추가한 다음 행동');
+  await page.getByRole('button', { name: '수집함에 추가' }).click();
+  await page.getByText('수집함에 넣었어요.').waitFor();
+  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await assertNoDocumentOverflow(page, 'Mobile Today');
+  await assertVisibleTargets(page, 'Mobile Today');
+
+  await page.goto(`${frontendUrl}/planner`);
+  await page.getByRole('heading', { name: '결과를 시간 안에 배치합니다.' }).waitFor();
+  await page.getByRole('button', { name: /다음 행동 추가/ }).click();
+  const addDialog = page.getByRole('dialog', { name: '다음 행동 추가' });
+  await addDialog.getByLabel('실행할 행동').fill('모바일 계획함 QA');
+  await addDialog.getByRole('button', { name: '목록에 추가' }).click();
+  await page.getByRole('button', { name: /모바일 계획함 QA/ }).waitFor();
+  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await assertNoDocumentOverflow(page, 'Mobile Planner');
+
+  await page.goto(`${frontendUrl}/goals`);
+  await page.getByRole('heading', { name: '결과와 결정을 한 화면에서 봅니다.' }).waitFor();
+  await assertNoDocumentOverflow(page, 'Mobile Goals');
+
+  await page.goto(`${frontendUrl}/review`);
+  await page.getByRole('heading', { name: '한 주를 닫고, 다음 주를 고릅니다.' }).waitFor();
+  await assertNoDocumentOverflow(page, 'Mobile Review');
+
   await page.goto(`${frontendUrl}/plans`);
   await page.getByRole('heading', { name: '연간·분기 계획' }).waitFor();
+  await assertNoDocumentOverflow(page, 'Mobile Plans');
   await page.goto(`${frontendUrl}/settings`);
   await page.getByRole('heading', { name: '설정과 연동' }).waitFor();
-  const minTarget = await page.evaluate(() => {
-    const controls = [...document.querySelectorAll('button:not([disabled]), input, select')]
-      .filter((element) => {
-        const rect = element.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && rect.bottom >= 0 && rect.top <= window.innerHeight;
-      });
-    return controls.reduce((minimum, element) => {
-      const labelledControl = element.matches('input[type="checkbox"], input[type="radio"]')
-        ? element.closest('label')
-        : null;
-      const rect = (labelledControl ?? element).getBoundingClientRect();
-      return Math.min(minimum, rect.height);
-    }, Infinity);
-  });
-  if (minTarget < 44) fail(`Mobile interactive target is below 44 CSS px: ${minTarget}`);
+  await assertNoDocumentOverflow(page, 'Mobile Settings');
+  await assertVisibleTargets(page, 'Mobile Settings');
   if (errors.length > 0) fail(`Mobile browser emitted errors:\n${errors.join('\n')}`);
+  await context.close();
+};
+
+const exerciseKeyboardAndZoom = async (frontendUrl) => {
+  const errors = [];
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  attachErrorCapture(page, errors);
+  await page.goto(`${frontendUrl}/today`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor();
+
+  await page.keyboard.press('Tab');
+  const skipFocused = await page.evaluate(() => document.activeElement?.textContent?.trim() === '본문으로 건너뛰기');
+  if (!skipFocused) fail('Keyboard flow did not focus the skip link first');
+  await page.keyboard.press('Enter');
+  const mainFocused = await page.evaluate(() => document.activeElement?.id === 'main-content');
+  if (!mainFocused) fail('Skip link did not move focus to the main content');
+
+  const captureButton = page.getByRole('button', { name: '빠른 수집' }).first();
+  await captureButton.focus();
+  await page.keyboard.press('Enter');
+  const captureFocused = await page.evaluate(() => document.activeElement?.id === 'quick-capture');
+  if (!captureFocused) fail('Keyboard Capture action did not focus the quick-capture input');
+
+  // At 200% browser zoom a 1440x900 display exposes a 720x450 CSS viewport.
+  // CSS `zoom` would scale an already-laid-out desktop page without updating
+  // media queries, so use the equivalent CSS viewport for a faithful layout check.
+  await page.setViewportSize({ width: 720, height: 450 });
+  for (const route of ['/today', '/planner', '/goals', '/review', '/plans', '/settings']) {
+    await page.goto(`${frontendUrl}${route}`);
+    await page.locator('#main-content').waitFor();
+    await assertNoDocumentOverflow(page, `200% zoom ${route}`);
+  }
+
+  if (errors.length > 0) fail(`Keyboard/zoom browser emitted errors:\n${errors.join('\n')}`);
   await context.close();
 };
 
@@ -259,7 +371,7 @@ const environment = {
   ...process.env,
   NOWLINE_BACKEND_PORT: String(backendPort),
   NOWLINE_FRONTEND_PORT: String(frontendPort),
-  NOWLINE_POSTGRES_VOLUME: `${projectName}-postgres-data`
+  NOWLINE_MYSQL_VOLUME: `${projectName}-mysql-data`
 };
 const frontendUrl = `http://127.0.0.1:${frontendPort}`;
 const backendUrl = `http://127.0.0.1:${backendPort}`;
@@ -271,19 +383,20 @@ try {
 
   run('npm', ['run', 'build'], { env: { ...process.env, VITE_AUTH_MODE: 'local', VITE_API_BASE_URL: '' }, stdio: 'inherit' });
   run('./mvnw', ['-q', 'package', '-DskipTests'], { cwd: `${repositoryRoot}backend`, stdio: 'inherit' });
-  runCompose(['up', '-d', '--build', 'postgres', 'backend', 'frontend'], environment);
+  runCompose(['up', '-d', '--build', 'mysql', 'backend', 'frontend'], environment);
   await waitForReady(`${backendUrl}/actuator/health/readiness`);
   await waitForReady(`${frontendUrl}/healthz`);
 
   browser = await chromium.launch({ channel: process.env.NOWLINE_E2E_BROWSER_CHANNEL || 'chrome', headless: true });
   await exerciseDesktop(frontendUrl, backendUrl);
   await exerciseMobile(frontendUrl);
+  await exerciseKeyboardAndZoom(frontendUrl);
   if (fakeGoogle.stats.tokenRequests < 2 || fakeGoogle.stats.revokeRequests !== 1) {
     fail(`Calendar connect/refresh/revoke calls were incomplete: ${JSON.stringify(fakeGoogle.stats)}`);
   }
   console.log('production authenticated browser end-to-end verification passed');
 } catch (error) {
-  const logs = runCompose(['logs', '--no-color', '--tail', '200', 'backend', 'frontend', 'postgres'], environment, true);
+  const logs = runCompose(['logs', '--no-color', '--tail', '200', 'backend', 'frontend', 'mysql'], environment, true);
   if (logs.stdout) process.stderr.write(logs.stdout);
   if (logs.stderr) process.stderr.write(logs.stderr);
   throw error;

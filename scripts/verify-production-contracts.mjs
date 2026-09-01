@@ -17,6 +17,7 @@ const requireText = (file, values) => {
   'src/auth/NativeOidcNavigator.ts',
   'src/auth/SecureStateStore.ts',
   'src/components/ConflictResolutionModal.tsx',
+  'src/data/empty.ts',
   'src/screens/PlansScreen.tsx',
   'src/screens/LegalScreen.tsx',
   'backend/src/main/java/io/nowline/planner/config/SecurityConfiguration.java',
@@ -34,10 +35,12 @@ const requireText = (file, values) => {
   'docs/OPERATIONS_RUNBOOK.md',
   'docs/MOBILE_RELEASE.md',
   'docs/PRODUCTION_UX_AUDIT.md',
+  'docs/FEATURE_QA_MATRIX.md',
   'docs/RELIABILITY_BASELINE.md',
   'scripts/lib/fake-google-calendar.mjs',
   'scripts/verify-production-e2e.mjs',
-  'scripts/verify-production-reliability.mjs'
+  'scripts/verify-production-reliability.mjs',
+  'scripts/verify-secrets.mjs'
 ].forEach(requireFile);
 
 requireText('src/auth/AuthProvider.tsx', [
@@ -69,8 +72,26 @@ requireText('.github/workflows/mobile-release.yml', [
 ]);
 requireText('README.md', [
   '현재 구현 상태', '공개 배포 전에 반드시 필요한 것', 'Google Calendar',
-  'verify:production:e2e', 'verify:production:reliability', 'RELIABILITY_BASELINE.md'
+  'verify:production:e2e', 'verify:production:reliability', 'FEATURE_QA_MATRIX.md', 'verify:secrets', 'RELIABILITY_BASELINE.md'
 ]);
+requireText('src/state/PlannerProvider.tsx', [
+  'createEmptySnapshot', 'plannerReady', 'resetPlanner', 'ACTIVE_PLAN_ABSENT_KEY'
+]);
+requireText('backend/src/main/java/io/nowline/planner/api/AccountController.java', [
+  'authTime.isAfter(now.plusSeconds(30))', 'authTime.isBefore(now.minus(Duration.ofMinutes(15)))'
+]);
+requireText('docs/FEATURE_QA_MATRIX.md', [
+  'QA 완료', '외부 자격 증명 필요', '신규 계정', 'Google Calendar', 'Kubernetes', 'secret scan'
+]);
+
+for (const file of ['README.md', 'docs/BACKEND_ARCHITECTURE.md']) {
+  if (read(file).includes('X-Nowline-User-Id')) {
+    throw new Error(`${file} still documents the removed trusted user-id header`);
+  }
+}
+if (read('docs/USABILITY_AUDIT.md').startsWith('# Nowline 사용성 감사\n\n감사일:')) {
+  throw new Error('docs/USABILITY_AUDIT.md still presents the pre-backend audit as current');
+}
 
 const mainJava = [
   'backend/src/main/java/io/nowline/planner/api/PlannerController.java',

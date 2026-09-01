@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static io.nowline.planner.persistence.JdbcValues.id;
+
 @Repository
 public class PlannerRepository {
 
@@ -29,24 +31,33 @@ public class PlannerRepository {
     }
 
     public void lockUser(UUID userId) {
-        jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", resultSet -> null, userId.toString());
+        List<String> locked = jdbc.query(
+                "SELECT user_id FROM app_user WHERE user_id = ? FOR UPDATE",
+                (resultSet, rowNumber) -> resultSet.getString(1),
+                id(userId));
+        if (locked.size() != 1) {
+            throw new IllegalStateException("Authenticated user row could not be locked");
+        }
     }
 
     public Optional<Long> findRevision(UUID userId) {
         List<Long> rows = jdbc.query("SELECT revision FROM planner_aggregate WHERE user_id = ?",
-                (resultSet, rowNumber) -> resultSet.getLong(1), userId);
+                (resultSet, rowNumber) -> resultSet.getLong(1), id(userId));
         return rows.stream().findFirst();
     }
 
     public long nextRevision(UUID userId) {
-        Long revision = jdbc.queryForObject("""
+        jdbc.update("""
                         INSERT INTO planner_revision_clock (user_id, last_revision)
                         VALUES (?, 1)
-                        ON CONFLICT (user_id) DO UPDATE
-                        SET last_revision = planner_revision_clock.last_revision + 1,
-                            updated_at = now()
-                        RETURNING last_revision
-                        """, Long.class, userId);
+                        ON DUPLICATE KEY UPDATE
+                            last_revision = planner_revision_clock.last_revision + 1,
+                            updated_at = CURRENT_TIMESTAMP(6)
+                        """, id(userId));
+        Long revision = jdbc.queryForObject(
+                "SELECT last_revision FROM planner_revision_clock WHERE user_id = ?",
+                Long.class,
+                id(userId));
         if (revision == null) {
             throw new IllegalStateException("Revision clock returned no value");
         }
@@ -81,7 +92,7 @@ public class PlannerRepository {
                         rs.getString("change_label"),
                         PlannerSnapshot.Attention.from(rs.getString("attention")),
                         rs.getString("decision") == null ? null : PlannerSnapshot.Decision.from(rs.getString("decision"))
-                ), userId);
+                ), id(userId));
 
         List<PlannerSnapshot.Task> tasks = jdbc.query("""
                         SELECT task_id, title, outcome_id, estimate_minutes, status, pinned, carry_count, note
@@ -96,7 +107,7 @@ public class PlannerRepository {
                         rs.getBoolean("pinned"),
                         rs.getInt("carry_count"),
                         rs.getString("note")
-                ), userId);
+                ), id(userId));
 
         List<PlannerSnapshot.TimeBlock> blocks = jdbc.query("""
                         SELECT block_id, task_id, title, day_key, start_minutes, duration_minutes, external, week_offset
@@ -111,7 +122,7 @@ public class PlannerRepository {
                         rs.getInt("duration_minutes"),
                         rs.getBoolean("external"),
                         rs.getInt("week_offset")
-                ), userId);
+                ), id(userId));
 
         List<PlannerSnapshot.TimeEntry> entries = jdbc.query("""
                         SELECT entry_id, task_id, duration_seconds, source, observed_at, evidence
@@ -124,7 +135,7 @@ public class PlannerRepository {
                         PlannerSnapshot.TimeSource.from(rs.getString("source")),
                         rs.getTimestamp("observed_at").toInstant(),
                         rs.getString("evidence")
-                ), userId);
+                ), id(userId));
 
         PlannerSnapshot.TimerSession timer = jdbc.query("""
                         SELECT task_id, started_at, accumulated_seconds, paused
@@ -133,11 +144,11 @@ public class PlannerRepository {
                         rs.getString("task_id"),
                         rs.getObject("started_at", Long.class),
                         rs.getLong("accumulated_seconds"),
-                        rs.getBoolean("paused")) : null, userId);
+                        rs.getBoolean("paused")) : null, id(userId));
 
         List<String> topTasks = jdbc.query("""
                         SELECT task_id FROM planner_review_top_task WHERE user_id = ? ORDER BY position
-                        """, (rs, row) -> rs.getString("task_id"), userId);
+                        """, (rs, row) -> rs.getString("task_id"), id(userId));
 
         PlannerSnapshot snapshot = new PlannerSnapshot(
                 aggregate.version(),
@@ -164,7 +175,7 @@ public class PlannerRepository {
                             review_blocker, review_metric_draft, review_completed_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                userId, planId, revision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
+                id(userId), id(planId), revision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
                 snapshot.plan().annualDirection(), snapshot.plan().quarter(), snapshot.plan().quarterFocus(),
                 snapshot.plan().quarterEndDate(), snapshot.review().blocker(), snapshot.review().metricDraft(),
                 timestamp(snapshot.review().completedAt()));
@@ -184,13 +195,13 @@ public class PlannerRepository {
                         SET plan_id = ?, revision = ?,
                             snapshot_version = ?, planner_week_offset = ?, plan_year = ?, annual_direction = ?,
                             plan_quarter = ?, quarter_focus = ?, quarter_end_date = ?, review_blocker = ?,
-                            review_metric_draft = ?, review_completed_at = ?, updated_at = now()
+                            review_metric_draft = ?, review_completed_at = ?, updated_at = CURRENT_TIMESTAMP(6)
                         WHERE user_id = ? AND revision = ?
                         """,
-                planId, nextRevision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
+                id(planId), nextRevision, snapshot.version(), snapshot.plannerWeekOffset(), snapshot.plan().year(),
                 snapshot.plan().annualDirection(), snapshot.plan().quarter(), snapshot.plan().quarterFocus(),
                 snapshot.plan().quarterEndDate(), snapshot.review().blocker(), snapshot.review().metricDraft(),
-                timestamp(snapshot.review().completedAt()), userId, expectedRevision);
+                timestamp(snapshot.review().completedAt()), id(userId), expectedRevision);
         if (updated != 1) {
             return false;
         }
@@ -200,19 +211,19 @@ public class PlannerRepository {
     }
 
     public boolean delete(UUID userId, long expectedRevision) {
-        return jdbc.update("DELETE FROM planner_aggregate WHERE user_id = ? AND revision = ?", userId, expectedRevision) == 1;
+        return jdbc.update("DELETE FROM planner_aggregate WHERE user_id = ? AND revision = ?", id(userId), expectedRevision) == 1;
     }
 
     public Optional<IdempotencyRecord> findIdempotency(UUID userId, String operation, String key) {
         return jdbc.query("""
-                        SELECT request_hash, response_status, result_revision, response_body::text
+                        SELECT request_hash, response_status, result_revision, response_body
                         FROM planner_idempotency
                         WHERE user_id = ? AND operation = ? AND idempotency_key = ?
                         """, rs -> rs.next() ? Optional.of(new IdempotencyRecord(
                         rs.getString("request_hash"),
                         rs.getInt("response_status"),
                         rs.getObject("result_revision", Long.class),
-                        rs.getString("response_body"))) : Optional.empty(), userId, operation, key);
+                        rs.getString("response_body"))) : Optional.empty(), id(userId), operation, key);
     }
 
     public void saveIdempotency(
@@ -228,8 +239,8 @@ public class PlannerRepository {
                         INSERT INTO planner_idempotency (
                             user_id, operation, idempotency_key, request_hash,
                             response_status, result_revision, response_body
-                        ) VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb))
-                        """, userId, operation, key, requestHash, responseStatus, resultRevision, responseBody);
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, id(userId), operation, key, requestHash, responseStatus, resultRevision, responseBody);
     }
 
     private AggregateRow findAggregate(UUID userId) {
@@ -249,16 +260,16 @@ public class PlannerRepository {
                         rs.getObject("quarter_end_date", LocalDate.class),
                         rs.getString("review_blocker"),
                         rs.getString("review_metric_draft"),
-                        instant(rs.getTimestamp("review_completed_at"))) : null, userId);
+                        instant(rs.getTimestamp("review_completed_at"))) : null, id(userId));
     }
 
     private void deleteChildren(UUID userId) {
-        jdbc.update("DELETE FROM planner_review_top_task WHERE user_id = ?", userId);
-        jdbc.update("DELETE FROM planner_timer WHERE user_id = ?", userId);
-        jdbc.update("DELETE FROM planner_time_entry WHERE user_id = ?", userId);
-        jdbc.update("DELETE FROM planner_time_block WHERE user_id = ?", userId);
-        jdbc.update("DELETE FROM planner_task WHERE user_id = ?", userId);
-        jdbc.update("DELETE FROM planner_outcome WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM planner_review_top_task WHERE user_id = ?", id(userId));
+        jdbc.update("DELETE FROM planner_timer WHERE user_id = ?", id(userId));
+        jdbc.update("DELETE FROM planner_time_entry WHERE user_id = ?", id(userId));
+        jdbc.update("DELETE FROM planner_time_block WHERE user_id = ?", id(userId));
+        jdbc.update("DELETE FROM planner_task WHERE user_id = ?", id(userId));
+        jdbc.update("DELETE FROM planner_outcome WHERE user_id = ?", id(userId));
     }
 
     private void insertChildren(UUID userId, PlannerSnapshot snapshot) {
@@ -279,7 +290,7 @@ public class PlannerRepository {
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, outcomes, (statement, item) -> {
             PlannerSnapshot.Outcome value = item.value();
-            statement.setObject(1, userId);
+            statement.setString(1, id(userId));
             statement.setString(2, value.id());
             statement.setInt(3, item.index());
             statement.setString(4, value.title());
@@ -307,7 +318,7 @@ public class PlannerRepository {
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, tasks, (statement, item) -> {
             PlannerSnapshot.Task value = item.value();
-            statement.setObject(1, userId);
+            statement.setString(1, id(userId));
             statement.setString(2, value.id());
             statement.setInt(3, item.index());
             statement.setString(4, value.title());
@@ -328,7 +339,7 @@ public class PlannerRepository {
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, blocks, (statement, item) -> {
             PlannerSnapshot.TimeBlock value = item.value();
-            statement.setObject(1, userId);
+            statement.setString(1, id(userId));
             statement.setString(2, value.id());
             statement.setInt(3, item.index());
             statement.setString(4, value.taskId());
@@ -348,7 +359,7 @@ public class PlannerRepository {
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """, entries, (statement, item) -> {
             PlannerSnapshot.TimeEntry value = item.value();
-            statement.setObject(1, userId);
+            statement.setString(1, id(userId));
             statement.setString(2, value.id());
             statement.setInt(3, item.index());
             statement.setString(4, value.taskId());
@@ -366,14 +377,14 @@ public class PlannerRepository {
         jdbc.update("""
                         INSERT INTO planner_timer (user_id, task_id, started_at, accumulated_seconds, paused)
                         VALUES (?, ?, ?, ?, ?)
-                        """, userId, timer.taskId(), timer.startedAt(), timer.accumulatedSeconds(), timer.paused());
+                """, id(userId), timer.taskId(), timer.startedAt(), timer.accumulatedSeconds(), timer.paused());
     }
 
     private void insertReviewTopTasks(UUID userId, List<String> taskIds) {
         batch("""
                         INSERT INTO planner_review_top_task (user_id, position, task_id) VALUES (?, ?, ?)
                         """, taskIds, (statement, item) -> {
-            statement.setObject(1, userId);
+            statement.setString(1, id(userId));
             statement.setInt(2, item.index());
             statement.setString(3, item.value());
         });

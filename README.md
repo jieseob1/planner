@@ -1,12 +1,12 @@
 # Nowline
 
-연간 방향과 분기 목표를 **측정 가능한 결과 → 다음 행동 → 주간 시간 배치 → 오늘 실행 → 회고**로 연결하는 개인 실행 플래너입니다. 같은 React 코드가 웹/PWA와 Capacitor iOS·Android에서 실행되고, Java 25 Spring API와 PostgreSQL이 여러 기기의 상태를 동기화합니다.
+연간 방향과 분기 목표를 **측정 가능한 결과 → 다음 행동 → 주간 시간 배치 → 오늘 실행 → 회고**로 연결하는 개인 실행 플래너입니다. 같은 React 코드가 웹/PWA와 Capacitor iOS·Android에서 실행되고, Java 25 Spring API와 MySQL 8.4가 여러 기기의 상태를 동기화합니다.
 
 ![Nowline Today 데스크톱](./docs/screenshots/today-desktop.jpg)
 
 ## 현재 구현 상태
 
-저장소 안의 제품·운영 코드는 공개 서비스 배포 구조까지 구현되어 있습니다. 실제 서비스 오픈에는 사용자가 소유한 도메인/TLS, OIDC, Google OAuth 검증, 관리형 PostgreSQL, Apple·Google 서명 계정 같은 외부 자산 연결이 별도로 필요합니다. 샘플 도메인 `app.nowline.example`로는 공개할 수 없습니다.
+저장소 안의 제품·운영 코드는 공개 서비스 배포 구조까지 구현되어 있습니다. 실제 서비스 오픈에는 사용자가 소유한 도메인/TLS, OIDC, Google OAuth 검증, 관리형 MySQL 8.4, Apple·Google 서명 계정 같은 외부 자산 연결이 별도로 필요합니다. 샘플 도메인 `app.nowline.example`로는 공개할 수 없습니다.
 
 | 영역 | 구현 내용 |
 | --- | --- |
@@ -19,6 +19,8 @@
 | Google Calendar | 최소 scope OAuth, 암호화 refresh token, 양방향 증분 sync, 410 복구, ETag, webhook watch, 재시도 |
 | 알림 | 시간대/quiet hours, Web Push, iOS·Android push adapter, DB job lease, 중복 방지 |
 | 운영 | Java 25 virtual threads, rate/body limit, 보안 헤더, Prometheus/OTel, TLS K8s overlay, CI/CD, SBOM·서명·스캔 |
+
+신규 계정은 샘플 목표나 실행 기록을 생성하지 않습니다. 정책 동의 후 onboarding에서 입력한 연간 방향·분기 결과·첫 행동만 서버에 저장됩니다. 기능별 구현·QA 상태와 실제 외부 자산 경계는 [Feature QA matrix](./docs/FEATURE_QA_MATRIX.md)에 정리했습니다.
 
 ## 화면
 
@@ -62,7 +64,7 @@ flowchart LR
   M[Capacitor iOS/Android] --> I
   I --> F[nginx Frontend]
   F --> A[Spring API replicas]
-  A --> P[(External HA PostgreSQL)]
+  A --> P[(External HA MySQL 8.4)]
   A --> G[Google Calendar API]
   A --> U[Web Push / APNs·FCM adapter]
   O[OIDC provider] --> W
@@ -72,7 +74,7 @@ flowchart LR
 
 - API는 검증된 JWT의 issuer+subject로 tenant UUID를 계산합니다. 사용자 ID 헤더를 신뢰하지 않습니다.
 - 서버 Pod는 세션·job 소유권·planner 상태를 메모리에 두지 않습니다.
-- PostgreSQL advisory lock, revision과 ETag가 여러 Pod·기기의 동시 쓰기를 통제합니다.
+- MySQL `SELECT ... FOR UPDATE` 사용자 행 잠금, transient deadlock 3회 재시도, revision과 ETag가 여러 Pod·기기의 동시 쓰기를 통제합니다.
 - OAuth/푸시 credential은 AES-256-GCM과 사용자·기기 AAD로 암호화합니다.
 - 가상 스레드와 DB pool은 별개이며 기본 Hikari 상한은 Pod당 10개입니다.
 
@@ -92,18 +94,18 @@ make compose-verify
 - readiness: [http://localhost:8080/actuator/health/readiness](http://localhost:8080/actuator/health/readiness)
 - metrics: [http://localhost:8080/actuator/prometheus](http://localhost:8080/actuator/prometheus)
 
-Compose는 외부에 노출하면 안 되는 `local-auth` profile과 로컬 전용 JWT secret을 사용합니다. 종료해도 PostgreSQL volume은 보존됩니다.
+Compose는 외부에 노출하면 안 되는 `local-auth` profile과 로컬 전용 JWT secret을 사용합니다. 종료해도 MySQL volume은 보존됩니다.
 
 ```bash
 make compose-logs
 make compose-down
 ```
 
-Vite HMR 개발은 PostgreSQL/backend만 Compose로 실행한 다음 `npm run dev`를 사용합니다.
+Vite HMR 개발은 MySQL/backend만 Compose로 실행한 다음 `npm run dev`를 사용합니다.
 
 ```bash
 make backend-jar
-docker compose up -d postgres backend
+docker compose up -d mysql backend
 npm run dev
 ```
 
@@ -137,7 +139,7 @@ npm run k8s:verify
 npm run verify:k8s:runtime
 ```
 
-local overlay는 PostgreSQL PVC, backend 2 replicas, HPA 2~6, PDB, startup/readiness/liveness probe와 topology spread를 포함합니다. production overlay는 로컬 DB를 제거하고 TLS Ingress, default-deny NetworkPolicy, 전용 ServiceAccount, 외부 Secret/HA DB, migration Job, ServiceMonitor와 alerts 계약을 사용합니다.
+local overlay는 MySQL PVC, backend 2 replicas, HPA 2~6, PDB, startup/readiness/liveness probe와 topology spread를 포함합니다. production overlay는 로컬 DB를 제거하고 TLS Ingress, default-deny NetworkPolicy, 전용 ServiceAccount, 외부 Secret/HA DB, migration Job, ServiceMonitor와 alerts 계약을 사용합니다.
 
 ## 검증
 
@@ -147,13 +149,16 @@ npm run verify:full       # React + PWA/mobile sync + Spring/Testcontainers + ma
 npm run verify:production:e2e # 실제 Chrome에서 인증·오프라인·충돌·Google·탈퇴 흐름 검증
 npm run verify:production:reliability # backend 2대 부하·soak·failover·quota retry 검증
 npm run verify:migration  # 운영과 같은 one-shot Flyway runner가 V7 적용 후 정상 종료
-npm run verify:recovery   # PostgreSQL 17 backup/restore 무결성 drill
+npm run verify:recovery   # MySQL 8.4 mysqldump/restore 무결성 drill
 npm run verify:k8s:runtime # 현재 이미지를 local cluster에 넣고 두 Pod 동시성 검증
+npm run verify:secrets    # Git 추적 파일의 private key/provider token signature 검사
 ```
 
 `verify:k8s:runtime`은 현재 Kubernetes context를 바꾸지 않으며, local overlay와 현재 이미지를 적용합니다. 두 backend Pod에 직접 동시 요청해 하나만 ETag update에 성공하고 최종 상태가 일치하는지 확인합니다.
 
-`verify:production:e2e`와 `verify:production:reliability`는 매 실행마다 격리된 PostgreSQL·backend·가짜 Google Calendar 공급자를 만들고 종료합니다. 전자는 데스크톱/모바일 인증 사용자 여정을 Chrome으로 확인하고, 후자는 두 backend 인스턴스의 부하·30초 soak·동시 수정·단일 인스턴스 중단·Google 429 재시도를 확인합니다. 기준과 최근 측정값은 [Reliability baseline](./docs/RELIABILITY_BASELINE.md)에 있습니다.
+`verify:production:e2e`와 `verify:production:reliability`는 매 실행마다 격리된 MySQL 8.4·backend·가짜 Google Calendar 공급자를 만들고 종료합니다. 전자는 데스크톱/모바일 인증 사용자 여정을 Chrome으로 확인하고, 후자는 두 backend 인스턴스의 부하·30초 soak·동시 수정·단일 인스턴스 중단·Google 429 재시도를 확인합니다. 기준과 최근 측정값은 [Reliability baseline](./docs/RELIABILITY_BASELINE.md)에 있습니다.
+
+이전 로컬 PostgreSQL 데이터는 삭제하지 않습니다. Compose volume과 Kubernetes PVC를 각각 custom-format dump로 보존한 뒤, 비어 있는 MySQL에 [one-time migration tool](./scripts/legacy-data-migration/README.md)로 이관하고 테이블별 건수와 planner 지문을 대조합니다. 검증 후에는 PostgreSQL workload만 내리고 원본 volume/PVC와 dump는 복구용으로 유지합니다.
 
 Android debug APK는 JDK 21과 Gradle 8.13으로 `assembleDebug`까지 확인했습니다. iOS 프로젝트와 자산은 Capacitor sync 및 CI release workflow에 포함되며, 로컬 서명 없는 simulator/archive 검증에는 전체 Xcode 설치가 필요합니다.
 
@@ -166,7 +171,7 @@ CI는 PR마다 프론트/백엔드/E2E/CodeQL을 수행합니다. release workfl
 - 실제 domain/DNS/TLS와 운영 CORS origin
 - OIDC tenant/client/audience와 운영 테스트 계정
 - Google Cloud OAuth client, 검증된 domain, 동의 화면 게시/검증
-- 관리형 PostgreSQL의 HA, 자동 backup, PITR와 실제 복구 증거
+- 관리형 MySQL 8.4의 HA, 자동 backup, PITR와 실제 복구 증거
 - Secret Manager, OTLP collector, Prometheus alert 수신 채널
 - VAPID와 APNs/FCM adapter credential
 - Apple Developer/Google Play 계정, signing key, physical-device와 store 심사
@@ -196,7 +201,7 @@ planner/
 | Frontend | React 19, TypeScript 7, React Router 7, Vite 8, Vitest 4 |
 | Web/App | PWA/Workbox, Capacitor 8, iOS, Android, secure storage |
 | Backend | Java 25, Spring Boot 4.1.1, Spring MVC virtual threads, JDBC/Flyway |
-| Data | PostgreSQL 17, normalized planner schema, audit/job/lease tables |
+| Data | MySQL 8.4 LTS, InnoDB, normalized planner schema, audit/job/lease tables |
 | Security | OAuth2 Resource Server, OIDC PKCE, AES-GCM, rate/body limits, CSP/HSTS |
 | Operations | Kubernetes/Kustomize, Prometheus, OpenTelemetry, GitHub Actions, Cosign, Trivy |
 
@@ -211,5 +216,6 @@ planner/
 - [Design spec](./DESIGN_SPEC.md)
 - [Production UX audit](./docs/PRODUCTION_UX_AUDIT.md) · [usability sources](./docs/USABILITY_REFERENCES.md)
 - [Reliability baseline](./docs/RELIABILITY_BASELINE.md)
+- [Feature QA matrix](./docs/FEATURE_QA_MATRIX.md)
 - [Acceptance gates](./GATES.md)
 - [Claude Design source](https://claude.ai/design/p/97a88bc6-c95f-4bc3-9e8f-ed453200caef?file=Planner_HighFidelity.dc.html)

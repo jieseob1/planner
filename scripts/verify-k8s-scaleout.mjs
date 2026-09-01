@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 const context = process.env.NOWLINE_KUBE_CONTEXT || 'kind-nowline-local';
 const namespace = 'nowline-local';
@@ -61,6 +61,8 @@ const stopForwards = () => {
 };
 
 let accessToken = '';
+let frontendUrl = '';
+let cleanupTestAccount = false;
 const taskId = `task-${randomUUID()}`;
 const outcomeId = `outcome-${randomUUID()}`;
 const snapshot = {
@@ -122,6 +124,43 @@ const expectStatus = async (response, status, label) => {
   return response;
 };
 
+const base64url = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+const localTestToken = () => {
+  const secretResource = kubectlJson([
+    '--namespace', namespace,
+    'get', 'secret', 'nowline-local-auth'
+  ]);
+  const secret = Buffer.from(secretResource.data?.['jwt-secret'] ?? '', 'base64').toString('utf8');
+  if (!secret) fail('Local auth secret is missing jwt-secret');
+
+  const deployment = kubectlJson([
+    '--namespace', namespace,
+    'get', 'deployment', 'nowline-backend'
+  ]);
+  const environment = Object.fromEntries(
+    (deployment.spec?.template?.spec?.containers?.[0]?.env ?? [])
+      .filter((entry) => typeof entry.value === 'string')
+      .map((entry) => [entry.name, entry.value])
+  );
+  const now = Math.floor(Date.now() / 1_000);
+  const header = base64url({ alg: 'HS256', typ: 'JWT' });
+  const payload = base64url({
+    iss: environment.NOWLINE_OIDC_ISSUER || 'https://nowline.local',
+    sub: `k8s-scaleout-${randomUUID()}`,
+    aud: environment.NOWLINE_OIDC_AUDIENCE || 'nowline-api',
+    iat: now,
+    nbf: now - 5,
+    exp: now + 900,
+    auth_time: now,
+    name: 'Nowline scale-out verifier',
+    email: `scaleout-${randomUUID()}@nowline.invalid`
+  });
+  const unsigned = `${header}.${payload}`;
+  const signature = createHmac('sha256', secret).update(unsigned).digest('base64url');
+  return `${unsigned}.${signature}`;
+};
+
 try {
   const podList = kubectlJson([
     '--namespace', namespace,
@@ -132,8 +171,8 @@ try {
     pod.status?.phase === 'Running'
     && pod.status?.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True')
   ));
-  if (readyPods.length !== 2) {
-    fail(`Expected exactly two ready backend pods, found ${readyPods.length}`);
+  if (readyPods.length < 2) {
+    fail(`Expected at least two ready backend pods, found ${readyPods.length}`);
   }
 
   const [frontendPort, firstPodPort, secondPodPort] = await Promise.all([
@@ -141,26 +180,23 @@ try {
     startForward(`pod/${readyPods[0].metadata.name}`, 8080),
     startForward(`pod/${readyPods[1].metadata.name}`, 8080)
   ]);
-  const frontendUrl = `http://127.0.0.1:${frontendPort}/api/v1/planner`;
+  frontendUrl = `http://127.0.0.1:${frontendPort}`;
+  const plannerUrl = `${frontendUrl}/api/v1/planner`;
   const podUrls = [firstPodPort, secondPodPort]
     .map((port) => `http://127.0.0.1:${port}/api/v1/planner`);
 
-  const tokenResponse = await expectStatus(await fetch(
-    `http://127.0.0.1:${frontendPort}/api/v1/auth/dev-token`,
-    { headers: { Accept: 'application/json' } }
-  ), 200, 'local token');
-  accessToken = (await tokenResponse.json()).accessToken;
-  if (!accessToken) fail('local token: missing accessToken');
+  accessToken = localTestToken();
   await expectStatus(await fetch(
-    `http://127.0.0.1:${frontendPort}/api/v1/account/consent`,
+    `${frontendUrl}/api/v1/account/consent`,
     {
       method: 'PUT',
       headers: headers(),
       body: JSON.stringify({ termsAccepted: true, privacyAccepted: true })
     }
   ), 200, 'policy consent');
+  cleanupTestAccount = true;
 
-  const createdResponse = await expectStatus(await fetch(frontendUrl, {
+  const createdResponse = await expectStatus(await fetch(plannerUrl, {
     method: 'PUT',
     headers: headers({ 'If-None-Match': '*', 'Idempotency-Key': randomUUID() }),
     body: JSON.stringify(snapshot)
@@ -206,11 +242,6 @@ try {
     }
   }
 
-  await expectStatus(await fetch(frontendUrl, {
-    method: 'DELETE',
-    headers: headers({ 'If-Match': secondEtag, 'Idempotency-Key': randomUUID() })
-  }), 204, 'frontend-proxied cleanup');
-
   const hpa = kubectlJson(['--namespace', namespace, 'get', 'horizontalpodautoscaler', 'nowline-backend']);
   if (hpa.spec?.minReplicas !== 2 || hpa.spec?.maxReplicas !== 6 || (hpa.status?.currentReplicas ?? 0) < 2) {
     fail('Backend HPA is not observing the two-replica Deployment');
@@ -218,5 +249,17 @@ try {
 
   console.log('local Kubernetes scale-out verification passed');
 } finally {
+  if (cleanupTestAccount && accessToken && frontendUrl) {
+    try {
+      await expectStatus(await fetch(`${frontendUrl}/api/v1/account`, {
+        method: 'DELETE',
+        headers: headers(),
+        body: JSON.stringify({ confirmation: 'DELETE' })
+      }), 204, 'isolated test account cleanup');
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    }
+  }
   stopForwards();
 }
