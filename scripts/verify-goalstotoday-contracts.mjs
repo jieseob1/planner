@@ -39,7 +39,10 @@ requireText('infra/k8s/overlays/production/ingress.yaml', 'host: www.goalstotoda
 requireText('infra/k8s/overlays/production/backend-patch.yaml', 'https://goalstotoday.com/api/v1/integrations/google-calendar/oauth/callback');
 requireText('scripts/k8s-local.sh', 'NOWLINE_PUBLIC_ORIGIN');
 requireText('scripts/k8s-local.sh', 'configure-keycloak-public-origin.sh');
+requireText('scripts/k8s-local.sh', '/opt/homebrew/opt/openjdk@25/bin/java');
 requireText('scripts/migrate-k8s-oidc-issuer.sh', 'mysqldump --single-transaction');
+requireText('scripts/mac-mini-goalstotoday-tunnel.sh', '--url http://127.0.0.1:4189');
+requireText('ops/macos/com.goalstotoday.tunnel.plist', 'com.goalstotoday.tunnel');
 requireText('nginx.beta.conf', '$nowline_forwarded_proto');
 requireText('nginx.beta.conf', 'return 308 https://goalstotoday.com$request_uri;');
 

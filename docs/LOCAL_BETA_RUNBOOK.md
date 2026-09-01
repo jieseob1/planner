@@ -36,7 +36,15 @@ NOWLINE_PUBLIC_ORIGIN=https://goalstotoday.com \
   scripts/k8s-local.sh up
 ```
 
-Cloudflare Tunnel의 apex와 `www` route는 모두 `http://localhost:4189`를 origin으로 사용합니다. `www` 요청은 앱 Nginx가 `https://goalstotoday.com`으로 308 리다이렉트합니다.
+Cloudflare의 `goalstotoday` 전용 터널에서 apex와 `www` CNAME은 모두 `http://127.0.0.1:4189` origin으로 전달합니다. 기존 `mac-mini-server` 터널과 SSH route는 분리되어 있습니다. `www` 요청은 앱 Nginx가 `https://goalstotoday.com`으로 308 리다이렉트합니다.
+
+```bash
+cp ops/macos/com.goalstotoday.tunnel.plist "$HOME/Library/LaunchAgents/com.goalstotoday.tunnel.plist"
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.goalstotoday.tunnel.plist"
+launchctl kickstart -k "gui/$(id -u)/com.goalstotoday.tunnel"
+```
+
+전용 tunnel UUID credential은 `$HOME/.cloudflared`에 owner-only 권한으로 보관하며 Git에 넣지 않습니다.
 
 ```bash
 kubectl --namespace nowline-local get pods

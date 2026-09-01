@@ -32,6 +32,23 @@ require_command() {
   fi
 }
 
+configure_java_25() {
+  local java_version
+  java_version="$(java -version 2>&1 | sed -n '1p' || true)"
+  if [[ "${java_version}" == *'version "25.'* ]]; then
+    return
+  fi
+  if [[ -x /opt/homebrew/opt/openjdk@25/bin/java ]]; then
+    export JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home
+    export PATH="/opt/homebrew/opt/openjdk@25/bin:${PATH}"
+    java_version="$(java -version 2>&1 | sed -n '1p' || true)"
+  fi
+  if [[ "${java_version}" != *'version "25.'* ]]; then
+    printf 'Java 25 is required to build the backend; found: %s\n' "${java_version:-not installed}" >&2
+    exit 1
+  fi
+}
+
 require_kubectl() {
   require_command kubectl
   local requested_context
@@ -98,6 +115,8 @@ load_kind_images() {
 build_images() {
   require_command docker
   require_command npm
+  require_command java
+  configure_java_25
   require_kubectl
   "${ROOT_DIR}/scripts/prepare-local-beta-env.sh"
   (
