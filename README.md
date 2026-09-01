@@ -2,7 +2,7 @@
 
 연간 방향과 분기 목표를 **측정 가능한 결과 → 다음 행동 → 주간 시간 배치 → 오늘 실행 → 회고**로 연결하는 개인 실행 플래너입니다. 같은 React 코드가 웹/PWA와 Capacitor iOS·Android에서 실행되고, Java 25 Spring API와 MySQL 8.4가 여러 기기의 상태를 동기화합니다.
 
-![Nowline Today 데스크톱](./docs/screenshots/today-desktop.jpg)
+![Nowline 공개 랜딩 페이지](./docs/screenshots/landing/implementation-desktop-hero.png)
 
 ## 현재 구현 상태
 
@@ -10,6 +10,7 @@
 
 | 영역 | 구현 내용 |
 | --- | --- |
+| 공개 랜딩 | 비로그인 `/` 제품 소개, 실제 제품 화면, 도구 비교, 무료 베타 안내, `/today` 시작 CTA, 모바일 반응형 |
 | 계획 관리 | 여러 연간·분기 계획 생성, 활성화, 종료, 보관, 복원, immutable 변경 이력 |
 | 실행 | Today Top 3, 타이머, 수동 시간, 완료 근거, 빠른 수집, 이월 결정 |
 | 주간 운영 | 7일 시간 블록, 용량/겹침 방지, 외부 일정, 다음 주 계획 |
@@ -24,6 +25,12 @@
 신규 계정은 샘플 목표나 실행 기록을 생성하지 않습니다. 정책 동의 후 onboarding에서 입력한 연간 방향·분기 결과·첫 행동만 서버에 저장됩니다. 기능별 구현·QA 상태와 실제 외부 자산 경계는 [Feature QA matrix](./docs/FEATURE_QA_MATRIX.md)에 정리했습니다.
 
 ## 화면
+
+웹의 `/`는 로그인 없이 열리는 공개 랜딩 페이지입니다. 제품의 계획 계층과 실행·회고 흐름을 실제 화면으로 설명하고, `웹앱 바로 시작`을 누르면 `/today`의 인증·온보딩 흐름으로 이동합니다. 네이티브 앱에서는 랜딩을 건너뛰고 바로 제품 화면으로 이동합니다.
+
+<p align="center">
+  <img src="./docs/screenshots/landing/implementation-mobile-hero.png" alt="Nowline 공개 랜딩 모바일" width="320" />
+</p>
 
 ![Nowline Planner 데스크톱](./docs/screenshots/planner-desktop.jpg)
 

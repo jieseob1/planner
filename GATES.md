@@ -249,3 +249,18 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
   CHECK: rtk npm run verify:beta:k8s:runtime
   EXPECT: local Kubernetes beta runtime verified
   EVIDENCE: exit=0; shell=/bin/sh; cwd=/Users/jisubpark/develop/planner; path=f5d0056e435b/23 entries; output=local beta multi-user runtime verified | local Kubernetes beta runtime verified
+
+## Public landing page
+
+- [x] G51: The public landing route presents Nowline's plan-to-action value, implemented features, honest coming-soon states, beta terms, and working conversion links on desktop and mobile
+  CHECK: rtk npm run verify:landing
+  EXPECT: landing page verification passed
+  EVIDENCE: exit=0; Vitest 2/2 landing component tests passed and the static route/content/responsive contract printed `landing page verification passed`
+
+- [x] G52: The landing-page change preserves the authenticated planner, production build, accessibility contracts, mobile layout, and release verification
+  CHECK: rtk npm run verify:release
+  EXPECT: release verification passed
+  EVIDENCE: exit=0; 31/31 frontend tests passed; production build, design source, visual system, usability, PWA, Android and iOS Capacitor sync checks passed; output=`redesigned frontend release verification passed`
+
+- [x] G53: The rendered landing page matches the supplied Claude Design source at equivalent desktop and mobile viewports with no actionable P0, P1, or P2 design-QA findings
+  EVIDENCE: `design-qa.md` result=`passed`; 1440x1000 and 390x844 side-by-side inputs recorded; desktop navigation and `/today` CTA worked; mobile document width was 390/390px, primary controls were 48px, comparison table scrolled internally at 780/370px, and browser warnings/errors were empty

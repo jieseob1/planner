@@ -13,6 +13,7 @@
     "verify:structure": "node scripts/verify-structure.mjs",
     "verify:design-source": "node scripts/verify-design-source.mjs",
     "verify:visual-system": "node scripts/verify-visual-system.mjs",
+    "verify:landing": "vitest run src/screens/LandingScreen.test.tsx && node scripts/verify-landing-page.mjs",
     "verify:usability": "vitest run && node scripts/verify-usability.mjs",
     "verify:build": "npm run build && node scripts/verify-build.mjs",
     "verify:mobile": "npm run build && cap sync && node scripts/verify-mobile.mjs",

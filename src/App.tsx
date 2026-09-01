@@ -11,6 +11,7 @@ import { PlannerProvider } from './state/PlannerProvider';
 import { AuthProvider } from './auth/AuthProvider';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { PrivacyScreen, TermsScreen } from './screens/LegalScreen';
+import { LandingScreen } from './screens/LandingScreen';
 import { usePlanner } from './state/PlannerProvider';
 
 function RequireActivePlan({ children }: { children: ReactNode }) {
@@ -47,6 +48,7 @@ export function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<LandingScreen />} />
         <Route path="/privacy" element={<PrivacyScreen />} />
         <Route path="/terms" element={<TermsScreen />} />
         <Route path="/*" element={(
