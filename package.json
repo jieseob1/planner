@@ -40,6 +40,8 @@
     "verify:goalstotoday:release": "npm run verify:goalstotoday:contracts && npm run verify:release && npm run verify:backend && npm run verify:k8s && node scripts/success.mjs \"Goals to Today repository release verification passed\"",
     "verify:goalstotoday:public": "node scripts/verify-goalstotoday-public.mjs",
     "verify:goalstotoday:deployment": "node scripts/verify-goalstotoday-deployment.mjs",
+    "capture:goalstotoday:screenshots": "node scripts/capture-goalstotoday-screenshots.mjs",
+    "capture:goalstotoday:product-screenshots": "node scripts/capture-goalstotoday-product-screenshots.mjs",
     "verify:full": "npm run verify:release && npm run verify:backend && npm run verify:k8s && npm run verify:e2e && node scripts/success.mjs \"full stack verification passed\"",
     "dev:backend": "cd backend && ./mvnw spring-boot:run",
     "dev:stack": "make compose-up",
