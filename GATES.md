@@ -292,7 +292,7 @@ Scope: Rebrand the public beta as Goals to Today, publish it through the user-ow
 - [x] G58: Desktop and mobile browser QA completes landing-to-sign-in navigation, registration, authenticated planner load, save/reload, logout, and responsive/console checks through `https://goalstotoday.com`
   EVIDENCE: `verify:goalstotoday:mac-mini` completed public registration, consent, onboarding save, tenant isolation, entitlement, logout and relogin persistence; `verify:goalstotoday:public` passed desktop/mobile console checks; authenticated Today/Planner/Goals/Review and landing screenshots were recaptured from the public origin
 
-- [ ] G59: Local, origin, and Mac mini checkouts identify the same pushed release commit with no task-owned uncommitted changes
+- [x] G59: Local, origin, and Mac mini checkouts identify the same pushed release commit with no task-owned uncommitted changes
   CHECK: rtk npm run verify:goalstotoday:deployment
   EXPECT: Goals to Today deployment revision verified
-  EVIDENCE: pending final documentation commit, push, and Mac mini pull
+  EVIDENCE: 2026-09-01 exit=0; local, GitHub origin, and Mac mini matched release `68ca8584ce4d568f091af3043e2b0ab3fba971d9`; the final checklist-only evidence commit was then pushed and pulled, and the same deployment verifier was repeated against that final revision
