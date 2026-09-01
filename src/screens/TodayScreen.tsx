@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
   CalendarClock,
+  CalendarPlus,
   Check,
   ChevronDown,
   CircleDot,
@@ -15,9 +16,30 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Modal } from '../components/Modal';
+import { TimeBlockSheet } from '../components/TimeBlockSheet';
 import { formatClock, formatMinutes, formatTimer } from '../lib/format';
+import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
 import { getToday, getWeekDays } from '../lib/calendarDate';
+
+const DAY_START_MINUTES = 8 * 60;
+const DAY_END_MINUTES = 23 * 60;
+const DAY_SLOT_MINUTES = 60;
+const DAY_HOUR_HEIGHT = 54;
+const dayHours = Array.from(
+  { length: ((DAY_END_MINUTES - DAY_START_MINUTES) / 60) + 1 },
+  (_, index) => DAY_START_MINUTES + (index * 60)
+);
+const daySlots = Array.from(
+  { length: (DAY_END_MINUTES - DAY_START_MINUTES) / DAY_SLOT_MINUTES },
+  (_, index) => DAY_START_MINUTES + (index * DAY_SLOT_MINUTES)
+);
+
+interface TimeBlockDraft {
+  taskId: string;
+  startMinutes: number;
+  durationMinutes: number;
+}
 
 function useTimerSeconds(startedAt: number | null, accumulatedSeconds: number, paused: boolean) {
   const [now, setNow] = useState(Date.now());
@@ -44,7 +66,8 @@ export function TodayScreen() {
     toggleTimer,
     stopTimer,
     addManualTime,
-    removeTimeEntry
+    removeTimeEntry,
+    scheduleTask
   } = usePlanner();
   const [capture, setCapture] = useState('');
   const [captured, setCaptured] = useState(false);
@@ -58,6 +81,9 @@ export function TodayScreen() {
   } | null>(null);
   const today = getToday();
   const currentWeekDays = getWeekDays(0);
+  const [timeBlockDraft, setTimeBlockDraft] = useState<TimeBlockDraft | null>(null);
+  const [timeBlockError, setTimeBlockError] = useState('');
+  const [timeBlockNotice, setTimeBlockNotice] = useState('');
 
   const activeTasks = tasks.filter((task) => task.status !== 'done' && task.status !== 'cancelled');
   const focusTask = timer
@@ -133,13 +159,56 @@ export function TodayScreen() {
     }, 5000);
   };
 
+  const openTimeBlock = (startMinutes: number, taskId?: string | null, durationMinutes?: number) => {
+    const task = activeTasks.find((item) => item.id === taskId)
+      ?? focusTask
+      ?? activeTasks[0];
+    if (!task) return;
+    setTimeBlockError('');
+    setTimeBlockDraft({
+      taskId: task.id,
+      startMinutes,
+      durationMinutes: durationMinutes ?? task.estimateMinutes
+    });
+  };
+
+  const saveTimeBlock = (taskId: string, startMinutes: number, durationMinutes: number) => {
+    const task = activeTasks.find((item) => item.id === taskId);
+    if (!task) {
+      setTimeBlockError('배치할 할 일을 다시 선택해 주세요.');
+      return;
+    }
+
+    const conflict = findTimeBlockConflict(todayBlocks, {
+      day: today.key,
+      startMinutes,
+      durationMinutes,
+      weekOffset: 0
+    }, { ignoreTaskId: taskId });
+    if (conflict) {
+      setTimeBlockError(`${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`);
+      return;
+    }
+
+    if (!scheduleTask(taskId, today.key, startMinutes, durationMinutes, 0)) {
+      setTimeBlockError('다른 일정과 시간이 겹칩니다. 시작이나 종료 시간을 바꿔주세요.');
+      return;
+    }
+
+    const endMinutes = startMinutes + durationMinutes;
+    setTimeBlockDraft(null);
+    setTimeBlockError('');
+    setTimeBlockNotice(`${formatClock(startMinutes)}–${formatClock(endMinutes)} · ${task.title}을 계획했어요.`);
+    window.setTimeout(() => setTimeBlockNotice(''), 3200);
+  };
+
   return (
     <div className="page page--today today-nowline">
       <header className="page-header page-header--compact today-header">
         <div className="today-header__title">
           <p className="eyebrow">오늘 · {today.month}월 {today.date}일 {today.long}</p>
           <h1>오늘은 하나를 끝냅니다.</h1>
-          <p className="page-header__description">계획보다 실행을 먼저 봅니다. 다음 한 줄을 끝내세요.</p>
+          <p className="page-header__description">할 일과 시간표를 함께 보고, 오른쪽 빈 시간을 눌러 오늘 계획을 바로 잡으세요.</p>
         </div>
 
         {timer && focusTask ? (
@@ -205,153 +274,239 @@ export function TodayScreen() {
         </aside>
       )}
 
-      <section className="today-priorities" aria-labelledby="today-top-three-title">
-        <header className="section-heading section-heading--rule">
-          <div>
-            <p className="eyebrow">오늘의 Top 3</p>
-            <h2 id="today-top-three-title">끝낼 순서</h2>
-          </div>
-          <span className="section-heading__hint">한 번에 하나만 기록합니다.</span>
-        </header>
-
-        {topTasks.length > 0 ? (
-          <ol className="priority-list">
-            {topTasks.map((task, index) => {
-              const outcome = outcomes.find((item) => item.id === task.outcomeId);
-              const isRunning = timer?.taskId === task.id;
-              return (
-                <li key={task.id} className={isRunning ? 'priority-row priority-row--running' : 'priority-row'}>
-                  <span className="priority-row__rank">{index + 1}</span>
-                  <div className="priority-row__body">
-                    <span>{outcome?.title ?? '연결되지 않은 할 일'}</span>
-                    <strong>{task.title}</strong>
-                  </div>
-                  <span className="priority-row__estimate"><Clock3 size={14} /> {formatMinutes(task.estimateMinutes)}</span>
-                  {task.carryCount > 0 && (
-                    <span className="priority-row__carry"><AlertTriangle size={13} /> {task.carryCount}회 이월</span>
-                  )}
-                  <button
-                    className="button button--quiet button--small priority-row__action"
-                    type="button"
-                    disabled={Boolean(timer && !isRunning)}
-                    onClick={() => isRunning ? toggleTimer() : startTimer(task.id)}
-                  >
-                    {isRunning && !timer?.paused ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
-                    {isRunning
-                      ? timer?.paused ? '계속' : '잠시 멈춤'
-                      : timer ? '실행 중' : index === 0 ? '지금 시작' : '시작'}
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <div className="empty-state today-priorities__empty">
-            <span className="empty-state__icon"><Check size={25} /></span>
-            <h2>오늘의 실행을 모두 마쳤어요.</h2>
-            <p>빠른 메모에 다음 행동을 적거나 Planner에서 내일 시간을 잡아보세요.</p>
-          </div>
-        )}
-      </section>
-
-      <div className="today-plan-overview">
-        <section className="next-block" aria-labelledby="next-block-title">
-          <header>
-            <div>
-              <p className="eyebrow">다음 블록</p>
-              <h2 id="next-block-title">바로 이어갈 시간</h2>
-            </div>
-            <CalendarClock size={18} aria-hidden="true" />
-          </header>
-          {nextBlock ? (
-            <div className={nextBlock.external ? 'next-block__body next-block__body--external' : 'next-block__body'}>
-              <time>{formatClock(nextBlock.startMinutes)}</time>
+      <div className="today-workspace">
+        <div className="today-command-column">
+          <section className="today-priorities" aria-labelledby="today-top-three-title">
+            <header className="section-heading section-heading--rule">
               <div>
-                <span>{nextBlock.external ? '외부 일정 · 읽기 전용' : '집중 블록'}</span>
-                <strong>{nextBlock.title}</strong>
+                <p className="eyebrow">오늘의 Top 3</p>
+                <h2 id="today-top-three-title">끝낼 순서</h2>
               </div>
-              <span>{formatMinutes(nextBlock.durationMinutes)}</span>
-            </div>
-          ) : (
-            <p className="next-block__empty">오늘 배치된 시간이 없습니다.</p>
-          )}
-        </section>
+              <span className="section-heading__hint">위에서부터 하나씩 시작하세요.</span>
+            </header>
 
-        <section className="remaining-week" aria-labelledby="remaining-week-title">
-          <header>
-            <p className="eyebrow">남은 주</p>
-            <h2 id="remaining-week-title">집중 시간 배치</h2>
+            {topTasks.length > 0 ? (
+              <ol className="priority-list">
+                {topTasks.map((task, index) => {
+                  const outcome = outcomes.find((item) => item.id === task.outcomeId);
+                  const isRunning = timer?.taskId === task.id;
+                  return (
+                    <li key={task.id} className={isRunning ? 'priority-row priority-row--running' : 'priority-row'}>
+                      <span className="priority-row__rank">{index + 1}</span>
+                      <div className="priority-row__body">
+                        <span>{outcome?.title ?? '연결되지 않은 할 일'}</span>
+                        <strong>{task.title}</strong>
+                      </div>
+                      <span className="priority-row__estimate"><Clock3 size={14} /> {formatMinutes(task.estimateMinutes)}</span>
+                      {task.carryCount > 0 && (
+                        <span className="priority-row__carry"><AlertTriangle size={13} /> {task.carryCount}회 이월</span>
+                      )}
+                      <button
+                        className="button button--quiet button--small priority-row__action"
+                        type="button"
+                        disabled={Boolean(timer && !isRunning)}
+                        onClick={() => isRunning ? toggleTimer() : startTimer(task.id)}
+                      >
+                        {isRunning && !timer?.paused ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
+                        {isRunning
+                          ? timer?.paused ? '계속' : '잠시 멈춤'
+                          : timer ? '실행 중' : index === 0 ? '지금 시작' : '시작'}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <div className="empty-state today-priorities__empty">
+                <span className="empty-state__icon"><Check size={25} /></span>
+                <h2>오늘의 실행을 모두 마쳤어요.</h2>
+                <p>빠른 메모에 다음 행동을 적거나 Planner에서 내일 시간을 잡아보세요.</p>
+              </div>
+            )}
+          </section>
+
+          <section className="next-block" aria-labelledby="next-block-title">
+            <header>
+              <div>
+                <p className="eyebrow">다음 일정</p>
+                <h2 id="next-block-title">바로 이어갈 시간</h2>
+              </div>
+              <CalendarClock size={18} aria-hidden="true" />
+            </header>
+            {nextBlock ? (
+              <div className={nextBlock.external ? 'next-block__body next-block__body--external' : 'next-block__body'}>
+                <time>{formatClock(nextBlock.startMinutes)}</time>
+                <div>
+                  <span>{nextBlock.external ? '외부 일정 · 읽기 전용' : '집중 블록'}</span>
+                  <strong>{nextBlock.title}</strong>
+                </div>
+                <span>{formatMinutes(nextBlock.durationMinutes)}</span>
+              </div>
+            ) : (
+              <button className="next-block__empty-button" type="button" onClick={() => openTimeBlock(18 * 60)}>
+                <CalendarPlus size={17} /> 오늘 첫 시간을 잡아보세요.
+              </button>
+            )}
+          </section>
+
+          <section className="quick-capture quick-capture--row">
+            <div className="quick-capture__label">
+              <Plus size={18} />
+              <span><strong id="quick-capture-title">빠른 메모</strong><small>떠오른 일은 수집함에 두고 지금 흐름을 지키세요.</small></span>
+            </div>
+            <form onSubmit={onCapture}>
+              <label className="sr-only" htmlFor="quick-capture">빠른 메모</label>
+              <input
+                id="quick-capture"
+                value={capture}
+                onChange={(event) => setCapture(event.target.value)}
+                onKeyDown={onCaptureKeyDown}
+                placeholder="예: API 응답 비교하기"
+              />
+              <button type="submit" aria-label="수집함에 추가" disabled={!capture.trim()}><ArrowRight size={19} /></button>
+            </form>
+            {captured && <span className="capture-confirm" role="status"><Check size={14} /> 수집함에 넣었어요.</span>}
+          </section>
+        </div>
+
+        <section className="today-timeline today-timeline--interactive" aria-labelledby="today-timeline-title">
+          <header className="section-heading section-heading--rule">
+            <div>
+              <p className="eyebrow">오늘의 시간표</p>
+              <h2 id="today-timeline-title">계획과 실제 흐름</h2>
+            </div>
+            <button className="button button--primary button--small" type="button" onClick={() => openTimeBlock(18 * 60)}>
+              <CalendarPlus size={15} /> 시간 블록 추가
+            </button>
           </header>
-          <div className="remaining-week__table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  {remainingWeek.map((day) => <th key={day.key} scope="col">{day.short} {day.date}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  {remainingWeek.map((day) => (
-                    <td key={day.key}>
-                      <strong>{formatMinutes(day.plannedMinutes)}</strong>
-                      <span>{day.blockCount > 0 ? `${day.blockCount}개 블록` : '비어 있음'}</span>
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
+
+          <div className="day-schedule__guide">
+            <span>빈 시간을 누르면 시작·종료·할 일을 바로 정할 수 있어요.</span>
+            <span className="day-schedule__legend"><i /> 내 계획 <i /> 외부 일정</span>
           </div>
+
+          <div
+            className="day-schedule"
+            style={{ '--day-schedule-height': `${((DAY_END_MINUTES - DAY_START_MINUTES) / 60) * DAY_HOUR_HEIGHT}px` } as CSSProperties}
+          >
+            <div className="day-schedule__hours" aria-hidden="true">
+              {dayHours.map((hour) => (
+                <div
+                  key={hour}
+                  className="day-schedule__hour"
+                  style={{ '--hour-top': `${((hour - DAY_START_MINUTES) / 60) * DAY_HOUR_HEIGHT}px` } as CSSProperties}
+                >
+                  <time>{formatClock(hour)}</time>
+                  <span />
+                </div>
+              ))}
+            </div>
+
+            <div className="day-schedule__slots">
+              {daySlots.map((startMinutes) => {
+                const occupied = Boolean(findTimeBlockConflict(todayBlocks, {
+                  day: today.key,
+                  startMinutes,
+                  durationMinutes: DAY_SLOT_MINUTES,
+                  weekOffset: 0
+                }));
+                return (
+                  <button
+                    key={startMinutes}
+                    type="button"
+                    className="day-schedule__slot"
+                    disabled={occupied || activeTasks.length === 0}
+                    style={{
+                      '--slot-top': `${((startMinutes - DAY_START_MINUTES) / 60) * DAY_HOUR_HEIGHT}px`,
+                      '--slot-height': `${(DAY_SLOT_MINUTES / 60) * DAY_HOUR_HEIGHT}px`
+                    } as CSSProperties}
+                    aria-label={occupied
+                      ? `${formatClock(startMinutes)} 이미 일정 있음`
+                      : `${formatClock(startMinutes)}부터 ${formatClock(startMinutes + DAY_SLOT_MINUTES)}까지 할 일 추가`}
+                    onClick={() => openTimeBlock(startMinutes)}
+                  >
+                    <Plus size={14} aria-hidden="true" />
+                    <span>이 시간에 할 일</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="day-schedule__blocks">
+              {todayBlocks.map((block) => {
+                const visibleStart = Math.max(DAY_START_MINUTES, block.startMinutes);
+                const visibleEnd = Math.min(DAY_END_MINUTES, block.startMinutes + block.durationMinutes);
+                if (visibleEnd <= visibleStart) return null;
+                const blockStyle = {
+                  '--schedule-block-top': `${((visibleStart - DAY_START_MINUTES) / 60) * DAY_HOUR_HEIGHT + 2}px`,
+                  '--schedule-block-height': `${Math.max(30, ((visibleEnd - visibleStart) / 60) * DAY_HOUR_HEIGHT - 4)}px`
+                } as CSSProperties;
+                const endMinutes = block.startMinutes + block.durationMinutes;
+                const content = (
+                  <>
+                    <span>{block.external ? '외부 일정 · 읽기 전용' : '집중 블록'} · {formatClock(block.startMinutes)}–{formatClock(endMinutes)}</span>
+                    <strong>{block.title}</strong>
+                    <small>{formatMinutes(block.durationMinutes)}</small>
+                  </>
+                );
+
+                return block.external || !block.taskId ? (
+                  <article key={block.id} className="day-schedule__block day-schedule__block--external" style={blockStyle}>
+                    {content}
+                  </article>
+                ) : (
+                  <button
+                    key={block.id}
+                    type="button"
+                    className="day-schedule__block day-schedule__block--focus"
+                    style={blockStyle}
+                    aria-label={`${block.title}, ${formatClock(block.startMinutes)}부터 ${formatClock(endMinutes)}까지, 시간 변경`}
+                    onClick={() => openTimeBlock(block.startMinutes, block.taskId, block.durationMinutes)}
+                  >
+                    {content}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <footer className="day-close">
+            <div>
+              <strong>오늘을 닫기 전에</strong>
+              <span>완료, 이월, 중단을 정리하면 내일의 Top 3가 선명해집니다.</span>
+            </div>
+            <Link className="button button--secondary" to="/review">하루 마감 <ArrowRight size={16} /></Link>
+          </footer>
         </section>
       </div>
 
-      <section className="quick-capture quick-capture--row">
-        <div className="quick-capture__label">
-          <Plus size={18} />
-          <span><strong id="quick-capture-title">빠른 메모</strong><small>떠오른 일은 수집함에 두고 지금 흐름을 지키세요.</small></span>
-        </div>
-        <form onSubmit={onCapture}>
-          <label className="sr-only" htmlFor="quick-capture">빠른 메모</label>
-          <input
-            id="quick-capture"
-            value={capture}
-            onChange={(event) => setCapture(event.target.value)}
-            onKeyDown={onCaptureKeyDown}
-            placeholder="예: API 응답 비교하기"
-          />
-          <button type="submit" aria-label="수집함에 추가" disabled={!capture.trim()}><ArrowRight size={19} /></button>
-        </form>
-        {captured && <span className="capture-confirm" role="status"><Check size={14} /> 수집함에 넣었어요.</span>}
-      </section>
-
-      <section className="today-timeline" aria-labelledby="today-timeline-title">
-        <header className="section-heading section-heading--rule">
+      <section className="remaining-week remaining-week--strip" aria-labelledby="remaining-week-title">
+        <header>
           <div>
-            <p className="eyebrow">오늘의 타임라인</p>
-            <h2 id="today-timeline-title">계획과 실제 흐름</h2>
+            <p className="eyebrow">남은 주</p>
+            <h2 id="remaining-week-title">집중 시간 배치</h2>
           </div>
-          <span className="section-heading__hint">줄무늬는 외부 일정 · 파란 블록은 직접 계획</span>
+          <Link className="text-button" to="/planner">주간 계획 열기 <ArrowRight size={14} /></Link>
         </header>
-        <ol className="timeline timeline--day">
-          {todayBlocks.map((block) => (
-            <li key={block.id} className={block.external ? 'timeline__item timeline__item--external' : 'timeline__item'}>
-              <time>{formatClock(block.startMinutes)}</time>
-              <span className="timeline__dot" aria-hidden="true" />
-              <div className="timeline__body">
-                <span className="timeline__type">{block.external ? '외부 일정 · 읽기 전용' : '집중 블록'}</span>
-                <strong>{block.title}</strong>
-                <span>{formatMinutes(block.durationMinutes)}</span>
-              </div>
-            </li>
-          ))}
-          {todayBlocks.length === 0 && <li className="timeline__empty">오늘 배치된 시간이 없습니다.</li>}
-        </ol>
-        <footer className="day-close">
-          <div>
-            <strong>오늘을 닫기 전에</strong>
-            <span>완료, 이월, 중단을 정리하면 내일의 Top 3가 선명해집니다.</span>
-          </div>
-          <Link className="button button--secondary" to="/review">하루 마감 <ArrowRight size={16} /></Link>
-        </footer>
+        <div className="remaining-week__table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {remainingWeek.map((day) => <th key={day.key} scope="col">{day.short} {day.date}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {remainingWeek.map((day) => (
+                  <td key={day.key}>
+                    <strong>{formatMinutes(day.plannedMinutes)}</strong>
+                    <span>{day.blockCount > 0 ? `${day.blockCount}개 블록` : '비어 있음'}</span>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {focusTask && (
@@ -372,6 +527,26 @@ export function TodayScreen() {
             </div>
           </div>
         </details>
+      )}
+
+      {timeBlockDraft && activeTasks.length > 0 && (
+        <TimeBlockSheet
+          key={`${timeBlockDraft.taskId}-${timeBlockDraft.startMinutes}-${timeBlockDraft.durationMinutes}`}
+          tasks={activeTasks}
+          initialTaskId={timeBlockDraft.taskId}
+          initialStartMinutes={timeBlockDraft.startMinutes}
+          initialDurationMinutes={timeBlockDraft.durationMinutes}
+          error={timeBlockError}
+          onClose={() => {
+            setTimeBlockDraft(null);
+            setTimeBlockError('');
+          }}
+          onSave={saveTimeBlock}
+        />
+      )}
+
+      {timeBlockNotice && (
+        <div className="toast" role="status"><Check size={15} /> {timeBlockNotice}</div>
       )}
 
       {finishOpen && focusTask && (

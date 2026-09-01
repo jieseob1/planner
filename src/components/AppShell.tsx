@@ -91,7 +91,7 @@ export function AppShell() {
         </NavLink>
 
         <nav className="sidebar__nav" aria-label="주 메뉴">
-          {navItems.map(({ to, desktopLabel, icon: Icon }) => (
+          {navItems.map(({ to, label, desktopLabel, contextLabel, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -99,7 +99,10 @@ export function AppShell() {
               className={({ isActive }) => clsx('nav-item', isActive && 'nav-item--active')}
             >
               <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
-              <span className="nav-item__label">{desktopLabel}</span>
+              <span className="nav-item__copy">
+                <strong className="nav-item__label">{label}</strong>
+                <small>{contextLabel}</small>
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -111,7 +114,7 @@ export function AppShell() {
           aria-label="빠른 수집"
         >
           <Plus size={21} aria-hidden="true" />
-          <span>Capture</span>
+          <span>빠른 수집</span>
         </button>
       </aside>
 
