@@ -1,6 +1,6 @@
 # Production setup
 
-이 문서는 저장소에 이미 구현된 운영 경계를 실제 공개 환경에 연결할 때 필요한 값과 순서를 정리합니다. 예시 도메인 `app.nowline.example`은 배포 전 전부 실제 도메인으로 바꿔야 합니다.
+이 문서는 저장소에 이미 구현된 운영 경계를 실제 공개 환경에 연결할 때 필요한 값과 순서를 정리합니다. 현재 공식 웹 origin은 `https://goalstotoday.com`이며 `www.goalstotoday.com`은 apex로 리다이렉트합니다.
 
 ## 1. 외부 인프라
 
@@ -19,7 +19,7 @@
 | Secret key | 의미 |
 | --- | --- |
 | `db-url`, `db-username`, `db-password` | TLS와 UTC를 강제한 외부 MySQL 8.4 접속 정보 |
-| `oidc-issuer`, `oidc-audience` | JWT 발급자 URL과 Nowline API audience |
+| `oidc-issuer`, `oidc-audience` | JWT 발급자 URL과 Goals to Today API audience |
 | `integration-encryption-key-base64` | 32바이트 난수를 Base64로 인코딩한 AES-256-GCM 키 |
 | `google-client-id`, `google-client-secret` | Google OAuth 웹 애플리케이션 자격 증명 |
 | `vapid-public-key`, `vapid-private-key`, `vapid-subject` | Web Push VAPID 설정 |
@@ -37,9 +37,9 @@ Secret Manager 연동은 `nowline-production` namespace에 정확히 `nowline-pr
 
 공급자에 Authorization Code + PKCE public client를 만들고 아래 값을 정확히 등록합니다.
 
-- Web callback: `https://<domain>/auth/callback`
-- Web logout: `https://<domain>`
-- Silent callback: `https://<domain>/auth/silent-callback`
+- Web callback: `https://goalstotoday.com/auth/callback`
+- Web logout: `https://goalstotoday.com`
+- Silent callback: `https://goalstotoday.com/auth/silent-callback`
 - Native callback: `com.jieseob.planner://auth/callback`
 - Native logout: `com.jieseob.planner://auth/logout`
 - Scope: `openid profile email offline_access`
@@ -51,8 +51,8 @@ Secret Manager 연동은 `nowline-production` namespace에 정확히 `nowline-pr
 
 Google Cloud Console에서 Calendar API를 켜고 OAuth 동의 화면, 개인정보 처리방침, 이용약관, 검증된 도메인을 등록합니다.
 
-- Callback: `https://<domain>/api/v1/integrations/google-calendar/oauth/callback`
-- Webhook: `https://<domain>/api/v1/calendar/google/webhook`
+- Callback: `https://goalstotoday.com/api/v1/integrations/google-calendar/oauth/callback`
+- Webhook: `https://goalstotoday.com/api/v1/calendar/google/webhook`
 - 요청 scope:
   - `https://www.googleapis.com/auth/calendar.events`
   - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
@@ -61,7 +61,7 @@ Google Cloud Console에서 Calendar API를 켜고 OAuth 동의 화면, 개인정
 
 ## 4. 도메인과 manifest
 
-다음 위치의 `app.nowline.example`을 한 번에 실제 HTTPS origin으로 교체합니다.
+다음 위치는 모두 `https://goalstotoday.com`으로 고정되어 있으며 `npm run verify:goalstotoday:contracts`가 회귀를 막습니다.
 
 - `infra/k8s/overlays/production/ingress.yaml`
 - `infra/k8s/overlays/production/backend-patch.yaml`
@@ -124,9 +124,9 @@ Kubernetes/Secret Manager에는 위 1절의 `nowline-production-secrets` 13개 k
 
 ### 사용자가 제공할 최소 작업
 
-1. 실제 domain과 사용할 cloud/Kubernetes·관리형 MySQL·OIDC 공급자를 결정합니다.
+1. `goalstotoday.com` Cloudflare DNS/Tunnel과 사용할 Kubernetes·관리형 MySQL·OIDC 공급자를 관리합니다.
 2. 위 두 GitHub environment에 정확한 variable/secret 이름으로 값을 등록합니다.
-3. `nowline-production-secrets`를 Secret Manager에서 동기화하고 실제 domain으로 저장소의 예시 origin을 교체합니다.
+3. `nowline-production-secrets`를 Secret Manager에서 동기화합니다.
 4. Google OAuth 테스트 계정과 Apple/Play 내부 테스트 계정을 지정합니다.
 5. 값 자체를 채팅이나 Git에 붙이지 말고 등록 완료 여부와 staging URL만 전달합니다. 이후 smoke, 실계정 Calendar, PITR, alert, 실기기 검증을 이어서 수행합니다.
 
@@ -134,7 +134,7 @@ Kubernetes/Secret Manager에는 위 1절의 `nowline-production-secrets` 13개 k
 
 저장소 안에서는 `npm run verify:production`으로 웹·백엔드·마이그레이션·복구·K8s 계약·의존성을 검증합니다. 실제 외부 자산은 아래 승인표를 모두 통과한 뒤에만 공개합니다.
 
-- [ ] 실제 domain/DNS/TLS와 정확한 CORS origin
+- [x] `goalstotoday.com` domain 계약과 정확한 CORS origin
 - [ ] OIDC wrong issuer/audience/expiry와 두 사용자 격리 실증
 - [ ] Google OAuth 게시·검증 상태와 실계정 전체 연동 실증
 - [ ] 관리형 MySQL 자동 백업/PITR 복구 리허설

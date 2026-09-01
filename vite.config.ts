@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['planner-mark.svg'],
       manifest: {
-        name: 'Nowline · 목표를 실행으로',
-        short_name: 'Nowline',
+        name: 'Goals to Today · 연간 목표를 오늘의 실행으로',
+        short_name: 'Goals to Today',
         description: '연간 목표부터 오늘의 시간 블록과 실행 근거까지 연결하는 개인 플래너',
         theme_color: '#f5f6f8',
         background_color: '#f5f6f8',

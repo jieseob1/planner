@@ -53,7 +53,7 @@ public class DevAuthController {
                 .notBeforeTime(Date.from(now.minusSeconds(5)))
                 .expirationTime(Date.from(expiresAt))
                 .claim("auth_time", Date.from(now))
-                .claim("name", "Local Nowline User")
+                .claim("name", "Local Goals to Today User")
                 .claim("email", "local@nowline.invalid")
                 .build();
         SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);

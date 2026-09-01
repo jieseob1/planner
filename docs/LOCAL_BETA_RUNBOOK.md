@@ -1,6 +1,6 @@
 # Local multi-user beta runbook
 
-이 문서는 도메인을 연결하기 전, 한 대의 로컬 서버에서 실제 계정별 데이터를 분리해 베타를 운영하는 절차입니다. 기본 공개 범위는 서버 자신의 `localhost`입니다.
+이 문서는 한 대의 Mac mini에서 실제 계정별 데이터를 분리해 공개 베타를 운영하는 절차입니다. Kubernetes Service는 서버의 `localhost`에만 바인딩하고 Cloudflare Tunnel이 `https://goalstotoday.com`으로 전달합니다.
 
 ## 현재 제공 범위
 
@@ -24,6 +24,19 @@ npm run k8s:serve:status
 ```
 
 성공 후 앱은 [http://localhost:4189](http://localhost:4189)에서 계속 실행됩니다. 검증은 서로 다른 두 계정을 실제 등록해 각자의 계획 저장, 교차 노출 부재, 로그아웃 후 재로그인 영속성, 무료 베타 권한을 확인합니다.
+
+공개 origin으로 다시 빌드·배포할 때는 기존 사용자의 issuer를 먼저 백업·이전한 뒤 stack을 올립니다.
+
+```bash
+NOWLINE_PUBLIC_ORIGIN=https://goalstotoday.com \
+  NOWLINE_KUBE_CONTEXT=kind-nowline-local \
+  scripts/migrate-k8s-oidc-issuer.sh
+NOWLINE_PUBLIC_ORIGIN=https://goalstotoday.com \
+  NOWLINE_KUBE_CONTEXT=kind-nowline-local \
+  scripts/k8s-local.sh up
+```
+
+Cloudflare Tunnel의 apex와 `www` route는 모두 `http://localhost:4189`를 origin으로 사용합니다. `www` 요청은 앱 Nginx가 `https://goalstotoday.com`으로 308 리다이렉트합니다.
 
 ```bash
 kubectl --namespace nowline-local get pods
@@ -86,11 +99,9 @@ NOWLINE_BACKUP_S3_URI=s3://<bucket>/nowline npm run beta:backup
 5. 사용자 수, 활성 계획 수, planner fingerprint를 비교한 뒤 JDBC Secret을 전환합니다.
 6. 전환 실패 시 로컬 JDBC 설정으로 되돌리고 원본 PVC와 dump를 보존합니다.
 
-## 인터넷 공개 전에 남은 필수 작업
+## 유료 전환 전에 남은 필수 작업
 
-- 사용자 소유 도메인, DNS, 신뢰된 TLS와 방화벽
-- Keycloak public/admin hostname 분리, 운영 admin 계정과 정기 backup
-- localhost 대신 실제 HTTPS origin으로 frontend·realm client·backend issuer 재설정
+- Keycloak 운영 admin 계정 복구 절차와 정기 realm/database backup
 - 관리형 MySQL HA, 자동 backup/PITR와 별도 복구 연습
 - 실제 Google OAuth client·동의 화면·검증 도메인
 - 이메일 인증/비밀번호 복구 메일 공급자와 abuse 대응

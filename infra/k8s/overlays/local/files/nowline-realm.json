@@ -1,6 +1,6 @@
 {
   "realm": "nowline",
-  "displayName": "Nowline",
+  "displayName": "Goals to Today",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": true,
@@ -30,7 +30,7 @@
   "clients": [
     {
       "clientId": "nowline-api",
-      "name": "Nowline API",
+      "name": "Goals to Today API",
       "enabled": true,
       "protocol": "openid-connect",
       "bearerOnly": true,
@@ -38,7 +38,7 @@
     },
     {
       "clientId": "nowline-web",
-      "name": "Nowline Web and PWA",
+      "name": "Goals to Today Web and PWA",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,

@@ -50,7 +50,7 @@ public class AccountController {
     ResponseEntity<Map<String, Object>> export(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=nowline-account-export.json")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=goals-to-today-account-export.json")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(accounts.export(currentUser.resolve(jwt)));
     }

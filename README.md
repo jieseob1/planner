@@ -1,12 +1,12 @@
-# Nowline
+# Goals to Today
 
 연간 방향과 분기 목표를 **측정 가능한 결과 → 다음 행동 → 주간 시간 배치 → 오늘 실행 → 회고**로 연결하는 개인 실행 플래너입니다. 같은 React 코드가 웹/PWA와 Capacitor iOS·Android에서 실행되고, Java 25 Spring API와 MySQL 8.4가 여러 기기의 상태를 동기화합니다.
 
-![Nowline 공개 랜딩 페이지](./docs/screenshots/landing/implementation-desktop-hero.png)
+![Goals to Today 공개 랜딩 페이지](./docs/screenshots/landing/implementation-desktop-hero.png)
 
 ## 현재 구현 상태
 
-저장소 안의 제품·운영 코드와 로컬 다중 사용자 베타는 구현되어 있습니다. 로컬 베타는 자체 Keycloak 회원가입·OIDC, 무료 베타 권한, MySQL 영속 저장을 사용하며 공용 개발 토큰을 쓰지 않습니다. 인터넷 공개에는 사용자가 소유한 도메인/TLS, Google OAuth 검증, 관리형 MySQL 8.4, Apple·Google 서명 계정 같은 외부 자산 연결이 별도로 필요합니다. 샘플 도메인 `app.nowline.example`로는 공개할 수 없습니다.
+저장소 안의 제품·운영 코드와 로컬 다중 사용자 베타는 구현되어 있습니다. 공개 웹 주소는 [https://goalstotoday.com](https://goalstotoday.com)이며, Mac mini의 Kubernetes 서비스는 Cloudflare Tunnel을 통해서만 노출합니다. 자체 Keycloak 회원가입·OIDC, 무료 베타 권한, MySQL 영속 저장을 사용하며 공용 개발 토큰을 쓰지 않습니다. Google OAuth 게시·검증, 관리형 MySQL HA/PITR, Apple·Google 서명 계정은 각 공급자의 외부 자산이 준비되는 순서대로 연결해야 합니다.
 
 | 영역 | 구현 내용 |
 | --- | --- |
@@ -29,15 +29,15 @@
 웹의 `/`는 로그인 없이 열리는 공개 랜딩 페이지입니다. 제품의 계획 계층과 실행·회고 흐름을 실제 화면으로 설명하고, `웹앱 바로 시작`을 누르면 `/today`의 인증·온보딩 흐름으로 이동합니다. 네이티브 앱에서는 랜딩을 건너뛰고 바로 제품 화면으로 이동합니다.
 
 <p align="center">
-  <img src="./docs/screenshots/landing/implementation-mobile-hero.png" alt="Nowline 공개 랜딩 모바일" width="320" />
+  <img src="./docs/screenshots/landing/implementation-mobile-hero.png" alt="Goals to Today 공개 랜딩 모바일" width="320" />
 </p>
 
-![Nowline Planner 데스크톱](./docs/screenshots/planner-desktop.jpg)
+![Goals to Today Planner 데스크톱](./docs/screenshots/planner-desktop.jpg)
 
 <table>
   <tr>
-    <td width="50%"><img src="./docs/screenshots/goals-desktop.jpg" alt="Nowline Goals 데스크톱" /></td>
-    <td width="50%"><img src="./docs/screenshots/review-desktop.jpg" alt="Nowline Review 데스크톱" /></td>
+    <td width="50%"><img src="./docs/screenshots/goals-desktop.jpg" alt="Goals to Today Goals 데스크톱" /></td>
+    <td width="50%"><img src="./docs/screenshots/review-desktop.jpg" alt="Goals to Today Review 데스크톱" /></td>
   </tr>
   <tr>
     <td><strong>Goals</strong><br />성과 수치, 근거 신뢰도, 시간 위험과 다음 결정을 관리합니다.</td>
@@ -46,8 +46,8 @@
 </table>
 
 <p align="center">
-  <img src="./docs/screenshots/today-mobile.jpg" alt="Nowline Today 모바일" width="320" />
-  <img src="./docs/screenshots/planner-mobile.jpg" alt="Nowline Planner 모바일" width="320" />
+  <img src="./docs/screenshots/today-mobile.jpg" alt="Goals to Today Today 모바일" width="320" />
+  <img src="./docs/screenshots/planner-mobile.jpg" alt="Goals to Today Planner 모바일" width="320" />
 </p>
 
 ## 제품 흐름
@@ -62,7 +62,7 @@ flowchart LR
   F --> B
 ```
 
-Nowline은 장기 계획을 메모로만 보관하지 않습니다. 목표값·현재값·필요 시간·실제 시간·근거·다음 결정을 함께 저장하고, 계획 상태와 material change를 서버 감사 이력으로 남깁니다.
+Goals to Today는 장기 계획을 메모로만 보관하지 않습니다. 목표값·현재값·필요 시간·실제 시간·근거·다음 결정을 함께 저장하고, 계획 상태와 material change를 서버 감사 이력으로 남깁니다.
 
 ## 아키텍처
 
@@ -104,7 +104,7 @@ npm run k8s:serve:status
 
 Docker Compose만 사용할 때는 `npm run beta:up`, `npm run verify:beta:runtime`, `npm run beta:backup` 순서로 실행하고 [http://localhost:8088](http://localhost:8088)에 접속합니다. 자세한 운영·백업·AWS 이전 절차는 [Local beta runbook](./docs/LOCAL_BETA_RUNBOOK.md)에 있습니다.
 
-현재 localhost HTTP 구성은 이 컴퓨터에서 베타를 검증하기 위한 것입니다. 다른 실제 사용자가 인터넷에서 접속하려면 도메인과 신뢰된 HTTPS를 먼저 연결하고 OIDC origin을 그 주소로 다시 빌드해야 합니다. 포트만 공유하거나 라우터에 그대로 노출하면 안 됩니다.
+외부 사용자는 [https://goalstotoday.com](https://goalstotoday.com)으로 접속합니다. `127.0.0.1:4189`는 Cloudflare Tunnel의 origin으로만 사용하며 라우터 포트나 Kubernetes Service를 인터넷에 직접 열지 않습니다.
 
 ## 5분 단일 사용자 개발 실행
 
@@ -143,9 +143,9 @@ npm run dev
 
 ```dotenv
 VITE_AUTH_MODE=oidc
-VITE_OIDC_AUTHORITY=https://identity.example
+VITE_OIDC_AUTHORITY=https://goalstotoday.com/idp/realms/nowline
 VITE_OIDC_CLIENT_ID=nowline-public-client
-VITE_OIDC_WEB_REDIRECT_URI=https://app.example/auth/callback
+VITE_OIDC_WEB_REDIRECT_URI=https://goalstotoday.com/auth/callback
 VITE_OIDC_NATIVE_REDIRECT_URI=com.jieseob.planner://auth/callback
 ```
 
@@ -186,6 +186,9 @@ npm run verify:beta       # 로컬 다중 사용자 베타 구현 전체 검증
 npm run verify:beta:runtime # Compose에서 회원가입·tenant 격리·재로그인 검증
 npm run verify:beta:backup  # 실제 무중단 MySQL dump·gzip·checksum 검증
 npm run verify:beta:k8s     # 로컬 K8s 배포·동일 사용자 흐름·2 backend Ready 검증
+npm run verify:goalstotoday:contracts # 새 브랜드·도메인·배포 계약 검증
+npm run verify:goalstotoday:public    # 공개 HTTPS·OIDC·SSH·데스크톱/모바일 smoke 검증
+npm run verify:goalstotoday:deployment # 로컬·GitHub·Mac mini revision 일치 검증
 ```
 
 `verify:k8s:runtime`은 현재 Kubernetes context를 바꾸지 않으며, local overlay와 현재 이미지를 적용합니다. 두 backend Pod에 직접 동시 요청해 하나만 ETag update에 성공하고 최종 상태가 일치하는지 확인합니다.
@@ -202,8 +205,8 @@ CI는 PR마다 프론트/백엔드/E2E/CodeQL을 수행합니다. release workfl
 
 아래 항목은 저장소에서 대신 발급하거나 승인할 수 없습니다.
 
-- 실제 domain/DNS/TLS와 운영 CORS origin
-- OIDC tenant/client/audience와 운영 테스트 계정
+- Cloudflare 계정·Tunnel과 `goalstotoday.com` DNS/TLS 운영 권한
+- Keycloak 운영 admin 복구·백업과 테스트 계정
 - Google Cloud OAuth client, 검증된 domain, 동의 화면 게시/검증
 - 관리형 MySQL 8.4의 HA, 자동 backup, PITR와 실제 복구 증거
 - Secret Manager, OTLP collector, Prometheus alert 수신 채널

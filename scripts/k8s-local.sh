@@ -11,6 +11,13 @@ FRONTEND_IMAGE="nowline-frontend-beta:local"
 BACKEND_IMAGE="nowline-backend:local"
 KEYCLOAK_IMAGE="nowline-keycloak:local"
 LOCAL_ENV_FILE="${ROOT_DIR}/.env.local-beta"
+PUBLIC_ORIGIN="${NOWLINE_PUBLIC_ORIGIN:-http://localhost:4189}"
+
+if [[ ! "${PUBLIC_ORIGIN}" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || [[ "${PUBLIC_ORIGIN}" == */ ]]; then
+  printf 'NOWLINE_PUBLIC_ORIGIN must be an http(s) origin without a trailing slash.\n' >&2
+  exit 64
+fi
+OIDC_ISSUER="${PUBLIC_ORIGIN}/idp/realms/nowline"
 
 if [[ ! "${WAIT_SECONDS}" =~ ^[1-9][0-9]{1,2}$ ]] || (( WAIT_SECONDS < 10 || WAIT_SECONDS > 900 )); then
   printf 'NOWLINE_K8S_WAIT_SECONDS must be an integer from 10 through 900.\n' >&2
@@ -98,12 +105,12 @@ build_images() {
     npm ci --no-audit --no-fund
     VITE_API_BASE_URL= \
     VITE_AUTH_MODE=oidc \
-    VITE_OIDC_AUTHORITY=http://localhost:4189/idp/realms/nowline \
+    VITE_OIDC_AUTHORITY="${OIDC_ISSUER}" \
     VITE_OIDC_CLIENT_ID=nowline-web \
     VITE_OIDC_SCOPE='openid profile email offline_access' \
-    VITE_OIDC_WEB_REDIRECT_URI=http://localhost:4189/auth/callback \
-    VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI=http://localhost:4189 \
-    VITE_OIDC_SILENT_REDIRECT_URI=http://localhost:4189/auth/silent-callback \
+    VITE_OIDC_WEB_REDIRECT_URI="${PUBLIC_ORIGIN}/auth/callback" \
+    VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI="${PUBLIC_ORIGIN}" \
+    VITE_OIDC_SILENT_REDIRECT_URI="${PUBLIC_ORIGIN}/auth/silent-callback" \
       npm run build
   )
   (
@@ -168,6 +175,12 @@ up_stack() {
   require_kubectl
   ensure_local_secrets
   kubectl_nowline apply --kustomize "${KUSTOMIZE_DIR}"
+  kubectl_nowline --namespace "${NAMESPACE}" set env deployment/nowline-backend \
+    NOWLINE_OIDC_ISSUER="${OIDC_ISSUER}" \
+    NOWLINE_CORS_ALLOWED_ORIGIN_PATTERNS="${PUBLIC_ORIGIN}"
+  kubectl_nowline --namespace "${NAMESPACE}" set env deployment/nowline-keycloak \
+    KC_HOSTNAME="${PUBLIC_ORIGIN}/idp" \
+    NOWLINE_PUBLIC_ORIGIN="${PUBLIC_ORIGIN}"
   # Local images intentionally use stable tags. Restart the consumers so an
   # image freshly loaded into kind is actually picked up on every `up`.
   kubectl_nowline --namespace "${NAMESPACE}" rollout restart \
@@ -175,6 +188,9 @@ up_stack() {
     deployment/nowline-keycloak \
     deployment/nowline-frontend
   wait_for_rollouts
+  NOWLINE_PUBLIC_ORIGIN="${PUBLIC_ORIGIN}" \
+    NOWLINE_KUBE_CONTEXT="${KUBE_CONTEXT}" \
+    "${ROOT_DIR}/scripts/configure-keycloak-public-origin.sh"
   show_metrics_server_notice
 }
 
@@ -236,8 +252,8 @@ verify_stack() {
   local discovery
   discovery="$(curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \
     "http://localhost:${frontend_port}/idp/realms/nowline/.well-known/openid-configuration")"
-  if [[ "${discovery}" != *'"issuer":"http://localhost:4189/idp/realms/nowline"'* ]]; then
-    printf 'Local OIDC discovery returned an unexpected issuer.\n' >&2
+  if [[ "${discovery}" != *"\"issuer\":\"${OIDC_ISSUER}\""* ]]; then
+    printf 'OIDC discovery returned an unexpected issuer; expected %s.\n' "${OIDC_ISSUER}" >&2
     return 1
   fi
   curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors --max-time 5 \

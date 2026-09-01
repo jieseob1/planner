@@ -403,7 +403,7 @@ describe('Planner API synchronization', () => {
       if ((init?.method ?? 'GET') === 'GET') return snapshotResponse(serverSnapshot, 7);
       if (init?.method === 'PUT') {
         return new Response(JSON.stringify({
-          type: 'https://nowline.local/problems/revision-conflict',
+          type: 'https://goalstotoday.com/problems/revision-conflict',
           title: 'Revision conflict',
           status: 412,
           detail: 'The planner has changed on another client.'

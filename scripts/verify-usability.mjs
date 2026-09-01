@@ -83,7 +83,7 @@ for (const path of [
   'android/app/src/main/res/values/strings.xml',
   'ios/App/App/Info.plist'
 ]) {
-  if (!read(path).includes('Nowline')) throw new Error(`Visible product name is inconsistent in ${path}`);
+  if (!read(path).includes('Goals to Today')) throw new Error(`Visible product name is inconsistent in ${path}`);
 }
 
 console.log('frontend usability verification passed');

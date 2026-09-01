@@ -25,7 +25,7 @@ spec:
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef: {name: nowline-production-secrets, key: db-password}
-            - {name: NOWLINE_CORS_ALLOWED_ORIGIN_PATTERNS, value: "https://app.nowline.example"}
+            - {name: NOWLINE_CORS_ALLOWED_ORIGIN_PATTERNS, value: "https://goalstotoday.com,https://www.goalstotoday.com"}
             - name: NOWLINE_OIDC_ISSUER
               valueFrom:
                 secretKeyRef: {name: nowline-production-secrets, key: oidc-issuer}
@@ -41,9 +41,9 @@ spec:
             - name: NOWLINE_GOOGLE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef: {name: nowline-production-secrets, key: google-client-secret}
-            - {name: NOWLINE_GOOGLE_REDIRECT_URI, value: "https://app.nowline.example/api/v1/integrations/google-calendar/oauth/callback"}
-            - {name: NOWLINE_GOOGLE_FRONTEND_SUCCESS_URI, value: "https://app.nowline.example/settings?calendar=connected"}
-            - {name: NOWLINE_GOOGLE_WEBHOOK_URI, value: "https://app.nowline.example/api/v1/calendar/google/webhook"}
+            - {name: NOWLINE_GOOGLE_REDIRECT_URI, value: "https://goalstotoday.com/api/v1/integrations/google-calendar/oauth/callback"}
+            - {name: NOWLINE_GOOGLE_FRONTEND_SUCCESS_URI, value: "https://goalstotoday.com/settings?calendar=connected"}
+            - {name: NOWLINE_GOOGLE_WEBHOOK_URI, value: "https://goalstotoday.com/api/v1/calendar/google/webhook"}
             - name: NOWLINE_VAPID_PUBLIC_KEY
               valueFrom:
                 secretKeyRef: {name: nowline-production-secrets, key: vapid-public-key}

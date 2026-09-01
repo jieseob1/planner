@@ -103,9 +103,9 @@ export function LandingScreen() {
       <a className="landing-skip-link" href="#landing-main">본문으로 건너뛰기</a>
       <header className="landing-header">
         <div className="landing-container landing-header__inner">
-          <a className="landing-brand" href="#top" aria-label="Nowline 랜딩 페이지 처음으로 이동">
+          <a className="landing-brand" href="#top" aria-label="Goals to Today 랜딩 페이지 처음으로 이동">
             <img src="/nowline-mark.jpg" alt="" aria-hidden="true" />
-            <strong>NOWLINE</strong>
+            <strong>GOALS TO TODAY</strong>
           </a>
           <nav className="landing-nav" aria-label="랜딩 페이지 메뉴">
             <a href="#value-1">특장점</a>
@@ -121,7 +121,7 @@ export function LandingScreen() {
           <div className="landing-container">
             <p className="landing-kicker">개인 실행 플래너 · 베타</p>
             <h1 id="landing-title">오늘 하는 일이 <br />올해의 목표와 연결되어 있나요?</h1>
-            <p className="landing-hero__lead">Nowline은 장기 목표를 오늘 실행할 수 있는 단위로 연결합니다. 1년 방향에서 시작해 분기 결과, 다음 행동, 주간 시간 배치, 오늘의 실행까지 같은 줄기 안에서 관리합니다.</p>
+            <p className="landing-hero__lead">Goals to Today는 장기 목표를 오늘 실행할 수 있는 단위로 연결합니다. 1년 방향에서 시작해 분기 결과, 다음 행동, 주간 시간 배치, 오늘의 실행까지 같은 줄기 안에서 관리합니다.</p>
             <div className="landing-actions">
               <Link className="landing-button landing-button--primary" to="/today">웹앱 바로 시작</Link>
               <a className="landing-button landing-button--secondary" href="#value-1">제품 화면 먼저 보기</a>
@@ -133,8 +133,8 @@ export function LandingScreen() {
             </ul>
             <BrowserShot
               src={todayDesktop}
-              alt="Nowline 오늘 실행 화면"
-              address="nowline.app/today"
+              alt="Goals to Today 오늘 실행 화면"
+              address="goalstotoday.com/today"
               caption="오늘 실행 화면 — 계획 1시간 30분과 실제 기록을 나란히 두고, 3회 이월된 항목을 먼저 처리하게 합니다."
               eager
             />
@@ -152,8 +152,8 @@ export function LandingScreen() {
               eyebrow="VALUE 01 · 방향을 잃지 않는다"
               number="특장점 1"
               title="장기 계획이 오늘의 행동과 연결됩니다"
-              description="일반적인 메모나 투두 앱에서는 연간 목표와 오늘 할 일이 서로 분리됩니다. Nowline에서는 계획 계층이 하나로 연결되어, 오늘 하는 일이 어떤 장기 목표를 위한 것인지 항상 확인할 수 있습니다."
-              quote="“Nowline은 장기 목표를 오늘 실행할 수 있는 단위로 연결합니다.”"
+              description="일반적인 메모나 투두 앱에서는 연간 목표와 오늘 할 일이 서로 분리됩니다. Goals to Today에서는 계획 계층이 하나로 연결되어, 오늘 하는 일이 어떤 장기 목표를 위한 것인지 항상 확인할 수 있습니다."
+              quote="“Goals to Today는 장기 목표를 오늘 실행할 수 있는 단위로 연결합니다.”"
             />
 
             <div className="landing-lineage" aria-label="계획 계층 실제 데이터 예시">
@@ -173,12 +173,12 @@ export function LandingScreen() {
             <div className="landing-proof-grid landing-proof-grid--split">
               <BrowserShot
                 src={goalsDesktop}
-                alt="Nowline 목표와 지표 화면"
-                address="nowline.app/goals"
+                alt="Goals to Today 목표와 지표 화면"
+                address="goalstotoday.com/goals"
                 caption="목표와 지표 화면 — 1년 방향과 현재 분기가 한 줄로 이어지고, 분기 결과마다 현재값·목표값·다음 점검일이 붙습니다."
               />
               <figure className="landing-phone-shot">
-                <img src={todayMobile} alt="Nowline 오늘 실행 모바일 화면" loading="lazy" />
+                <img src={todayMobile} alt="Goals to Today 오늘 실행 모바일 화면" loading="lazy" />
                 <figcaption>오늘 실행 화면 — 할 일마다 상위 결과가 붙어 있어, 지금 하는 일이 어느 목표의 일인지 바로 보입니다.</figcaption>
               </figure>
             </div>
@@ -192,7 +192,7 @@ export function LandingScreen() {
               eyebrow="VALUE 02 · 계획이 실행으로 이어진다"
               number="특장점 2"
               title="단순한 기록이 아니라 계획을 운영합니다"
-              description="Nowline의 계획은 한 번 작성하고 방치하는 문서가 아닙니다. 필요 시간과 가용 시간을 비교하고, 남은 용량을 경고하고, 계획을 다시 확정하는 과정이 제품 안에 있습니다."
+              description="Goals to Today의 계획은 한 번 작성하고 방치하는 문서가 아닙니다. 필요 시간과 가용 시간을 비교하고, 남은 용량을 경고하고, 계획을 다시 확정하는 과정이 제품 안에 있습니다."
               quote="“계획은 작성하는 순간보다, 운영하는 과정이 더 중요합니다.”"
             />
             <div className="landing-operation-grid">
@@ -205,8 +205,8 @@ export function LandingScreen() {
             </div>
             <BrowserShot
               src={plannerDesktop}
-              alt="Nowline 주간 계획 화면"
-              address="nowline.app/planner"
+              alt="Goals to Today 주간 계획 화면"
+              address="goalstotoday.com/planner"
               caption="주간 계획 화면 — 계획된 용량과 결과에 필요한 시간을 비교해 계획과 현실의 차이를 먼저 말합니다."
             />
           </div>
@@ -219,7 +219,7 @@ export function LandingScreen() {
               eyebrow="VALUE 03 · 실행할수록 계획이 정확해진다"
               number="특장점 5"
               title="실행과 회고가 하나의 순환을 만듭니다"
-              description="일반적인 투두 앱이 완료 여부에서 끝난다면, Nowline은 실행 결과를 다음 계획에 반영합니다. 주간 리뷰에서 정리한 수치와 방해 요인, 다음 주 TOP 3가 다음 주 계획의 출발점이 됩니다."
+              description="일반적인 투두 앱이 완료 여부에서 끝난다면, Goals to Today는 실행 결과를 다음 계획에 반영합니다. 주간 리뷰에서 정리한 수치와 방해 요인, 다음 주 TOP 3가 다음 주 계획의 출발점이 됩니다."
               quote="“완료 체크에서 끝나지 않는 계획 관리.”"
             />
             <ol className="landing-cycle">
@@ -235,8 +235,8 @@ export function LandingScreen() {
             <p className="landing-cycle__result">실행 결과가 다음 주의 계획을 더 정확하게 만듭니다.</p>
             <BrowserShot
               src={reviewDesktop}
-              alt="Nowline 주간 회고 화면"
-              address="nowline.app/review"
+              alt="Goals to Today 주간 회고 화면"
+              address="goalstotoday.com/review"
               caption="주간 회고 화면 — 결과 수치 갱신, 방해 요인, 다음 주 TOP 3, 계획 확정이 하나의 흐름으로 이어집니다."
             />
           </div>
@@ -303,13 +303,13 @@ export function LandingScreen() {
                 <p className="landing-kicker">도구 비교</p>
                 <h2 id="compare-title">쓰는 목적이 다릅니다</h2>
               </div>
-              <p>메모 도구는 생각을 남기고, 투두 앱은 오늘의 완료를 돕고, 캘린더는 약속한 시간을 지킵니다. Nowline은 그중 어느 것도 대체하지 않고, 장기 계획을 오늘의 실행으로 옮기고 그 결과를 다음 계획에 반영하는 구간을 맡습니다.</p>
+              <p>메모 도구는 생각을 남기고, 투두 앱은 오늘의 완료를 돕고, 캘린더는 약속한 시간을 지킵니다. Goals to Today는 그중 어느 것도 대체하지 않고, 장기 계획을 오늘의 실행으로 옮기고 그 결과를 다음 계획에 반영하는 구간을 맡습니다.</p>
             </div>
             <p className="landing-scroll-hint">표를 좌우로 움직여 비교할 수 있습니다.</p>
             <div className="landing-table-scroll" tabIndex={0} aria-label="도구 특성 비교표, 가로 스크롤 가능">
               <table>
                 <thead>
-                  <tr><th scope="col">구분</th><th scope="col">메모 · 문서 도구</th><th scope="col">일반 투두 앱</th><th scope="col">캘린더</th><th scope="col">Nowline</th></tr>
+                  <tr><th scope="col">구분</th><th scope="col">메모 · 문서 도구</th><th scope="col">일반 투두 앱</th><th scope="col">캘린더</th><th scope="col">Goals to Today</th></tr>
                 </thead>
                 <tbody>
                   {comparisonRows.map((row) => (
@@ -325,7 +325,7 @@ export function LandingScreen() {
         <section id="values" className="landing-values" aria-labelledby="values-title">
           <div className="landing-container">
             <p className="landing-kicker">핵심 가치</p>
-            <h2 id="values-title">Nowline이 남기는 세 가지</h2>
+            <h2 id="values-title">Goals to Today가 남기는 세 가지</h2>
             <ol>
               <li><small>01</small><h3>방향을 잃지 않는다</h3><p>장기 목표와 오늘 할 일이 연결되어 지금 하는 일의 목적을 확인할 수 있습니다.</p></li>
               <li><small>02</small><h3>계획이 실행으로 이어진다</h3><p>분기 · 주간 계획을 오늘 실행할 수 있는 단위로 구체화합니다.</p></li>
@@ -359,9 +359,9 @@ export function LandingScreen() {
 
       <footer className="landing-footer">
         <div className="landing-container landing-footer__inner">
-          <a className="landing-brand" href="#top" aria-label="Nowline 랜딩 페이지 처음으로 이동">
+          <a className="landing-brand" href="#top" aria-label="Goals to Today 랜딩 페이지 처음으로 이동">
             <img src="/nowline-mark.jpg" alt="" aria-hidden="true" />
-            <strong>NOWLINE</strong>
+            <strong>GOALS TO TODAY</strong>
           </a>
           <p>연간 방향에서 오늘 한 줄까지 이어지는 개인 실행 플래너 · 베타</p>
           <nav aria-label="서비스 정책"><Link to="/privacy">개인정보 처리방침</Link><Link to="/terms">이용약관</Link></nav>

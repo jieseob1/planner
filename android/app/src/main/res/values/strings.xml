@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Nowline</string>
-    <string name="title_activity_main">Nowline</string>
+    <string name="app_name">Goals to Today</string>
+    <string name="title_activity_main">Goals to Today</string>
     <string name="package_name">com.jieseob.planner</string>
     <string name="custom_url_scheme">com.jieseob.planner</string>
 </resources>

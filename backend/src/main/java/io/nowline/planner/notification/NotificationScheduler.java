@@ -53,7 +53,7 @@ public class NotificationScheduler {
                             .count();
                     repository.createDelivery(
                             candidate.userId(), "DAILY_PLAN", "daily:" + localNow.toLocalDate(),
-                            "오늘의 Nowline을 확인하세요",
+                            "오늘의 Goals to Today를 확인하세요",
                             "실행할 작업 " + taskCount + "개와 오늘 시간 블록을 확인할 시간입니다.",
                             "/today", target);
                 }

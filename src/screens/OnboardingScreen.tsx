@@ -92,7 +92,7 @@ export function OnboardingScreen() {
     <main className="onboarding">
       <div className="onboarding__brand">
         <span className="brand__mark"><Compass size={20} /></span>
-        <strong>NOWLINE</strong>
+        <strong>GOALS TO TODAY</strong>
       </div>
 
       <section className="onboarding__panel">

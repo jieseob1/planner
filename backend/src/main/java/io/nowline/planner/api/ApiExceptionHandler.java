@@ -85,7 +85,7 @@ public class ApiExceptionHandler {
 
     private ProblemDetail problem(HttpStatus status, String code, String message) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(status, message);
-        detail.setType(URI.create("https://nowline.local/problems/" + code));
+        detail.setType(URI.create("https://goalstotoday.com/problems/" + code));
         detail.setTitle(code);
         detail.setProperty("code", code);
         return detail;

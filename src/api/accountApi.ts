@@ -69,7 +69,7 @@ export const accountApi = {
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = href;
-    anchor.download = `nowline-export-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.download = `goals-to-today-export-${new Date().toISOString().slice(0, 10)}.json`;
     anchor.click();
     URL.revokeObjectURL(href);
   },

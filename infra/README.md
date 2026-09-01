@@ -1,4 +1,4 @@
-# Nowline local runtime
+# Goals to Today local runtime
 
 This directory contains the local Kubernetes package. Docker Compose lives at
 the repository root so both flows build the same `nowline-frontend:local` and
@@ -42,7 +42,7 @@ Set `NOWLINE_KUBE_CONTEXT` to pin an explicit context and
 context, `build` and `up` load both local images into that exact kind cluster. Other
 cluster runtimes must make the two image names available themselves.
 
-`down` deletes only the named Nowline workloads, services, HPA, PDB, and local
+`down` deletes only the named Goals to Today workloads, services, HPA, PDB, and local
 Secret. It deliberately keeps the `nowline-local` namespace and the StatefulSet
 PVC (`data-nowline-mysql-0`) so planner data survives. Delete that PVC only
 when permanent local data loss is intended.
@@ -59,7 +59,7 @@ kubectl kustomize infra/k8s/overlays/production
 npm run verify:k8s
 ```
 
-Do not apply the example until every `app.nowline.example` value is replaced. The release workflow applies `migration-job.yaml` first, waits for Flyway completion, then applies application resources and pins both Deployments to signed image digests. Application Pods run with Flyway disabled so replicas do not race schema rollout.
+The production overlay uses `goalstotoday.com` and `www.goalstotoday.com`. The release workflow applies `migration-job.yaml` first, waits for Flyway completion, then applies application resources and pins both Deployments to signed image digests. Application Pods run with Flyway disabled so replicas do not race schema rollout.
 
 The cluster must already have Ingress NGINX, metrics-server, Prometheus Operator CRDs, an OTLP collector, trusted TLS certificate automation, external Secret delivery, and network-policy enforcement. See [production setup](../docs/PRODUCTION_SETUP.md) and [operations runbook](../docs/OPERATIONS_RUNBOOK.md).
 

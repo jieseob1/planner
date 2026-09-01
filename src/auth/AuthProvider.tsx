@@ -273,7 +273,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       <main className="auth-page">
         <section className="auth-card auth-card--consent" aria-labelledby="consent-title">
           <div className="auth-mark"><ShieldCheck size={22} aria-hidden="true" /></div>
-          <p className="eyebrow">NOWLINE · 처음 한 번만 확인</p>
+          <p className="eyebrow">GOALS TO TODAY · 처음 한 번만 확인</p>
           <h1 id="consent-title">내 계획을 안전하게 관리하기 위한 동의</h1>
           <p>계획·실행 기록의 저장과 Google 캘린더·알림 연동에 필요한 범위만 처리합니다.</p>
           <label className="consent-check"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /> <span><Link to="/terms" target="_blank">이용약관</Link>에 동의합니다. (필수)</span></label>
@@ -292,7 +292,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       <main className="auth-page">
         <section className="auth-card" aria-labelledby="auth-title">
           <div className="auth-mark"><ShieldCheck size={22} aria-hidden="true" /></div>
-          <p className="eyebrow">NOWLINE</p>
+          <p className="eyebrow">GOALS TO TODAY</p>
           <h1 id="auth-title">계획을 실행으로 연결하세요</h1>
           <p>로그인하면 웹과 앱에서 같은 목표, 일정, 실행 기록을 안전하게 이어갈 수 있습니다.</p>
           {message && <FocusAlert message={message} className="auth-error" />}

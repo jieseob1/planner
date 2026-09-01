@@ -372,7 +372,7 @@ class PlannerApiIT {
         HttpResponse<String> exported = authenticatedGet("/api/v1/account/export", accessToken);
         assertThat(exported.statusCode()).isEqualTo(200);
         assertThat(exported.headers().firstValue("Content-Disposition")).hasValueSatisfying(
-                value -> assertThat(value).contains("nowline-account-export.json"));
+                value -> assertThat(value).contains("goals-to-today-account-export.json"));
         assertThat(exported.body()).contains("nowline-account-export-v1", subject, "기술 글 6개 발행", "entitlement", "BETA");
 
         assertProblem(jsonRequest("DELETE", "/api/v1/account", accessToken,

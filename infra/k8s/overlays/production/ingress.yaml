@@ -10,10 +10,20 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [app.nowline.example]
+    - hosts: [goalstotoday.com, www.goalstotoday.com]
       secretName: nowline-tls
   rules:
-    - host: app.nowline.example
+    - host: goalstotoday.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nowline-frontend
+                port:
+                  name: http
+    - host: www.goalstotoday.com
       http:
         paths:
           - path: /

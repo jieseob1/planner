@@ -84,10 +84,10 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
-      <aside className="sidebar" aria-label="Nowline">
-        <NavLink className="brand" to="/today" aria-label="Nowline 오늘로 이동">
+      <aside className="sidebar" aria-label="Goals to Today">
+        <NavLink className="brand" to="/today" aria-label="Goals to Today 오늘로 이동">
           <span className="brand__mark" aria-hidden="true"><Compass size={20} /></span>
-          <strong className="brand__name">NOWLINE</strong>
+          <strong className="brand__name">GOALS TO TODAY</strong>
         </NavLink>
 
         <nav className="sidebar__nav" aria-label="주 메뉴">
@@ -118,7 +118,7 @@ export function AppShell() {
       <div className="app-frame">
         <header className="top-bar app-topbar">
           <div className="top-bar__context">
-            <span className="top-bar__product">NOWLINE</span>
+            <span className="top-bar__product">GOALS TO TODAY</span>
             <span className="top-bar__separator" aria-hidden="true">/</span>
             <strong>{currentNavItem.contextLabel}</strong>
           </div>

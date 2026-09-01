@@ -385,7 +385,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: /데이터 내보내기/ }).click();
   const download = await downloadPromise;
-  if (!download.suggestedFilename().startsWith('nowline-export-')) fail('Account export download filename is invalid');
+  if (!download.suggestedFilename().startsWith('goals-to-today-export-')) fail('Account export download filename is invalid');
 
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: /연결 해제/ }).click();

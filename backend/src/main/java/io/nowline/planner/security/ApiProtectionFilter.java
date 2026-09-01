@@ -106,7 +106,7 @@ public class ApiProtectionFilter extends OncePerRequestFilter {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), Map.of(
-                "type", "https://nowline.app/problems/" + code,
+                "type", "https://goalstotoday.com/problems/" + code,
                 "title", status == 429 ? "Too Many Requests" : "Payload Too Large",
                 "status", status,
                 "detail", detail,

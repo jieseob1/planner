@@ -4,9 +4,9 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: 'Nowline', body: event.data.text(), url: '/today', tag: 'nowline' };
+    payload = { title: 'Goals to Today', body: event.data.text(), url: '/today', tag: 'nowline' };
   }
-  event.waitUntil(self.registration.showNotification(payload.title || 'Nowline', {
+  event.waitUntil(self.registration.showNotification(payload.title || 'Goals to Today', {
     body: payload.body || '',
     icon: '/planner-mark.svg',
     badge: '/planner-mark.svg',

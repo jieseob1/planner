@@ -264,3 +264,35 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
 
 - [x] G53: The rendered landing page matches the supplied Claude Design source at equivalent desktop and mobile viewports with no actionable P0, P1, or P2 design-QA findings
   EVIDENCE: `design-qa.md` result=`passed`; 1440x1000 and 390x844 side-by-side inputs recorded; desktop navigation and `/today` CTA worked; mobile document width was 390/390px, primary controls were 48px, comparison table scrolled internally at 780/370px, and browser warnings/errors were empty
+
+## Goals to Today public-domain release
+
+Scope: Rebrand the public beta as Goals to Today, publish it through the user-owned `goalstotoday.com` Cloudflare zone without disrupting existing tunnel routes, and prove the HTTPS, identity, API, deployment, and repository state end to end.
+
+- [ ] G54: User-facing product metadata, landing content, authentication copy, native app labels, deployment configuration, and operator documentation consistently use Goals to Today and the canonical `https://goalstotoday.com` origin
+  CHECK: rtk npm run verify:goalstotoday:contracts
+  EXPECT: Goals to Today domain and brand contracts verified
+  EVIDENCE: pending
+
+- [ ] G55: The rebranded frontend, Java 25 backend, PWA, native synchronization, local-beta contracts, and Kubernetes manifests pass the repository release checks
+  CHECK: rtk npm run verify:goalstotoday:release
+  EXPECT: Goals to Today repository release verification passed
+  EVIDENCE: pending
+
+- [ ] G56: The Mac mini Kubernetes deployment runs the pushed Goals to Today revision and passes OIDC discovery, health, authenticated tenant isolation, persistence, and restart-safe runtime checks
+  CHECK: rtk npm run verify:beta:k8s:runtime
+  EXPECT: local Kubernetes beta runtime verified
+  EVIDENCE: pending
+
+- [ ] G57: The public apex and www hostnames resolve through Cloudflare with trusted HTTPS, security headers, canonical routing, landing content, OIDC discovery, and API readiness while the existing SSH route remains usable
+  CHECK: rtk npm run verify:goalstotoday:public
+  EXPECT: Goals to Today public HTTPS, OIDC, SSH, desktop, and mobile verification passed
+  EVIDENCE: pending
+
+- [ ] G58: Desktop and mobile browser QA completes landing-to-sign-in navigation, registration, authenticated planner load, save/reload, logout, and responsive/console checks through `https://goalstotoday.com`
+  EVIDENCE: pending
+
+- [ ] G59: Local, origin, and Mac mini checkouts identify the same pushed release commit with no task-owned uncommitted changes
+  CHECK: rtk npm run verify:goalstotoday:deployment
+  EXPECT: Goals to Today deployment revision verified
+  EVIDENCE: pending

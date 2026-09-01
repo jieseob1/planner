@@ -10,9 +10,9 @@ import { AccountSettingsSections } from '../components/AccountSettingsSections';
 import { FocusAlert } from '../components/FocusAlert';
 
 const directionLabels: Record<CalendarDirection, string> = {
-  BIDIRECTIONAL: '양방향 — Nowline과 Google 변경을 모두 반영',
-  IMPORT_ONLY: '가져오기만 — Google 일정을 Nowline에 표시',
-  EXPORT_ONLY: '내보내기만 — Nowline 시간 블록을 Google에 생성'
+  BIDIRECTIONAL: '양방향 — Goals to Today와 Google 변경을 모두 반영',
+  IMPORT_ONLY: '가져오기만 — Google 일정을 Goals to Today에 표시',
+  EXPORT_ONLY: '내보내기만 — Goals to Today 시간 블록을 Google에 생성'
 };
 
 const syncLabels: Record<GoogleCalendarStatus['syncStatus'], string> = {

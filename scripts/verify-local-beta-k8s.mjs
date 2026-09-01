@@ -1,7 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
 const repositoryRoot = new URL('..', import.meta.url).pathname;
-const environment = { ...process.env, NOWLINE_BETA_URL: 'http://localhost:4189' };
+const environment = {
+  ...process.env,
+  NOWLINE_BETA_URL: process.env.NOWLINE_BETA_URL || 'http://localhost:4189'
+};
 
 const run = (command, args, options = {}) => {
   const result = spawnSync(command, args, {

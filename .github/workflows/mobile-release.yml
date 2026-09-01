@@ -30,12 +30,12 @@ jobs:
         run: npm run build && npx cap sync android
         env:
           VITE_AUTH_MODE: oidc
-          VITE_API_BASE_URL: https://app.nowline.example
+          VITE_API_BASE_URL: https://goalstotoday.com
           VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
           VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
           VITE_OIDC_SCOPE: openid profile email offline_access
-          VITE_OIDC_WEB_REDIRECT_URI: https://app.nowline.example/auth/callback
-          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://app.nowline.example
+          VITE_OIDC_WEB_REDIRECT_URI: https://goalstotoday.com/auth/callback
+          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://goalstotoday.com
           VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
           VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
       - name: Install signing and Firebase configuration
@@ -74,12 +74,12 @@ jobs:
         run: npm run build && npx cap sync ios
         env:
           VITE_AUTH_MODE: oidc
-          VITE_API_BASE_URL: https://app.nowline.example
+          VITE_API_BASE_URL: https://goalstotoday.com
           VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
           VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
           VITE_OIDC_SCOPE: openid profile email offline_access
-          VITE_OIDC_WEB_REDIRECT_URI: https://app.nowline.example/auth/callback
-          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://app.nowline.example
+          VITE_OIDC_WEB_REDIRECT_URI: https://goalstotoday.com/auth/callback
+          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://goalstotoday.com
           VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
           VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
       - name: Configure App Store Connect API key
