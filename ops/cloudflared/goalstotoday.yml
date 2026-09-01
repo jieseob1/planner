@@ -1,0 +1,6 @@
+ingress:
+  - hostname: goalstotoday.com
+    service: http://127.0.0.1:4189
+  - hostname: www.goalstotoday.com
+    service: http://127.0.0.1:4189
+  - service: http_status:404

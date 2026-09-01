@@ -10,12 +10,14 @@ fi
 
 CLOUDFLARED="${GOALS_TO_TODAY_CLOUDFLARED_BIN:-/opt/homebrew/bin/cloudflared}"
 CREDENTIALS_FILE="${HOME}/.cloudflared/${TUNNEL_ID}.json"
-if [[ ! -x "${CLOUDFLARED}" || ! -r "${CREDENTIALS_FILE}" ]]; then
-  printf 'cloudflared or the tunnel credentials file is unavailable.\n' >&2
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${SCRIPT_DIR}/../ops/cloudflared/goalstotoday.yml"
+if [[ ! -x "${CLOUDFLARED}" || ! -r "${CREDENTIALS_FILE}" || ! -r "${CONFIG_FILE}" ]]; then
+  printf 'cloudflared, tunnel credentials, or the dedicated ingress config is unavailable.\n' >&2
   exit 1
 fi
 
 exec "${CLOUDFLARED}" tunnel \
+  --config "${CONFIG_FILE}" \
   --credentials-file "${CREDENTIALS_FILE}" \
-  --url http://127.0.0.1:4189 \
   run "${TUNNEL_ID}"
