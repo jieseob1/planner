@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { chromium } from 'playwright-core';
 
 const baseUrl = (process.env.NOWLINE_BETA_URL || 'http://localhost:8088').replace(/\/$/, '');
+const appUrl = `${baseUrl}/today`;
 const timeoutMs = Number(process.env.NOWLINE_BETA_VERIFY_TIMEOUT_MS || 240_000);
 const runId = `${Date.now()}-${randomBytes(4).toString('hex')}`;
 const password = `Beta!${randomBytes(10).toString('hex')}A9`;
@@ -67,7 +68,7 @@ const completeOnboarding = async (page, marker) => {
 };
 
 const openRegistration = async (page) => {
-  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await page.goto(appUrl, { waitUntil: 'domcontentloaded' });
   await page.getByRole('heading', { name: '계획을 실행으로 연결하세요' }).waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: '로그인' }).click();
   await page.waitForURL(/\/idp\/realms\/nowline\/protocol\/openid-connect\/auth/, { timeout: 30_000 });
@@ -93,7 +94,7 @@ const register = async (page, user) => {
 };
 
 const login = async (page, user) => {
-  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await page.goto(appUrl, { waitUntil: 'domcontentloaded' });
   await page.getByRole('heading', { name: '계획을 실행으로 연결하세요' }).waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: '로그인' }).click();
   await page.locator('#username').fill(user.email);

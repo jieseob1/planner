@@ -23,6 +23,12 @@ if (!app.includes('<Route path="/" element={<LandingScreen />} />')) {
   throw new Error('The public root route does not render LandingScreen');
 }
 
+const localBetaRuntime = read('scripts/verify-local-beta-runtime.mjs');
+if (!localBetaRuntime.includes('const appUrl = `${baseUrl}/today`;')
+  || !localBetaRuntime.includes("page.goto(appUrl, { waitUntil: 'domcontentloaded' })")) {
+  throw new Error('Local beta browser verification must enter the authenticated app through /today');
+}
+
 const landing = read('src/screens/LandingScreen.tsx');
 for (const contract of [
   '오늘 하는 일이',
