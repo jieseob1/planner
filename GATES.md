@@ -269,30 +269,30 @@ Scope: Replace the local-MVP trust boundaries with a deployable, multi-device, m
 
 Scope: Rebrand the public beta as Goals to Today, publish it through the user-owned `goalstotoday.com` Cloudflare zone without disrupting existing tunnel routes, and prove the HTTPS, identity, API, deployment, and repository state end to end.
 
-- [ ] G54: User-facing product metadata, landing content, authentication copy, native app labels, deployment configuration, and operator documentation consistently use Goals to Today and the canonical `https://goalstotoday.com` origin
+- [x] G54: User-facing product metadata, landing content, authentication copy, native app labels, deployment configuration, and operator documentation consistently use Goals to Today and the canonical `https://goalstotoday.com` origin
   CHECK: rtk npm run verify:goalstotoday:contracts
   EXPECT: Goals to Today domain and brand contracts verified
-  EVIDENCE: pending
+  EVIDENCE: 2026-09-01 exit=0; final contract run included public metadata, workflows, mobile labels, production/local K8s, dedicated Cloudflare ingress, Java 25 selection, issuer migration, Mac mini verifier, and printed `Goals to Today domain and brand contracts verified`
 
-- [ ] G55: The rebranded frontend, Java 25 backend, PWA, native synchronization, local-beta contracts, and Kubernetes manifests pass the repository release checks
+- [x] G55: The rebranded frontend, Java 25 backend, PWA, native synchronization, local-beta contracts, and Kubernetes manifests pass the repository release checks
   CHECK: rtk npm run verify:goalstotoday:release
   EXPECT: Goals to Today repository release verification passed
-  EVIDENCE: pending
+  EVIDENCE: 2026-09-01 exit=0; 31/31 frontend tests passed, Vite/PWA/Capacitor build and sync passed, Java 25 Spring + MySQL 8.4 integration verification passed, both Kubernetes overlays passed, and output ended `Goals to Today repository release verification passed`
 
-- [ ] G56: The Mac mini Kubernetes deployment runs the pushed Goals to Today revision and passes OIDC discovery, health, authenticated tenant isolation, persistence, and restart-safe runtime checks
-  CHECK: rtk npm run verify:beta:k8s:runtime
-  EXPECT: local Kubernetes beta runtime verified
-  EVIDENCE: pending
+- [x] G56: The Mac mini Kubernetes deployment runs the pushed Goals to Today revision and passes OIDC discovery, health, authenticated tenant isolation, persistence, and restart-safe runtime checks
+  CHECK: rtk npm run verify:goalstotoday:mac-mini
+  EXPECT: Goals to Today Mac mini Kubernetes runtime verified
+  EVIDENCE: 2026-09-01 exit=0; two new public OIDC users registered, saved isolated planners, retained data after logout/relogin, backend and frontend each had at least two Ready replicas, Keycloak was Ready, public issuer/hostname matched, and the tunnel LaunchAgent was running
 
-- [ ] G57: The public apex and www hostnames resolve through Cloudflare with trusted HTTPS, security headers, canonical routing, landing content, OIDC discovery, and API readiness while the existing SSH route remains usable
+- [x] G57: The public apex and www hostnames resolve through Cloudflare with trusted HTTPS, security headers, canonical routing, landing content, OIDC discovery, and API readiness while the existing SSH route remains usable
   CHECK: rtk npm run verify:goalstotoday:public
   EXPECT: Goals to Today public HTTPS, OIDC, SSH, desktop, and mobile verification passed
-  EVIDENCE: pending
+  EVIDENCE: 2026-09-01 exit=0; apex returned trusted HTTPS 200 with HSTS/CSP/nosniff, www returned canonical redirect, discovery issuer matched, planner rejected anonymous access with 401, dev token stayed unavailable, SSH worked, and 1440x1000 plus 390x844 Chrome checks had no errors
 
-- [ ] G58: Desktop and mobile browser QA completes landing-to-sign-in navigation, registration, authenticated planner load, save/reload, logout, and responsive/console checks through `https://goalstotoday.com`
-  EVIDENCE: pending
+- [x] G58: Desktop and mobile browser QA completes landing-to-sign-in navigation, registration, authenticated planner load, save/reload, logout, and responsive/console checks through `https://goalstotoday.com`
+  EVIDENCE: `verify:goalstotoday:mac-mini` completed public registration, consent, onboarding save, tenant isolation, entitlement, logout and relogin persistence; `verify:goalstotoday:public` passed desktop/mobile console checks; authenticated Today/Planner/Goals/Review and landing screenshots were recaptured from the public origin
 
 - [ ] G59: Local, origin, and Mac mini checkouts identify the same pushed release commit with no task-owned uncommitted changes
   CHECK: rtk npm run verify:goalstotoday:deployment
   EXPECT: Goals to Today deployment revision verified
-  EVIDENCE: pending
+  EVIDENCE: pending final documentation commit, push, and Mac mini pull

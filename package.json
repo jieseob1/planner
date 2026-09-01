@@ -39,6 +39,7 @@
     "verify:goalstotoday:contracts": "node scripts/verify-goalstotoday-contracts.mjs",
     "verify:goalstotoday:release": "npm run verify:goalstotoday:contracts && npm run verify:release && npm run verify:backend && npm run verify:k8s && node scripts/success.mjs \"Goals to Today repository release verification passed\"",
     "verify:goalstotoday:public": "node scripts/verify-goalstotoday-public.mjs",
+    "verify:goalstotoday:mac-mini": "node scripts/verify-goalstotoday-mac-mini.mjs",
     "verify:goalstotoday:deployment": "node scripts/verify-goalstotoday-deployment.mjs",
     "capture:goalstotoday:screenshots": "node scripts/capture-goalstotoday-screenshots.mjs",
     "capture:goalstotoday:product-screenshots": "node scripts/capture-goalstotoday-product-screenshots.mjs",

@@ -18,7 +18,7 @@ try {
     const context = await browser.newContext({ viewport: { width: target.width, height: target.height } });
     const page = await context.newPage();
     await page.goto(origin, { waitUntil: 'networkidle', timeout: 60_000 });
-    await page.getByText('GOALS TO TODAY', { exact: true }).first().waitFor({ timeout: 20_000 });
+    await page.locator('header .landing-brand').waitFor({ timeout: 20_000 });
     await page.screenshot({ path: path.join(outputDirectory, target.name), fullPage: false });
     await context.close();
   }
