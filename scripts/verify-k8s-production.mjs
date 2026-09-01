@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { parse, parseAllDocuments } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const overlay = path.join(root, 'infra', 'k8s', 'overlays', 'production');
@@ -11,15 +13,14 @@ const run = (args, input) => {
 };
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const rendered = run(['kustomize', overlay]);
-const yamlDocuments = rendered.split(/^---\s*$/m).map((value) => value.trim()).filter(Boolean);
-const documents = yamlDocuments
-  .filter((yaml) => !yaml.startsWith('apiVersion: monitoring.coreos.com/'))
-  .map((yaml) => JSON.parse(run(['create', '--dry-run=client', '--validate=false', '-f', '-', '-o', 'json'], `${yaml}\n`)));
+const documents = parseAllDocuments(rendered).map((document, index) => {
+  if (document.errors.length > 0) {
+    throw new Error(`rendered document ${index + 1} is invalid YAML: ${document.errors.join('; ')}`);
+  }
+  return document.toJS();
+}).filter((resource) => resource && resource.apiVersion !== 'monitoring.coreos.com/v1');
 const find = (kind, name) => documents.find((item) => item.kind === kind && item.metadata?.name === name);
-const migration = JSON.parse(run([
-  'create', '--dry-run=client', '--validate=false', '-f',
-  path.join(overlay, 'migration-job.yaml'), '-o', 'json'
-]));
+const migration = parse(readFileSync(path.join(overlay, 'migration-job.yaml'), 'utf8'));
 
 assert(!documents.some((item) => item.kind === 'StatefulSet'), 'production must not bundle a single-node database');
 assert(!find('Service', 'nowline-mysql'), 'production must use an external HA MySQL service');
