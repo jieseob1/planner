@@ -251,7 +251,7 @@ class PlannerApiIT {
                 Integer.class,
                 id(userId))).isZero();
 
-        Instant observedAt = Instant.now().minusSeconds(1);
+        Instant observedAt = Instant.now().minusSeconds(1).truncatedTo(ChronoUnit.MICROS);
         PlannerSnapshot firstMeasured = withFirstMetricObservation(
                 preserved.snapshot(), new BigDecimal("3"), observedAt, "게시 URL 3건 확인");
         HttpResponse<String> measuredUpdate = put(
