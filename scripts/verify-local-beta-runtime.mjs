@@ -63,7 +63,7 @@ const completeOnboarding = async (page, marker) => {
   await page.getByRole('button', { name: /첫 실행 만들기/ }).click();
   const response = await save;
   if (!response.ok()) fail(`Onboarding save failed with ${response.status()}: ${await response.text()}`);
-  await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor({ timeout: 30_000 });
+  await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor({ timeout: 30_000 });
   await page.getByText('서버에 저장됨').waitFor({ timeout: 30_000 });
 };
 
@@ -101,7 +101,7 @@ const login = async (page, user) => {
   await page.locator('#password').fill(password);
   await page.locator('#kc-login').click();
   await page.waitForURL((url) => url.origin === new URL(baseUrl).origin, { timeout: 60_000 });
-  await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor({ timeout: 30_000 });
+  await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor({ timeout: 30_000 });
 };
 
 const assertEntitlement = async (page) => {
