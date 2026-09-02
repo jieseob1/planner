@@ -53,7 +53,11 @@ for ((attempt = 1; attempt <= 20; attempt += 1)); do
   sleep 1
 done
 if pgrep -f "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" >/dev/null; then
-  printf 'The previous headless supervisor did not stop cleanly.\n' >&2
+  pkill -KILL -u "$(id -u)" -f "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" >/dev/null 2>&1 || true
+  sleep 1
+fi
+if pgrep -f "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" >/dev/null; then
+  printf 'The previous headless supervisor could not be stopped.\n' >&2
   exit 1
 fi
 pkill -TERM -u "$(id -u)" -f 'kubectl.*nowline-frontend.*4189:80' >/dev/null 2>&1 || true
