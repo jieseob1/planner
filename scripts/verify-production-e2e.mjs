@@ -68,6 +68,13 @@ const activateByKeyboard = async (page, locator, key = 'Enter') => {
   await page.keyboard.press(key);
 };
 
+const waitForPlannerSaved = async (page) => {
+  await page.waitForFunction(() => (
+    [...document.querySelectorAll('.save-status__label')]
+      .some((element) => element.textContent?.trim() === '서버에 저장됨')
+  ), { timeout: 20_000 });
+};
+
 const runAndWaitForPlannerSave = async (page, action, label) => {
   const responsePromise = page.waitForResponse((response) => (
     response.request().method() === 'PUT' && response.url().endsWith('/api/v1/planner')
@@ -78,7 +85,7 @@ const runAndWaitForPlannerSave = async (page, action, label) => {
     const requestHeaders = response.request().headers();
     fail(`${label} save failed with ${response.status()} (If-Match: ${requestHeaders['if-match'] ?? 'missing'}, If-None-Match: ${requestHeaders['if-none-match'] ?? 'missing'}): ${await response.text()}`);
   }
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await waitForPlannerSaved(page);
 };
 
 const activateAndWaitForPlannerSave = async (page, locator, label, key = 'Enter') => (
@@ -149,7 +156,7 @@ const completeOnboarding = async (page, prefix) => {
     fail(`Onboarding save failed with ${onboardingSave.status()}: ${await onboardingSave.text()}`);
   }
   await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor();
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await waitForPlannerSaved(page);
 };
 
 const assertNoDocumentOverflow = async (page, label) => {
@@ -331,7 +338,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   );
   await page.getByRole('heading', { name: '다음 주의 기준이 정해졌습니다.' }).waitFor();
   await page.goto(`${frontendUrl}/today`);
-  await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
+  await waitForPlannerSaved(page);
 
   const accessToken = await page.evaluate(() => window.sessionStorage.getItem('nowline.local-access-token'));
   if (!accessToken) fail('Browser local-auth session did not store an access token in sessionStorage');
@@ -343,8 +350,8 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
 
   captureState.allowExpectedOfflineErrors = true;
   await context.setOffline(true);
-  await page.getByPlaceholder('예: API 응답 비교하기').fill('오프라인에서 보존할 다음 행동');
-  await page.getByRole('button', { name: '수집함에 추가' }).click();
+  await page.getByLabel('빠른 메모').fill('오프라인에서 보존할 다음 행동');
+  await page.getByRole('button', { name: '추가', exact: true }).click();
   await page.getByText('오프라인', { exact: true }).waitFor();
 
   envelope.snapshot.plan.quarterFocus = '서버에서 동시에 변경한 분기 결과';
@@ -458,10 +465,10 @@ const exerciseMobile = async (frontendUrl) => {
   await acceptConsent(page);
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '모바일 E2E');
-  await page.getByPlaceholder('예: API 응답 비교하기').fill('모바일에서 추가한 다음 행동');
+  await page.getByLabel('빠른 메모').fill('모바일에서 추가한 다음 행동');
   await runAndWaitForPlannerSave(
     page,
-    () => page.getByRole('button', { name: '수집함에 추가' }).click(),
+    () => page.getByRole('button', { name: '추가', exact: true }).click(),
     'Mobile quick capture'
   );
   await page.getByText('수집함에 넣었어요.').waitFor();

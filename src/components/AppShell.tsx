@@ -33,6 +33,7 @@ export function AppShell() {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState('');
+  const isToday = pathname === '/today';
   const currentNavItem = navItems.find((item) => item.to === pathname)
     ?? (pathname === '/settings' ? { contextLabel: '설정과 연동' } : navItems[0]);
 
@@ -89,7 +90,7 @@ export function AppShell() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={isToday ? 'app-shell app-shell--today' : 'app-shell'}>
       <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
       <aside className="sidebar" aria-label="Goals to Today">
         <NavLink className="brand" to="/today" aria-label="Goals to Today 오늘로 이동">
@@ -125,7 +126,7 @@ export function AppShell() {
         </button>
       </aside>
 
-      <div className="app-frame">
+      <div className={isToday ? 'app-frame app-frame--today' : 'app-frame'}>
         <header className="top-bar app-topbar">
           <div className="top-bar__context">
             <span className="top-bar__product">GOALS TO TODAY</span>
@@ -133,7 +134,7 @@ export function AppShell() {
             <strong>{currentNavItem.contextLabel}</strong>
           </div>
           <div className="top-bar__actions">
-            <SaveStatus />
+            {!isToday && <SaveStatus />}
             <button className="icon-button" type="button" onClick={() => navigate('/settings')} aria-label="설정과 연동">
               <Settings size={16} aria-hidden="true" />
             </button>

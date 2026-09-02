@@ -165,6 +165,33 @@ describe('Planner frontend core flows', () => {
     })).toBeInTheDocument();
   });
 
+  it('opens a prefilled time block when a Today task is dropped on the calendar', () => {
+    renderRoute('/today');
+
+    const taskRow = screen.getByText('기술 글 3편 초안').closest('li');
+    expect(taskRow).not.toBeNull();
+    expect(taskRow).toHaveAttribute('draggable', 'true');
+
+    const transferred = new Map<string, string>();
+    const dataTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: (type: string, value: string) => transferred.set(type, value),
+      getData: (type: string) => transferred.get(type) ?? ''
+    };
+
+    fireEvent.dragStart(taskRow!, { dataTransfer });
+    fireEvent.drop(
+      screen.getByRole('button', { name: '15:00부터 16:00까지 할 일 또는 일정 추가' }),
+      { dataTransfer }
+    );
+
+    const dialog = screen.getByRole('dialog', { name: '할 일 또는 일정 추가' });
+    expect(within(dialog).getByLabelText(/할 일 선택/)).toHaveDisplayValue(/기술 글 3편 초안/);
+    expect(within(dialog).getByLabelText(/시작/)).toHaveValue('900');
+    expect(within(dialog).getByLabelText(/종료/)).toHaveValue('960');
+  });
+
   it('creates a brand-new Todo while making a time block', async () => {
     const user = userEvent.setup();
     renderRoute('/today');
