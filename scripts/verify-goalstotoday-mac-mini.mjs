@@ -51,9 +51,9 @@ const headlessRecovery = run('ssh', [
       && launchctl print system/com.goalstotoday.tunnel 2>/dev/null | grep -q 'state = running'; then
      printf 'launchd\\n';
    elif crontab -l 2>/dev/null | grep -q '^# BEGIN GOALS_TO_TODAY_HEADLESS$' \
-      && pgrep -f 'mac-mini-headless-supervisor.sh' >/dev/null \
-      && pgrep -f 'kubectl.*nowline-frontend.*4189:80' >/dev/null \
-      && pgrep -f 'cloudflared.*922b16b2-307d-45e4-acff-cf864353ba38' >/dev/null; then
+      && test "$(pgrep -f 'mac-mini-headless-supervisor.sh' | wc -l | tr -d ' ')" -eq 1 \
+      && test "$(pgrep -f 'kubectl.*nowline-frontend.*4189:80' | wc -l | tr -d ' ')" -eq 1 \
+      && test "$(pgrep -f 'cloudflared.*922b16b2-307d-45e4-acff-cf864353ba38' | wc -l | tr -d ' ')" -eq 1; then
      printf 'cron-at-reboot\\n';
    else
      exit 1;

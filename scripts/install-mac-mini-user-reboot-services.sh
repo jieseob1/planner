@@ -46,6 +46,16 @@ crontab "${CRONTAB_FILE}"
 rm -f "${CRONTAB_FILE}"
 
 pkill -TERM -u "$(id -u)" -f "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" >/dev/null 2>&1 || true
+for ((attempt = 1; attempt <= 20; attempt += 1)); do
+  if ! pgrep -f "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+if pgrep -f "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" >/dev/null; then
+  printf 'The previous headless supervisor did not stop cleanly.\n' >&2
+  exit 1
+fi
 pkill -TERM -u "$(id -u)" -f 'kubectl.*nowline-frontend.*4189:80' >/dev/null 2>&1 || true
 pkill -TERM -u "$(id -u)" -f 'cloudflared.*922b16b2-307d-45e4-acff-cf864353ba38' >/dev/null 2>&1 || true
 sleep 2
