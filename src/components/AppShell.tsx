@@ -17,6 +17,14 @@ const navItems = [
   { to: '/plans', label: '계획함', desktopLabel: 'Plans', contextLabel: '연간·분기 계획', icon: Layers3 }
 ];
 
+const journeyItems = [
+  { to: '/goals', label: '연간 방향', paths: ['/goals'] },
+  { to: '/goals', label: '분기 결과', paths: ['/goals'] },
+  { to: '/planner', label: '주간 계획', paths: ['/planner'] },
+  { to: '/today', label: '오늘 실행', paths: ['/today'] },
+  { to: '/review', label: '주간 회고', paths: ['/review'] }
+];
+
 export function AppShell() {
   const { hasActivePlan, isOnline, resetPlanner } = usePlanner();
   const { logout } = useAuth();
@@ -150,6 +158,21 @@ export function AppShell() {
             </button>
           </div>
         </header>
+        {hasActivePlan && !['/plans', '/settings'].includes(pathname) ? (
+          <nav className="plan-journey" aria-label="연간 목표에서 주간 회고까지의 계획 흐름">
+            {journeyItems.map((item, index) => (
+              <NavLink
+                key={`${item.to}-${item.label}`}
+                to={item.to}
+                className={clsx('plan-journey__item', item.paths.includes(pathname) && 'is-active')}
+                aria-current={item.paths.includes(pathname) ? 'step' : undefined}
+              >
+                <span>{index + 1}</span>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        ) : null}
         <main id="main-content" className="main-content" tabIndex={-1}>
           <Outlet />
         </main>

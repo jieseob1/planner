@@ -369,6 +369,11 @@ export function TodayScreen() {
           </section>
         </div>
 
+        <details className="today-timeline-disclosure">
+          <summary>
+            <span><strong>오늘의 타임라인</strong><small>외부 일정 {todayBlocks.filter((block) => block.external).length}건 · 집중 블록 {todayBlocks.filter((block) => !block.external).length}건</small></span>
+            <span>펼치기</span>
+          </summary>
         <section className="today-timeline today-timeline--interactive" aria-labelledby="today-timeline-title">
           <header className="section-heading section-heading--rule">
             <div>
@@ -478,6 +483,7 @@ export function TodayScreen() {
             <Link className="button button--secondary" to="/review">하루 마감 <ArrowRight size={16} /></Link>
           </footer>
         </section>
+        </details>
       </div>
 
       <section className="remaining-week remaining-week--strip" aria-labelledby="remaining-week-title">

@@ -65,6 +65,7 @@ export function ReviewScreen() {
   const [metricUnchanged, setMetricUnchanged] = useState(false);
   const [appliedMetricKey, setAppliedMetricKey] = useState<string | null>(null);
   const activeTasks = tasks.filter((task) => task.status !== 'done' && task.status !== 'cancelled');
+  const carryoverTasks = activeTasks.filter((task) => task.carryCount > 0).slice(0, 3);
   const totalSeconds = timeEntries.reduce((sum, entry) => sum + entry.durationSeconds, 0);
   const completedTasks = tasks.filter((task) => task.status === 'done').length;
   const decisionCount = outcomes.filter((outcome) => outcome.decision).length;
@@ -165,7 +166,7 @@ export function ReviewScreen() {
           <h1>한 주를 닫고, 다음 주를 고릅니다.</h1>
           <p className="page-header__description">달라진 수치와 가장 큰 방해만 확인한 뒤, 다음 주 Top 3를 시간에 연결하세요.</p>
         </div>
-        <div className="review-header__status"><span>자동 저장 · 4단계 · 약 5분</span></div>
+        <div className="review-header__status"><span>자동 저장 · 5단계 · 약 5분</span></div>
       </header>
 
       <section className="review-overview" aria-label="이번 주 요약과 점검 진행 상황">
@@ -179,9 +180,11 @@ export function ReviewScreen() {
           <i />
           <span className={clsx(hasMetric && 'is-active', hasBlocker && 'is-done')}>{hasBlocker ? <Check size={13} /> : 2}</span>
           <i />
-          <span className={clsx(hasBlocker && 'is-active', hasTopTasks && 'is-done')}>{hasTopTasks ? <Check size={13} /> : 3}</span>
+          <span className={clsx(hasBlocker && 'is-active')}>3</span>
           <i />
-          <span className={ready ? 'is-active' : ''}>4</span>
+          <span className={clsx(hasBlocker && 'is-active', hasTopTasks && 'is-done')}>{hasTopTasks ? <Check size={13} /> : 4}</span>
+          <i />
+          <span className={ready ? 'is-active' : ''}>5</span>
         </div>
       </section>
 
@@ -276,9 +279,36 @@ export function ReviewScreen() {
           </div>
         </section>
 
-        <section className={clsx('review-step', 'review-stage', 'review-step--tasks', hasTopTasks && 'is-complete')}>
+        <section className={clsx('review-step', 'review-stage', 'review-step--carryover', carryoverTasks.length === 0 && 'is-complete')}>
           <header className="review-step__header">
             <span className="review-step__number">03</span>
+            <div><p className="eyebrow">CARRYOVER DECISION</p><h2>끝내지 못한 일을 다음 계획의 근거로 바꿉니다.</h2></div>
+            <span className="review-step__time">약 1분</span>
+          </header>
+          <div className="review-step__body">
+            {carryoverTasks.length > 0 ? (
+              <div className="review-carryover-list">
+                {carryoverTasks.map((task) => {
+                  const outcome = outcomes.find((item) => item.id === task.outcomeId);
+                  return (
+                    <article key={task.id}>
+                      <div><small>{outcome?.title ?? '연결되지 않은 할 일'} · {task.carryCount}회 이월</small><strong>{task.title}</strong></div>
+                      <div>
+                        <Link to={`/planner?action=reschedule&task=${encodeURIComponent(task.id)}`}>다음 주로</Link>
+                        <Link to={`/planner?action=split&task=${encodeURIComponent(task.id)}`}>나누기</Link>
+                        <Link to={`/goals?action=stop&task=${encodeURIComponent(task.id)}`}>중단</Link>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : <p className="review-carryover-empty"><Check size={16} /> 결정이 필요한 이월 작업이 없습니다.</p>}
+          </div>
+        </section>
+
+        <section className={clsx('review-step', 'review-stage', 'review-step--tasks', hasTopTasks && 'is-complete')}>
+          <header className="review-step__header">
+            <span className="review-step__number">04</span>
             <div><p className="eyebrow">NEXT WEEK TOP 3</p><h2>먼저 시간을 줄 실행을 최대 3개 고릅니다.</h2></div>
             <span className="review-step__time">약 2분</span>
           </header>
@@ -310,7 +340,7 @@ export function ReviewScreen() {
 
         <section className={clsx('review-step', 'review-stage', 'review-stage--confirm', ready && 'is-complete')}>
           <header className="review-step__header">
-            <span className="review-step__number">04</span>
+            <span className="review-step__number">05</span>
             <div><p className="eyebrow">CONFIRM PLAN</p><h2>선택을 현재 계획에 반영하고 다음 주로 넘깁니다.</h2></div>
             <span className="review-step__time">마지막</span>
           </header>
@@ -319,7 +349,7 @@ export function ReviewScreen() {
               <div>
                 <ShieldCheck size={22} />
                 <span>
-                  <strong>{ready ? '필수 선택이 모두 준비됐습니다.' : '앞의 세 선택을 먼저 완료하세요.'}</strong>
+                  <strong>{ready ? '필수 선택이 모두 준비됐습니다.' : '앞의 네 단계를 먼저 완료하세요.'}</strong>
                   <small>{ready ? `Top ${review.selectedTopTaskIds.length} · ${formatMinutes(selectedMinutes)} · 다음 주 Planner에서 배치` : '결과 수치 · 방해 요인 · Top 3'}</small>
                 </span>
               </div>

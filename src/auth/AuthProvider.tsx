@@ -289,17 +289,37 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
   if (status === 'anonymous' || status === 'error') {
     return (
-      <main className="auth-page">
-        <section className="auth-card" aria-labelledby="auth-title">
-          <div className="auth-mark"><ShieldCheck size={22} aria-hidden="true" /></div>
-          <p className="eyebrow">GOALS TO TODAY</p>
-          <h1 id="auth-title">계획을 실행으로 연결하세요</h1>
-          <p>로그인하면 웹과 앱에서 같은 목표, 일정, 실행 기록을 안전하게 이어갈 수 있습니다.</p>
-          {message && <FocusAlert message={message} className="auth-error" />}
-          <button className="primary-button auth-button" type="button" onClick={() => void login()} disabled={authMode() !== 'local' && !manager}>
-            <LogIn size={18} aria-hidden="true" /> 로그인
-          </button>
-          <p className="auth-legal"><Link to="/privacy">개인정보 처리방침</Link><span aria-hidden="true"> · </span><Link to="/terms">이용약관</Link></p>
+      <main className="auth-page auth-page--split">
+        <section className="auth-intro" aria-labelledby="auth-intro-title">
+          <div className="auth-intro__brand">
+            <img src="/planner-mark.svg" alt="" aria-hidden="true" />
+            <strong>Goals to Today</strong>
+          </div>
+          <div className="auth-intro__content">
+            <p className="eyebrow">장기 목표를 오늘 실행으로</p>
+            <h1 id="auth-intro-title">로그인하면 3분 안에<br />첫 시간 블록이 생깁니다.</h1>
+            <p>결과 하나, 다음 행동 하나, 시작 시간 하나만 정하면 됩니다.</p>
+            <ol>
+              <li><span>01</span><div><strong>결과 한 문장</strong><small>완료 여부를 확인할 수 있게 씁니다.</small></div></li>
+              <li><span>02</span><div><strong>다음 행동 한 개</strong><small>두 시간 안에 끝낼 크기로 줄입니다.</small></div></li>
+              <li><span>03</span><div><strong>시작 시간 예약</strong><small>오늘 또는 이번 주의 빈 시간에 놓습니다.</small></div></li>
+            </ol>
+          </div>
+        </section>
+        <section className="auth-entry">
+          <section className="auth-card" aria-labelledby="auth-title">
+            <div className="auth-mark"><ShieldCheck size={22} aria-hidden="true" /></div>
+            <p className="eyebrow">GET STARTED</p>
+            <h2 id="auth-title">계획을 실행으로 연결하세요</h2>
+            <p>로그인하면 웹과 앱에서 같은 목표, 일정, 실행 기록을 안전하게 이어갈 수 있습니다.</p>
+            <div className="auth-card__assurance"><ShieldCheck size={16} aria-hidden="true" /> 로그인 후 바로 첫 계획을 만듭니다.</div>
+            {message && <FocusAlert message={message} className="auth-error" />}
+            <button className="primary-button auth-button" type="button" onClick={() => void login()} disabled={authMode() !== 'local' && !manager}>
+              <LogIn size={18} aria-hidden="true" /> 기존 계정으로 로그인
+            </button>
+            <p className="auth-card__note">계획은 기기에 먼저 저장되고 계정 연결 후 서버와 동기화됩니다.</p>
+            <p className="auth-legal"><Link to="/privacy">개인정보 처리방침</Link><span aria-hidden="true"> · </span><Link to="/terms">이용약관</Link></p>
+          </section>
         </section>
       </main>
     );
