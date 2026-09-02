@@ -38,12 +38,6 @@ NOWLINE_PUBLIC_ORIGIN=https://goalstotoday.com \
 
 Cloudflare의 `goalstotoday` 전용 터널에서 apex와 `www` CNAME은 모두 `http://127.0.0.1:4189` origin으로 전달합니다. 기존 `mac-mini-server` 터널과 SSH route는 분리되어 있습니다. `www` 요청은 앱 Nginx가 `https://goalstotoday.com`으로 308 리다이렉트합니다.
 
-```bash
-cp ops/macos/com.goalstotoday.tunnel.plist "$HOME/Library/LaunchAgents/com.goalstotoday.tunnel.plist"
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.goalstotoday.tunnel.plist"
-launchctl kickstart -k "gui/$(id -u)/com.goalstotoday.tunnel"
-```
-
 전용 tunnel UUID credential은 `$HOME/.cloudflared`에 owner-only 권한으로 보관하며 Git에 넣지 않습니다.
 
 ```bash
@@ -51,17 +45,15 @@ kubectl --namespace nowline-local get pods
 npm run k8s:serve:status
 ```
 
-### Mac mini 로그인 후 자동 복구
+### Mac mini 부팅 후 로그인 없는 자동 복구
 
-Colima는 `brew services start colima`로 로그인 시 자동 시작하고, kind control-plane 컨테이너는 `unless-stopped` 재시작 정책을 사용합니다. 다음 LaunchAgent는 Kubernetes 서비스가 준비될 때까지 최대 10분 기다린 뒤 `127.0.0.1:4189` 포트포워드를 foreground로 유지합니다. 외부에는 이 포트를 직접 열지 않고 Cloudflare Tunnel만 연결합니다.
+`brew services`와 `~/Library/LaunchAgents`는 GUI 로그인 전에는 실행되지 않으므로 무인 서버의 재부팅 복구 수단으로 사용하지 않습니다. 설치 스크립트는 기존 로그인 전용 Colima·포트포워드·전용 터널 LaunchAgent를 삭제하지 않고 `~/Library/LaunchAgents.disabled`로 옮긴 뒤, 동일한 사용자 권한으로 실행되는 두 개의 시스템 LaunchDaemon을 설치합니다. 첫 번째는 Colima를 기동하고 Kubernetes 서비스가 준비될 때까지 기다려 `127.0.0.1:4189` 포트포워드를 유지하며, 두 번째는 전용 Cloudflare Tunnel을 유지합니다.
 
 ```bash
-cp ops/macos/com.nowline.local-beta.plist "$HOME/Library/LaunchAgents/com.nowline.local-beta.plist"
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.nowline.local-beta.plist"
-launchctl kickstart -k "gui/$(id -u)/com.nowline.local-beta"
+sudo scripts/install-mac-mini-headless-services.sh
 ```
 
-상태는 `launchctl print "gui/$(id -u)/com.nowline.local-beta"`와 `curl --fail http://127.0.0.1:4189/healthz`로 확인합니다. 저장소 위치가 `$HOME/develop/planner`가 아니면 plist의 실행 경로를 먼저 변경해야 합니다.
+상태는 `launchctl print system/com.nowline.local-beta`, `launchctl print system/com.goalstotoday.tunnel`, `curl --fail http://127.0.0.1:4189/healthz`로 확인합니다. 설치 스크립트는 실행 중인 저장소 위치와 `sudo`를 호출한 사용자의 홈 디렉터리를 plist에 렌더링합니다. 설치 후에는 `brew services start colima`를 다시 실행하지 않습니다.
 
 종료 시 포트포워드와 workload만 내립니다. MySQL PVC는 유지됩니다.
 

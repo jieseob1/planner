@@ -22,6 +22,20 @@
 4. 하위 호환이 아닌 schema 문제는 애플리케이션 롤백만 하지 말고, 트래픽을 maintenance로 전환한 뒤 PITR clone에서 검증
 5. incident 시간, digest, Flyway version, 판단 근거를 기록
 
+## Mac mini 전원·재부팅 장애
+
+공개 OIDC가 Cloudflare 530을 반환하면 DNS부터 바꾸지 말고 `SSH → Colima → kind node → workload → 127.0.0.1:4189 → 전용 tunnel` 순서로 확인합니다. `pmset -g custom`의 `sleep 0`, `autorestart 1`은 절전 방지와 AC 복구 뒤 재기동 설정일 뿐, GUI 로그인 전 LaunchAgent 실행을 보장하지 않습니다. 무인 복구는 [Local beta runbook](./LOCAL_BETA_RUNBOOK.md)의 시스템 LaunchDaemon을 사용합니다.
+
+2026-09-02 장애의 확인 범위는 다음과 같습니다.
+
+- `pmset`에는 09:31:45까지 awake/assertion 이벤트가 있었고 sleep 진입 기록은 없었습니다.
+- 다음 기록은 10:16:49의 새 `powerd` 시작이며 `kern.boottime`은 10:16:41이었습니다.
+- 정상 shutdown 이력과 해당 시각 kernel panic report가 없었습니다.
+- 따라서 09:31:45~10:16:41 사이의 비정상 전원 단절 또는 전원 버튼 강제 종료로 한정할 수 있습니다. macOS 로그만으로 AC·멀티탭·플러그 단절과 물리 버튼 강제 종료를 구분할 수는 없습니다.
+- 기존 SSH tunnel은 system daemon이라 복구됐지만, Colima·포트포워드·Goals to Today tunnel은 GUI LaunchAgent라 로그인 전 복구되지 않았습니다. 이것이 530이 계속된 직접 원인이었습니다.
+
+같은 장애를 구분하려면 UPS/스마트 플러그의 전원 이벤트와 Cloudflare tunnel down 알림을 별도로 보존합니다. 복구 후 `npm run verify:goalstotoday:mac-mini`와 `npm run verify:goalstotoday:public`을 모두 통과시킵니다.
+
 ## Backup and restore
 
 매일 다음 항목을 자동 확인합니다.

@@ -45,10 +45,12 @@ const envMap = (deployment) => Object.fromEntries(
 assert(envMap(byName.get('nowline-backend')).NOWLINE_OIDC_ISSUER === 'https://goalstotoday.com/idp/realms/nowline', 'Backend issuer is not the public domain');
 assert(envMap(byName.get('nowline-keycloak')).KC_HOSTNAME === 'https://goalstotoday.com/idp', 'Keycloak hostname is not the public domain');
 
-const launchAgent = run('ssh', [
-  ...sshBase,
-  'launchctl print "gui/$(id -u)/com.goalstotoday.tunnel"'
-]);
-assert(launchAgent.includes('state = running'), 'Goals to Today tunnel LaunchAgent is not running');
+for (const label of ['com.nowline.local-beta', 'com.goalstotoday.tunnel']) {
+  const launchDaemon = run('ssh', [
+    ...sshBase,
+    `launchctl print "system/${label}"`
+  ]);
+  assert(launchDaemon.includes('state = running'), `${label} headless LaunchDaemon is not running`);
+}
 
 console.log('Goals to Today Mac mini Kubernetes runtime verified');

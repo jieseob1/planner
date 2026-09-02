@@ -4,17 +4,32 @@
 <dict>
   <key>Label</key>
   <string>com.nowline.local-beta</string>
+  <key>UserName</key>
+  <string>__NOWLINE_SERVICE_USER__</string>
+  <key>WorkingDirectory</key>
+  <string>__NOWLINE_REPO_DIR__</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/zsh</string>
-    <string>-lc</string>
-    <string>exec "$HOME/develop/planner/scripts/mac-mini-nowline-port-forward.sh"</string>
+    <string>__NOWLINE_REPO_DIR__/scripts/mac-mini-nowline-headless.sh</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__NOWLINE_SERVICE_HOME__</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
   <key>ThrottleInterval</key>
   <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__NOWLINE_SERVICE_HOME__/.local/state/nowline-local-beta.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__NOWLINE_SERVICE_HOME__/.local/state/nowline-local-beta.err.log</string>
 </dict>
 </plist>

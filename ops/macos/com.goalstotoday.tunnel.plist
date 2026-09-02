@@ -4,14 +4,20 @@
 <dict>
   <key>Label</key>
   <string>com.goalstotoday.tunnel</string>
+  <key>UserName</key>
+  <string>__NOWLINE_SERVICE_USER__</string>
+  <key>WorkingDirectory</key>
+  <string>__NOWLINE_REPO_DIR__</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/zsh</string>
-    <string>-lc</string>
-    <string>exec "$HOME/develop/planner/scripts/mac-mini-goalstotoday-tunnel.sh"</string>
+    <string>__NOWLINE_REPO_DIR__/scripts/mac-mini-goalstotoday-tunnel.sh</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>HOME</key>
+    <string>__NOWLINE_SERVICE_HOME__</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>GOALS_TO_TODAY_TUNNEL_ID</key>
     <string>922b16b2-307d-45e4-acff-cf864353ba38</string>
   </dict>
@@ -19,11 +25,13 @@
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
   <key>ThrottleInterval</key>
   <integer>10</integer>
   <key>StandardOutPath</key>
-  <string>/Users/jieseobpark/.cloudflared/logs/goalstotoday.out.log</string>
+  <string>__NOWLINE_SERVICE_HOME__/.cloudflared/logs/goalstotoday.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/jieseobpark/.cloudflared/logs/goalstotoday.err.log</string>
+  <string>__NOWLINE_SERVICE_HOME__/.cloudflared/logs/goalstotoday.err.log</string>
 </dict>
 </plist>

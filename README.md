@@ -191,6 +191,8 @@ npm run verify:goalstotoday:public    # 공개 HTTPS·OIDC·SSH·데스크톱/�
 npm run verify:goalstotoday:deployment # 로컬·GitHub·Mac mini revision 일치 검증
 ```
 
+Mac mini는 GUI 로그인 없이 복구되는 system LaunchDaemon으로 Colima·Kubernetes 포트포워드와 전용 Cloudflare Tunnel을 운영합니다. 설치·장애 판별·검증 절차는 [Local beta runbook](./docs/LOCAL_BETA_RUNBOOK.md)과 [Operations runbook](./docs/OPERATIONS_RUNBOOK.md)에 있습니다.
+
 `verify:k8s:runtime`은 현재 Kubernetes context를 바꾸지 않으며, local overlay와 현재 이미지를 적용합니다. 두 backend Pod에 직접 동시 요청해 하나만 ETag update에 성공하고 최종 상태가 일치하는지 확인합니다.
 
 `verify:production:e2e`와 `verify:production:reliability`는 매 실행마다 격리된 MySQL 8.4·backend·가짜 Google Calendar 공급자를 만들고 종료합니다. 전자는 데스크톱/모바일 인증 사용자 여정과 실제 PUT 저장, 키보드 조작, 200% 확대 핵심 모달, focus trap·복귀, light-only/reduced-motion을 Chrome으로 확인합니다. 후자는 두 backend 인스턴스의 부하·30초 soak·동시 수정·단일 인스턴스 중단·Google 429 재시도를 확인합니다. 기준과 최근 측정값은 [Reliability baseline](./docs/RELIABILITY_BASELINE.md)에 있습니다.

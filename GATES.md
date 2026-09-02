@@ -296,3 +296,32 @@ Scope: Rebrand the public beta as Goals to Today, publish it through the user-ow
   CHECK: rtk npm run verify:goalstotoday:deployment
   EXPECT: Goals to Today deployment revision verified
   EVIDENCE: 2026-09-01 exit=0; local, GitHub origin, and Mac mini matched release `68ca8584ce4d568f091af3043e2b0ab3fba971d9`; the final checklist-only evidence commit was then pushed and pulled, and the same deployment verifier was repeated against that final revision
+
+## Public OIDC 530 incident recovery
+
+Scope: Reproduce the public `openid-configuration` 530 failure, repair the responsible Cloudflare, proxy, identity, or deployment boundary, and publish the latest application revision without regressing authentication or planner behavior.
+
+- [x] G60: The repository release suite passes after the incident fix and includes the latest Today scheduling changes
+  CHECK: rtk npm run verify:goalstotoday:release
+  EXPECT: Goals to Today repository release verification passed
+  EVIDENCE: 2026-09-02 exit=0 on pulled revision `7585fa5`; 32/32 frontend tests, production build, PWA/Capacitor sync, Java 25 Spring + MySQL 8.4 integration tests, and Kubernetes manifest verification passed; output ended `Goals to Today repository release verification passed`
+
+- [ ] G61: The Mac mini Kubernetes runtime is healthy on the fixed revision and authenticated multi-user persistence still passes
+  CHECK: rtk npm run verify:goalstotoday:mac-mini
+  EXPECT: Goals to Today Mac mini Kubernetes runtime verified
+  EVIDENCE: pending
+
+- [x] G62: The public origin returns valid OIDC discovery instead of Cloudflare 530, and HTTPS, SSH, desktop, and mobile smoke checks pass
+  CHECK: rtk npm run verify:goalstotoday:public
+  EXPECT: Goals to Today public HTTPS, OIDC, SSH, desktop, and mobile verification passed
+  EVIDENCE: 2026-09-02 exit=0 after Colima, Kubernetes port-forward, and the dedicated tunnel were restored; apex HTTPS, OIDC discovery, API protection, SSH, desktop, and mobile smoke checks passed with output `Goals to Today public HTTPS, OIDC, SSH, desktop, and mobile verification passed`
+
+- [ ] G63: Local, GitHub origin, and Mac mini checkouts identify the same pushed and deployed incident-fix commit
+  CHECK: rtk npm run verify:goalstotoday:deployment
+  EXPECT: Goals to Today deployment revision verified
+  EVIDENCE: pending
+
+- [ ] G64: The outage cause is bounded from Mac power evidence, and Colima, the local port-forward, and the dedicated Cloudflare tunnel recover before GUI login through system LaunchDaemons
+  CHECK: rtk npm run verify:goalstotoday:contracts && rtk npm run verify:goalstotoday:mac-mini
+  EXPECT: Goals to Today domain and brand contracts verified; Goals to Today Mac mini Kubernetes runtime verified
+  EVIDENCE: pending
