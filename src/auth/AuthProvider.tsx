@@ -91,10 +91,19 @@ const createOidcManager = () => {
   return { manager, nativeNavigator } satisfies OidcRuntime;
 };
 
-const localToken = async (): Promise<string> => {
-  const cached = window.sessionStorage.getItem(LOCAL_TOKEN_KEY);
-  const expiry = Number(window.sessionStorage.getItem(LOCAL_TOKEN_EXPIRY_KEY) ?? 0);
-  if (cached && Number.isFinite(expiry) && expiry > Date.now() + 30_000) return cached;
+const clearLocalToken = () => {
+  window.sessionStorage.removeItem(LOCAL_TOKEN_KEY);
+  window.sessionStorage.removeItem(LOCAL_TOKEN_EXPIRY_KEY);
+};
+
+const localToken = async (forceRefresh = false): Promise<string> => {
+  if (!forceRefresh) {
+    const cached = window.sessionStorage.getItem(LOCAL_TOKEN_KEY);
+    const expiry = Number(window.sessionStorage.getItem(LOCAL_TOKEN_EXPIRY_KEY) ?? 0);
+    if (cached && Number.isFinite(expiry) && expiry > Date.now() + 30_000) return cached;
+  } else {
+    clearLocalToken();
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/dev-token`, {
     headers: { Accept: 'application/json' },
@@ -111,10 +120,14 @@ const localToken = async (): Promise<string> => {
 };
 
 const consentStatus = async (token: string): Promise<boolean> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/account/consent`, {
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  const request = (accessToken: string) => fetch(`${API_BASE_URL}/api/v1/account/consent`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
     cache: 'no-store'
   });
+  let response = await request(token);
+  if (response.status === 401 && authMode() === 'local') {
+    response = await request(await localToken(true));
+  }
   if (!response.ok) throw new Error(`정책 동의 상태를 확인하지 못했습니다. (${response.status})`);
   const body = await response.json() as { accepted?: boolean };
   return body.accepted === true;
@@ -225,8 +238,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const logout = useCallback(async () => {
     if (authMode() === 'local') {
-      window.sessionStorage.removeItem(LOCAL_TOKEN_KEY);
-      window.sessionStorage.removeItem(LOCAL_TOKEN_EXPIRY_KEY);
+      clearLocalToken();
       setAccessTokenProvider(async () => null);
       setStatus('anonymous');
       return;
