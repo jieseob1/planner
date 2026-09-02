@@ -316,10 +316,10 @@ Scope: Reproduce the public `openid-configuration` 530 failure, repair the respo
   EXPECT: Goals to Today public HTTPS, OIDC, SSH, desktop, and mobile verification passed
   EVIDENCE: 2026-09-02 exit=0 after Colima, Kubernetes port-forward, and the dedicated tunnel were restored; apex HTTPS, OIDC discovery, API protection, SSH, desktop, and mobile smoke checks passed with output `Goals to Today public HTTPS, OIDC, SSH, desktop, and mobile verification passed`
 
-- [ ] G63: Local, GitHub origin, and Mac mini checkouts identify the same pushed and deployed incident-fix commit
+- [x] G63: Local, GitHub origin, and Mac mini checkouts identify the same pushed and deployed incident-fix commit
   CHECK: rtk npm run verify:goalstotoday:deployment
   EXPECT: Goals to Today deployment revision verified
-  EVIDENCE: pending
+  EVIDENCE: 2026-09-02 exit=0; local checkout, GitHub branch, and Mac mini checkout matched deployed recovery revision `af548ac662c36ecb443fac5fe926a5050a738f18`; after this evidence-only commit is pushed and pulled, the same verifier is repeated against the final revision
 
 - [x] G64: The outage cause is bounded from Mac power evidence, and Colima, the local port-forward, and the dedicated Cloudflare tunnel recover before GUI login through a headless boot service
   CHECK: rtk npm run verify:goalstotoday:contracts && rtk npm run verify:goalstotoday:mac-mini
