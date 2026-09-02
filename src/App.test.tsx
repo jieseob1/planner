@@ -77,7 +77,31 @@ describe('Planner frontend core flows', () => {
 
     const nowLine = screen.getByLabelText('현재 시각 14:37');
     expect(nowLine).toBeInTheDocument();
-    expect(nowLine).toHaveStyle({ '--now-top': '357.3px' });
+    expect(nowLine).toHaveStyle({ '--now-top': '789.3px' });
+  });
+
+  it('offers clickable calendar slots for the full day from 00:00 through 24:00', async () => {
+    const user = userEvent.setup();
+    renderRoute('/today');
+
+    const midnightSlot = screen.getByRole('button', {
+      name: '00:00부터 01:00까지 할 일 또는 일정 추가'
+    });
+    expect(screen.getByRole('button', {
+      name: '23:00부터 24:00까지 할 일 또는 일정 추가'
+    })).toBeInTheDocument();
+
+    await user.click(midnightSlot);
+    let dialog = screen.getByRole('dialog', { name: '할 일 또는 일정 추가' });
+    expect(within(dialog).getByLabelText(/시작/)).toHaveValue('0');
+    await user.click(within(dialog).getByRole('button', { name: '취소' }));
+
+    await user.click(screen.getByRole('button', {
+      name: '23:00부터 24:00까지 할 일 또는 일정 추가'
+    }));
+    dialog = screen.getByRole('dialog', { name: '할 일 또는 일정 추가' });
+    expect(within(dialog).getByLabelText(/시작/)).toHaveValue('1380');
+    expect(within(dialog).getByLabelText(/종료/)).toHaveValue('1440');
   });
 
   it('starts and completes the primary task from Today', async () => {
@@ -124,7 +148,7 @@ describe('Planner frontend core flows', () => {
 
     expect(screen.queryByRole('dialog', { name: '할 일 또는 일정 추가' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', {
-      name: /장애 복구 흐름 다이어그램 작성, 16:00부터 17:30까지, 일정 수정/
+      name: /장애 복구 흐름 다이어그램 작성, 16:00부터 17:30까지, 일정 수정 또는 삭제/
     })).toBeInTheDocument();
   });
 
@@ -139,7 +163,7 @@ describe('Planner frontend core flows', () => {
     await user.click(within(dialog).getByRole('button', { name: '추가' }));
 
     expect(screen.getByRole('button', {
-      name: /장보기 목록 정리, 15:00부터 16:00까지, 일정 수정/
+      name: /장보기 목록 정리, 15:00부터 16:00까지, 일정 수정 또는 삭제/
     })).toBeInTheDocument();
     expect(screen.getAllByText('장보기 목록 정리').length).toBeGreaterThanOrEqual(2);
   });
@@ -154,17 +178,18 @@ describe('Planner frontend core flows', () => {
     await user.type(within(dialog).getByLabelText('일정 제목'), '치과 진료');
     await user.click(within(dialog).getByRole('button', { name: '추가' }));
 
-    await user.click(screen.getByRole('button', { name: /치과 진료, 08:00부터 09:00까지, 일정 수정/ }));
+    await user.click(screen.getByRole('button', { name: /치과 진료, 08:00부터 09:00까지, 일정 수정 또는 삭제/ }));
     dialog = screen.getByRole('dialog', { name: '일정 수정' });
     const title = within(dialog).getByLabelText('일정 제목');
     await user.clear(title);
     await user.type(title, '치과 정기 검진');
     await user.click(within(dialog).getByRole('button', { name: '변경 저장' }));
 
-    expect(screen.getByRole('button', { name: /치과 정기 검진, 08:00부터 09:00까지, 일정 수정/ })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /치과 정기 검진, 08:00부터 09:00까지, 일정 수정/ }));
-    await user.click(within(screen.getByRole('dialog', { name: '일정 수정' })).getByRole('button', { name: '삭제' }));
+    expect(screen.getByRole('button', { name: /치과 정기 검진, 08:00부터 09:00까지, 일정 수정 또는 삭제/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /치과 정기 검진, 08:00부터 09:00까지, 일정 수정 또는 삭제/ }));
+    await user.click(within(screen.getByRole('dialog', { name: '일정 수정' })).getByRole('button', { name: '일정에서 삭제' }));
     expect(screen.queryByText('치과 정기 검진')).not.toBeInTheDocument();
+    expect(screen.getByText('일정에서 삭제했어요. 연결된 할 일은 그대로 남아 있습니다.')).toBeInTheDocument();
   });
 
   it('keeps the current plan when reset is cancelled and opens clean onboarding after confirmation', async () => {

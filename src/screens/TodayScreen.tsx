@@ -22,8 +22,8 @@ import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
 import { getToday, getWeekDays } from '../lib/calendarDate';
 
-const DAY_START_MINUTES = 8 * 60;
-const DAY_END_MINUTES = 23 * 60;
+const DAY_START_MINUTES = 0;
+const DAY_END_MINUTES = 24 * 60;
 const DAY_SLOT_MINUTES = 60;
 const DAY_HOUR_HEIGHT = 54;
 const dayHours = Array.from(
@@ -439,7 +439,7 @@ export function TodayScreen() {
           </header>
 
           <div className="day-schedule__guide">
-            <span>빈 시간을 누르면 시작·종료·할 일을 바로 정할 수 있어요.</span>
+            <span>빈 시간을 누르면 추가하고, 내 일정을 누르면 수정·삭제할 수 있어요.</span>
             <span className="day-schedule__legend"><i /> 내 계획 <i /> 외부 일정</span>
           </div>
 
@@ -520,7 +520,7 @@ export function TodayScreen() {
                       ? 'day-schedule__block day-schedule__block--focus'
                       : 'day-schedule__block day-schedule__block--event'}
                     style={blockStyle}
-                    aria-label={`${block.title}, ${formatClock(block.startMinutes)}부터 ${formatClock(endMinutes)}까지, 일정 수정`}
+                    aria-label={`${block.title}, ${formatClock(block.startMinutes)}부터 ${formatClock(endMinutes)}까지, 일정 수정 또는 삭제`}
                     onClick={() => openTimeBlock(block.startMinutes, block.id)}
                   >
                     {content}

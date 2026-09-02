@@ -273,7 +273,7 @@ export function TimeBlockSheet({
         <div className="modal__actions time-block-actions">
           {initialBlockId && onDelete && (
             <button className="button button--delete" type="button" onClick={onDelete}>
-              <Trash2 size={16} /> 삭제
+              <Trash2 size={16} /> 일정에서 삭제
             </button>
           )}
           <span className="time-block-actions__spacer" />
