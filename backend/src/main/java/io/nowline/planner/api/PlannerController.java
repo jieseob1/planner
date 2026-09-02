@@ -44,8 +44,8 @@ public class PlannerController {
     ) {
         var userId = currentUserService.resolve(jwt);
         PlannerEnvelope envelope = plannerService.get(userId);
-        String etag = HttpPreconditions.etag(envelope.revision());
-        if (HttpPreconditions.matchesForGet(ifNoneMatch, envelope.revision())) {
+        String etag = HttpPreconditions.etag(userId, envelope.revision());
+        if (HttpPreconditions.matchesForGet(ifNoneMatch, userId, envelope.revision())) {
             return ResponseEntity.status(304).eTag(etag).cacheControl(CacheControl.noStore()).build();
         }
         return ResponseEntity.ok()
@@ -66,11 +66,11 @@ public class PlannerController {
         PlannerService.WriteResult result = plannerService.put(
                 userId,
                 idempotencyKey.trim(),
-                HttpPreconditions.forPut(ifMatch, ifNoneMatch),
+                HttpPreconditions.forPut(userId, ifMatch, ifNoneMatch),
                 snapshot
         );
         ResponseEntity.BodyBuilder response = ResponseEntity.status(result.status())
-                .eTag(HttpPreconditions.etag(result.envelope().revision()))
+                .eTag(HttpPreconditions.etag(userId, result.envelope().revision()))
                 .cacheControl(CacheControl.noStore());
         if (result.status() == 201) {
             response.location(URI.create("/api/v1/planner"));
@@ -85,7 +85,7 @@ public class PlannerController {
             @RequestHeader(name = HttpHeaders.IF_MATCH, required = false) String ifMatch
     ) {
         var userId = currentUserService.resolve(jwt);
-        plannerService.delete(userId, idempotencyKey.trim(), HttpPreconditions.forDelete(ifMatch));
+        plannerService.delete(userId, idempotencyKey.trim(), HttpPreconditions.forDelete(userId, ifMatch));
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 }

@@ -15,9 +15,10 @@ export interface PlannerApiClient {
   put: (
     snapshot: PlannerSnapshot,
     revision: number | null,
-    idempotencyKey: string
+    idempotencyKey: string,
+    etag?: string | null
   ) => Promise<{ aggregate: PlannerAggregate; etag: string }>;
-  delete: (revision: number, idempotencyKey: string) => Promise<void>;
+  delete: (revision: number, idempotencyKey: string, etag?: string | null) => Promise<void>;
 }
 
 export interface PlannerApiClientOptions {
@@ -152,7 +153,7 @@ export const createPlannerApiClient = ({
       };
     },
 
-    async put(snapshot, revision, idempotencyKey) {
+    async put(snapshot, revision, idempotencyKey, etag) {
       const response = await fetchImpl(url, {
         method: 'PUT',
         headers: {
@@ -161,7 +162,7 @@ export const createPlannerApiClient = ({
           'Idempotency-Key': idempotencyKey,
           ...(revision === null
             ? { 'If-None-Match': '*' }
-            : { 'If-Match': revisionEtag(revision) })
+            : { 'If-Match': etag ?? revisionEtag(revision) })
         },
         body: JSON.stringify(snapshot)
       });
@@ -174,13 +175,13 @@ export const createPlannerApiClient = ({
       };
     },
 
-    async delete(revision, idempotencyKey) {
+    async delete(revision, idempotencyKey, etag) {
       const response = await fetchImpl(url, {
         method: 'DELETE',
         headers: {
           ...await commonHeaders(),
           'Idempotency-Key': idempotencyKey,
-          'If-Match': revisionEtag(revision)
+          'If-Match': etag ?? revisionEtag(revision)
         }
       });
       if (response.status === 404 || response.status === 204) return;

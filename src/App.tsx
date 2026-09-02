@@ -13,6 +13,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { PrivacyScreen, TermsScreen } from './screens/LegalScreen';
 import { LandingScreen } from './screens/LandingScreen';
 import { usePlanner } from './state/PlannerProvider';
+import { TimeZoneProvider } from './timezone/TimeZoneProvider';
 
 function RequireActivePlan({ children }: { children: ReactNode }) {
   const { hasActivePlan, plannerReady } = usePlanner();
@@ -53,9 +54,11 @@ export function App() {
         <Route path="/terms" element={<TermsScreen />} />
         <Route path="/*" element={(
           <AuthProvider>
-            <PlannerProvider>
-              <AppRoutes />
-            </PlannerProvider>
+            <TimeZoneProvider>
+              <PlannerProvider>
+                <AppRoutes />
+              </PlannerProvider>
+            </TimeZoneProvider>
           </AuthProvider>
         )} />
       </Routes>

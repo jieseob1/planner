@@ -182,6 +182,9 @@ public class GoogleCalendarSyncService {
         for (PlannerSnapshot.TimeBlock block : envelope.snapshot().timeBlocks()) {
             if (block.externalOrFalse()) continue;
             currentBlockIds.add(block.id());
+            // A pre-V9 block has no trustworthy calendar date. Keep it readable and preserve any
+            // existing link, but never guess a new date and silently move/export it every week.
+            if (block.date() == null) continue;
             GoogleCalendarGateway.EventWrite write = eventWrite(block, zone);
             String checksum = checksum(write.summary(), write.startAt(), write.endAt());
             CalendarIntegrationRepository.EventLink link = repository
@@ -274,13 +277,16 @@ public class GoogleCalendarSyncService {
                 startMinutes,
                 duration,
                 external,
-                (int) weekOffset);
+                (int) weekOffset,
+                start.toLocalDate());
         return new ParsedEvent(block, start.toInstant(), end.toInstant(), zone.getId());
     }
 
     private GoogleCalendarGateway.EventWrite eventWrite(PlannerSnapshot.TimeBlock block, ZoneId zone) {
-        LocalDate baseMonday = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LocalDate date = baseMonday.plusWeeks(block.weekOffsetOrZero()).plusDays(dayIndex(block.day()));
+        LocalDate date = block.date();
+        if (date == null) {
+            throw new IllegalArgumentException("Google Calendar export requires an absolute block date");
+        }
         ZonedDateTime start = date.atStartOfDay(zone).plusMinutes(block.startMinutes());
         return new GoogleCalendarGateway.EventWrite(
                 block.title(),
@@ -322,18 +328,6 @@ public class GoogleCalendarSyncService {
             case FRIDAY -> PlannerSnapshot.DayKey.FRI;
             case SATURDAY -> PlannerSnapshot.DayKey.SAT;
             case SUNDAY -> PlannerSnapshot.DayKey.SUN;
-        };
-    }
-
-    private int dayIndex(PlannerSnapshot.DayKey value) {
-        return switch (value) {
-            case MON -> 0;
-            case TUE -> 1;
-            case WED -> 2;
-            case THU -> 3;
-            case FRI -> 4;
-            case SAT -> 5;
-            case SUN -> 6;
         };
     }
 

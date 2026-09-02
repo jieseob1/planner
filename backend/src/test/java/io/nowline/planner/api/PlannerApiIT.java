@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,15 +30,20 @@ import tools.jackson.databind.ObjectMapper;
 
 import javax.sql.DataSource;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -105,16 +110,45 @@ class PlannerApiIT {
 
     @Test
     void createReadReplayUpdateConflictDeleteAndUserIsolation() throws Exception {
-        String userToken = token("user-" + UUID.randomUUID(), TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        String userSubject = "user-" + UUID.randomUUID();
+        String userToken = token(userSubject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
         String otherUserToken = token("user-" + UUID.randomUUID(), TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
         PlannerSnapshot initial = PlannerFixtures.snapshot();
 
         HttpResponse<String> created = put(userToken, "create-1", null, "*", initial);
         assertThat(created.statusCode()).isEqualTo(201);
-        assertThat(created.headers().firstValue("ETag")).contains("\"1\"");
+        String etag1 = created.headers().firstValue("ETag").orElseThrow();
+        assertThat(etag1).matches("\"planner-[0-9a-f]{32}-1\"");
         PlannerEnvelope createdEnvelope = objectMapper.readValue(created.body(), PlannerEnvelope.class);
         assertThat(createdEnvelope.revision()).isEqualTo(1);
         assertThat(createdEnvelope.snapshot().timeBlocks().getFirst().weekOffset()).isZero();
+        assertThat(createdEnvelope.snapshot().timeBlocks().getFirst().date())
+                .isEqualTo(LocalDate.parse("2026-09-01"));
+        assertThat(createdEnvelope.snapshot().outcomes().getFirst().nextCheckDate())
+                .isEqualTo(LocalDate.parse("2026-09-04"));
+        assertThat(createdEnvelope.snapshot().outcomes().getFirst().metricUpdatedAt())
+                .isEqualTo(Instant.parse("2026-08-30T03:00:00Z"));
+        assertThat(createdEnvelope.snapshot().outcomes().getFirst().metricHistoryOrEmpty())
+                .singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.value()).isEqualByComparingTo("2");
+                    assertThat(entry.evidence()).isEqualTo("게시 URL 2건 확인");
+                });
+        assertThat(jdbc.queryForObject("""
+                        SELECT block.block_date
+                        FROM planner_time_block block
+                        JOIN app_user app ON app.user_id = block.user_id
+                        WHERE app.oidc_issuer = ? AND app.oidc_subject = ? AND block.block_id = ?
+                        """, LocalDate.class, TEST_ISSUER, userSubject, "block-draft"))
+                .isEqualTo(LocalDate.parse("2026-09-01"));
+        assertThat(jdbc.queryForObject("""
+                        SELECT COUNT(*)
+                        FROM planner_outcome_metric_history history
+                        JOIN app_user app ON app.user_id = history.user_id
+                        WHERE app.oidc_issuer = ? AND app.oidc_subject = ?
+                          AND history.outcome_id = ? AND history.evidence = ?
+                        """, Integer.class, TEST_ISSUER, userSubject, "outcome-writing", "게시 URL 2건 확인"))
+                .isEqualTo(1);
 
         HttpResponse<String> replay = put(userToken, "create-1", null, "*", initial);
         assertThat(replay.statusCode()).isEqualTo(201);
@@ -122,43 +156,155 @@ class PlannerApiIT {
 
         HttpResponse<String> read = get(userToken, null);
         assertThat(read.statusCode()).isEqualTo(200);
-        assertThat(read.headers().firstValue("ETag")).contains("\"1\"");
-        assertThat(objectMapper.readValue(read.body(), PlannerEnvelope.class).snapshot().tasks())
+        assertThat(read.headers().firstValue("ETag")).contains(etag1);
+        PlannerEnvelope readEnvelope = objectMapper.readValue(read.body(), PlannerEnvelope.class);
+        assertThat(readEnvelope.snapshot().tasks())
                 .extracting(PlannerSnapshot.Task::id)
                 .containsExactly("task-draft", "task-invoice");
+        assertThat(readEnvelope.snapshot().timeBlocks().getFirst().date())
+                .isEqualTo(LocalDate.parse("2026-09-01"));
+        assertThat(readEnvelope.snapshot().outcomes().getFirst().metricHistoryOrEmpty())
+                .singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.id()).isEqualTo("metric-writing-2");
+                    assertThat(entry.value()).isEqualByComparingTo("2");
+                    assertThat(entry.observedAt()).isEqualTo(Instant.parse("2026-08-30T03:00:00Z"));
+                    assertThat(entry.evidence()).isEqualTo("게시 URL 2건 확인");
+                });
 
-        HttpResponse<String> notModified = get(userToken, "W/\"1\"");
+        HttpResponse<String> notModified = get(userToken, "W/" + etag1);
         assertThat(notModified.statusCode()).isEqualTo(304);
         assertThat(notModified.body()).isEmpty();
 
+        assertProblem(put(
+                userToken,
+                "tamper-metric-history",
+                etag1,
+                null,
+                PlannerFixtures.withTamperedMetricEvidence(initial)), 400, "invalid-planner-snapshot");
+
         PlannerSnapshot changed = PlannerFixtures.withDirection(initial, "수정된 연간 방향");
-        HttpResponse<String> updated = put(userToken, "update-1", "\"1\"", null, changed);
+        HttpResponse<String> updated = put(userToken, "update-1", etag1, null, changed);
         assertThat(updated.statusCode()).isEqualTo(200);
-        assertThat(updated.headers().firstValue("ETag")).contains("\"2\"");
+        String etag2 = updated.headers().firstValue("ETag").orElseThrow();
+        assertThat(etag2).matches("\"planner-[0-9a-f]{32}-2\"");
         assertThat(objectMapper.readValue(updated.body(), PlannerEnvelope.class).revision()).isEqualTo(2);
 
-        HttpResponse<String> stale = put(userToken, "stale-1", "\"1\"", null, changed);
+        HttpResponse<String> stale = put(userToken, "stale-1", etag1, null, changed);
         assertProblem(stale, 412, "revision-conflict");
 
         HttpResponse<String> reusedKey = put(
                 userToken,
                 "update-1",
-                "\"1\"",
+                etag1,
                 null,
                 PlannerFixtures.withDirection(initial, "다른 내용"));
         assertProblem(reusedKey, 409, "idempotency-key-reused");
 
         assertProblem(get(otherUserToken, null), 404, "planner-not-found");
 
-        HttpResponse<String> deleted = delete(userToken, "delete-1", "\"2\"");
+        HttpResponse<String> deleted = delete(userToken, "delete-1", etag2);
         assertThat(deleted.statusCode()).isEqualTo(204);
-        assertThat(delete(userToken, "delete-1", "\"2\"").statusCode()).isEqualTo(204);
+        assertThat(delete(userToken, "delete-1", etag2).statusCode()).isEqualTo(204);
         assertProblem(get(userToken, null), 404, "planner-not-found");
 
         HttpResponse<String> recreated = put(userToken, "create-2", null, "*", initial);
         assertThat(recreated.statusCode()).isEqualTo(201);
-        assertThat(recreated.headers().firstValue("ETag")).contains("\"4\"");
-        assertProblem(put(userToken, "old-generation", "\"2\"", null, changed), 412, "revision-conflict");
+        String etag4 = recreated.headers().firstValue("ETag").orElseThrow();
+        assertThat(etag4).matches("\"planner-[0-9a-f]{32}-4\"");
+        assertProblem(put(userToken, "old-generation", etag2, null, changed), 412, "revision-conflict");
+    }
+
+    @Test
+    void preservesMigratedLegacyMetricUntilTheFirstRealObservation() throws Exception {
+        String subject = "legacy-metric-" + UUID.randomUUID();
+        String accessToken = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        HttpResponse<String> created = put(
+                accessToken, "legacy-metric-create", null, "*", PlannerFixtures.snapshot());
+        assertThat(created.statusCode()).isEqualTo(201);
+        String etag1 = created.headers().firstValue("ETag").orElseThrow();
+        UUID userId = UUID.fromString(jdbc.queryForObject(
+                "SELECT user_id FROM app_user WHERE oidc_issuer = ? AND oidc_subject = ?",
+                String.class,
+                TEST_ISSUER,
+                subject));
+
+        jdbc.update("DELETE FROM planner_outcome_metric_history WHERE user_id = ?", id(userId));
+        jdbc.update("UPDATE planner_outcome SET metric_updated_at = NULL WHERE user_id = ?", id(userId));
+
+        PlannerEnvelope migrated = objectMapper.readValue(get(accessToken, null).body(), PlannerEnvelope.class);
+        assertThat(migrated.snapshot().outcomes().getFirst().current()).isEqualByComparingTo("2");
+        assertThat(migrated.snapshot().outcomes().getFirst().metricUpdatedAt()).isNull();
+        assertThat(migrated.snapshot().outcomes().getFirst().metricHistoryOrEmpty()).isEmpty();
+
+        PlannerSnapshot unrelated = PlannerFixtures.withDirection(
+                migrated.snapshot(), "기존 지표와 무관한 연간 방향 수정");
+        HttpResponse<String> unrelatedUpdate = put(
+                accessToken, "legacy-metric-unrelated", etag1, null, unrelated);
+        assertThat(unrelatedUpdate.statusCode()).isEqualTo(200);
+        String etag2 = unrelatedUpdate.headers().firstValue("ETag").orElseThrow();
+        PlannerEnvelope preserved = objectMapper.readValue(unrelatedUpdate.body(), PlannerEnvelope.class);
+        assertThat(preserved.snapshot().outcomes().getFirst().metricHistoryOrEmpty()).isEmpty();
+        assertThat(preserved.snapshot().outcomes().getFirst().metricUpdatedAt()).isNull();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM planner_outcome_metric_history WHERE user_id = ?",
+                Integer.class,
+                id(userId))).isZero();
+
+        Instant observedAt = Instant.now().minusSeconds(1);
+        PlannerSnapshot firstMeasured = withFirstMetricObservation(
+                preserved.snapshot(), new BigDecimal("3"), observedAt, "게시 URL 3건 확인");
+        HttpResponse<String> measuredUpdate = put(
+                accessToken, "legacy-metric-first-observation", etag2, null, firstMeasured);
+        assertThat(measuredUpdate.statusCode()).isEqualTo(200);
+        PlannerSnapshot.Outcome measured = objectMapper.readValue(measuredUpdate.body(), PlannerEnvelope.class)
+                .snapshot().outcomes().getFirst();
+        assertThat(measured.current()).isEqualByComparingTo("3");
+        assertThat(measured.metricUpdatedAt()).isEqualTo(observedAt);
+        assertThat(measured.metricHistoryOrEmpty())
+                .singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.value()).isEqualByComparingTo("3");
+                    assertThat(entry.observedAt()).isEqualTo(observedAt);
+                    assertThat(entry.evidence()).isEqualTo("게시 URL 3건 확인");
+                });
+    }
+
+    @Test
+    void roundTripsAnOfflineMetricObservationRecordedTwentyFourHoursEarlier() throws Exception {
+        String subject = "offline-metric-" + UUID.randomUUID();
+        String accessToken = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        HttpResponse<String> created = put(
+                accessToken, "offline-metric-create", null, "*", PlannerFixtures.snapshot());
+        assertThat(created.statusCode()).isEqualTo(201);
+        String etag = created.headers().firstValue("ETag").orElseThrow();
+        PlannerSnapshot source = objectMapper.readValue(created.body(), PlannerEnvelope.class).snapshot();
+        Instant observedAt = Instant.now()
+                .truncatedTo(ChronoUnit.MILLIS)
+                .minus(Duration.ofHours(24));
+        assertThat(observedAt).isAfter(source.outcomes().getFirst().metricUpdatedAt());
+
+        PlannerSnapshot updated = withAppendedMetricObservation(
+                source, new BigDecimal("3"), observedAt, "오프라인에서 확인한 게시 URL 3건");
+        HttpResponse<String> response = put(
+                accessToken, "offline-metric-update", etag, null, updated);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        PlannerSnapshot.Outcome roundTripped = objectMapper.readValue(response.body(), PlannerEnvelope.class)
+                .snapshot().outcomes().getFirst();
+        assertThat(roundTripped.metricHistoryOrEmpty()).hasSize(2);
+        assertThat(roundTripped.metricHistoryOrEmpty().getLast()).satisfies(entry -> {
+            assertThat(entry.value()).isEqualByComparingTo("3");
+            assertThat(entry.observedAt()).isEqualTo(observedAt);
+            assertThat(entry.evidence()).isEqualTo("오프라인에서 확인한 게시 URL 3건");
+        });
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM planner_outcome_metric_history history "
+                        + "JOIN app_user app ON app.user_id = history.user_id "
+                        + "WHERE app.oidc_issuer = ? AND app.oidc_subject = ?",
+                Integer.class,
+                TEST_ISSUER,
+                subject)).isEqualTo(2);
     }
 
     @Test
@@ -177,19 +323,34 @@ class PlannerApiIT {
         String constrainedToken = token(constrainedSubject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
         assertThat(put(constrainedToken, "valid-create", null, "*", PlannerFixtures.snapshot()).statusCode())
                 .isEqualTo(201);
-        UUID constrainedUser = jdbc.queryForObject(
+        UUID constrainedUser = UUID.fromString(jdbc.queryForObject(
                 "SELECT user_id FROM app_user WHERE oidc_issuer = ? AND oidc_subject = ?",
-                UUID.class,
+                String.class,
                 TEST_ISSUER,
-                constrainedSubject);
+                constrainedSubject));
 
         assertThatThrownBy(() -> jdbc.update("""
                         INSERT INTO planner_time_block (
                             user_id, block_id, sort_order, task_id, title, day_key,
-                            start_minutes, duration_minutes, external, week_offset
-                        ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, false, ?)
-                        """, id(constrainedUser), "direct-overlap", 99, "DB overlap", "tue", 1_200, 30, 0))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                            start_minutes, duration_minutes, external, week_offset, block_date
+                        ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, false, ?, ?)
+                        """, id(constrainedUser), "direct-overlap", 99, "DB overlap", "wed", 1_200, 30, 1,
+                        LocalDate.parse("2026-09-01")))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseMessage("planner time blocks overlap");
+
+        jdbc.update("""
+                        INSERT INTO planner_time_block (
+                            user_id, block_id, sort_order, task_id, title, day_key,
+                            start_minutes, duration_minutes, external, week_offset, block_date
+                        ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, false, ?, NULL)
+                        """, id(constrainedUser), "legacy-undated", 99, "날짜를 알 수 없는 기존 일정", "tue", 1_200, 30, 0);
+        PlannerEnvelope legacyRead = objectMapper.readValue(get(constrainedToken, null).body(), PlannerEnvelope.class);
+        assertThat(legacyRead.snapshot().timeBlocks())
+                .filteredOn(block -> block.id().equals("legacy-undated"))
+                .singleElement()
+                .extracting(block -> block.date())
+                .isNull();
     }
 
     @Test
@@ -355,11 +516,13 @@ class PlannerApiIT {
     void exportsPreferencesAndDeletesAllAccountDataAfterFreshAuthentication() throws Exception {
         String subject = "privacy-" + UUID.randomUUID();
         String accessToken = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
-        assertThat(put(accessToken, "privacy-create", null, "*", PlannerFixtures.snapshot()).statusCode())
-                .isEqualTo(201);
-        UUID userId = jdbc.queryForObject(
+        HttpResponse<String> created = put(
+                accessToken, "privacy-create", null, "*", PlannerFixtures.snapshot());
+        assertThat(created.statusCode()).isEqualTo(201);
+        String plannerEtag = created.headers().firstValue("ETag").orElseThrow();
+        UUID userId = UUID.fromString(jdbc.queryForObject(
                 "SELECT user_id FROM app_user WHERE oidc_issuer = ? AND oidc_subject = ?",
-                UUID.class, TEST_ISSUER, subject);
+                String.class, TEST_ISSUER, subject));
 
         HttpResponse<String> preferences = jsonRequest("PUT", "/api/v1/account/preferences", accessToken,
                 """
@@ -390,6 +553,10 @@ class PlannerApiIT {
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE oidc_subject = ?", Long.class, subject))
                 .isOne();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM deleted_identity_tombstone WHERE user_id = ?",
+                Long.class,
+                id(userId))).isOne();
         assertThat(jsonRequest("DELETE", "/api/v1/account", accessToken,
                 "{\"confirmation\":\"DELETE\"}").statusCode()).isEqualTo(204);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE oidc_subject = ?", Long.class, subject))
@@ -398,6 +565,102 @@ class PlannerApiIT {
                 .isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM account_entitlement WHERE user_id = ?", Long.class, userId))
                 .isZero();
+
+        Instant deletedAt = Instant.ofEpochMilli(jdbc.queryForObject(
+                "SELECT CAST(UNIX_TIMESTAMP(deleted_at) * 1000 AS SIGNED) "
+                        + "FROM deleted_identity_tombstone WHERE user_id = ?",
+                Long.class,
+                id(userId)));
+        assertProblem(authenticatedGet("/api/v1/planner", accessToken), 401, "account-deleted-session");
+        assertProblem(put(
+                accessToken,
+                "privacy-stale-restore",
+                plannerEtag,
+                null,
+                PlannerFixtures.withDirection(PlannerFixtures.snapshot(), "삭제 후 복원 시도")),
+                401,
+                "account-deleted-session");
+        assertProblem(authenticatedGet("/api/v1/account/consent", accessToken),
+                401,
+                "account-deleted-session");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE user_id = ?", Long.class, id(userId)))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM planner_aggregate WHERE user_id = ?", Long.class, id(userId)))
+                .isZero();
+
+        Instant freshAuthenticationTime = awaitJwtSecondAfter(deletedAt);
+        String freshToken = token(
+                subject,
+                TEST_ISSUER,
+                List.of(TEST_AUDIENCE),
+                900,
+                freshAuthenticationTime,
+                freshAuthenticationTime);
+        HttpResponse<String> freshConsent = authenticatedGet("/api/v1/account/consent", freshToken);
+        assertThat(freshConsent.statusCode()).isEqualTo(200);
+        assertThat(freshConsent.body()).contains("\"accepted\":false");
+        assertProblem(get(freshToken, null), 404, "planner-not-found");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE user_id = ?", Long.class, id(userId)))
+                .isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM planner_aggregate WHERE user_id = ?", Long.class, id(userId)))
+                .isZero();
+        assertProblem(authenticatedGet("/api/v1/account/consent", accessToken),
+                401,
+                "account-deleted-session");
+        assertThat(Instant.ofEpochMilli(jdbc.queryForObject(
+                "SELECT CAST(UNIX_TIMESTAMP(deleted_at) * 1000 AS SIGNED) "
+                        + "FROM deleted_identity_tombstone WHERE user_id = ?",
+                Long.class,
+                id(userId)))).isEqualTo(deletedAt);
+    }
+
+    @Test
+    void accountDeletionAndStalePlannerUpdateHaveOneSafeFinalState() throws Exception {
+        String subject = "privacy-race-" + UUID.randomUUID();
+        String accessToken = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        HttpResponse<String> created = put(
+                accessToken, "privacy-race-create", null, "*", PlannerFixtures.snapshot());
+        assertThat(created.statusCode()).isEqualTo(201);
+        String etag = created.headers().firstValue("ETag").orElseThrow();
+        UUID userId = UUID.fromString(jdbc.queryForObject(
+                "SELECT user_id FROM app_user WHERE oidc_issuer = ? AND oidc_subject = ?",
+                String.class, TEST_ISSUER, subject));
+
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var deletion = executor.submit(() -> {
+                start.await();
+                return jsonRequest("DELETE", "/api/v1/account", accessToken,
+                        "{\"confirmation\":\"DELETE\"}");
+            });
+            var staleUpdate = executor.submit(() -> {
+                start.await();
+                return put(
+                        accessToken,
+                        "privacy-race-stale-update",
+                        etag,
+                        null,
+                        PlannerFixtures.withDirection(PlannerFixtures.snapshot(), "삭제와 경합한 수정"));
+            });
+            start.countDown();
+
+            assertThat(deletion.get().statusCode()).isEqualTo(204);
+            HttpResponse<String> updateResponse = staleUpdate.get();
+            assertThat(updateResponse.statusCode())
+                    .withFailMessage("unexpected concurrent update response: %s", updateResponse.body())
+                    .isIn(200, 401);
+            if (updateResponse.statusCode() == 401) {
+                assertProblem(updateResponse, 401, "account-deleted-session");
+            }
+        }
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE user_id = ?", Long.class, id(userId)))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM planner_aggregate WHERE user_id = ?", Long.class, id(userId)))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM planner_plan WHERE user_id = ?", Long.class, id(userId)))
+                .isZero();
+        assertProblem(authenticatedGet("/api/v1/planner", accessToken), 401, "account-deleted-session");
     }
 
     @Test
@@ -520,6 +783,46 @@ class PlannerApiIT {
         return http.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
+    private PlannerSnapshot withFirstMetricObservation(
+            PlannerSnapshot source,
+            BigDecimal value,
+            Instant observedAt,
+            String evidence
+    ) {
+        PlannerSnapshot.Outcome before = source.outcomes().getFirst();
+        PlannerSnapshot.MetricHistoryEntry observation = new PlannerSnapshot.MetricHistoryEntry(
+                "metric-writing-first-real", value, observedAt, evidence);
+        PlannerSnapshot.Outcome measured = new PlannerSnapshot.Outcome(
+                before.id(), before.title(), before.parentTitle(), value, before.target(), before.unit(),
+                before.confidence(), before.lastUpdatedDays(), observedAt, before.nextCheckDate(),
+                List.of(observation), before.actualHours(), before.neededHours(), before.availableHours(),
+                evidence, before.changeLabel(), before.attention(), before.decision());
+        return new PlannerSnapshot(
+                source.version(), source.plan(), source.plannerWeekOffset(), source.tasks(), source.timeBlocks(),
+                source.timeEntries(), List.of(measured), source.timer(), source.review());
+    }
+
+    private PlannerSnapshot withAppendedMetricObservation(
+            PlannerSnapshot source,
+            BigDecimal value,
+            Instant observedAt,
+            String evidence
+    ) {
+        PlannerSnapshot.Outcome before = source.outcomes().getFirst();
+        PlannerSnapshot.MetricHistoryEntry observation = new PlannerSnapshot.MetricHistoryEntry(
+                "metric-writing-offline", value, observedAt, evidence);
+        ArrayList<PlannerSnapshot.MetricHistoryEntry> history = new ArrayList<>(before.metricHistoryOrEmpty());
+        history.add(observation);
+        PlannerSnapshot.Outcome measured = new PlannerSnapshot.Outcome(
+                before.id(), before.title(), before.parentTitle(), value, before.target(), before.unit(),
+                before.confidence(), before.lastUpdatedDays(), observedAt, before.nextCheckDate(),
+                history, before.actualHours(), before.neededHours(), before.availableHours(),
+                evidence, before.changeLabel(), before.attention(), before.decision());
+        return new PlannerSnapshot(
+                source.version(), source.plan(), source.plannerWeekOffset(), source.tasks(), source.timeBlocks(),
+                source.timeEntries(), List.of(measured), source.timer(), source.review());
+    }
+
     private String token(
             String subject,
             String issuer,
@@ -537,14 +840,26 @@ class PlannerApiIT {
             Instant authenticationTime
     ) throws Exception {
         Instant now = Instant.now();
+        return token(subject, issuer, audience, expiresInSeconds, authenticationTime, now.minusSeconds(1));
+    }
+
+    private String token(
+            String subject,
+            String issuer,
+            List<String> audience,
+            long expiresInSeconds,
+            Instant authenticationTime,
+            Instant issuedAt
+    ) throws Exception {
+        Instant now = Instant.now();
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),
                 new JWTClaimsSet.Builder()
                         .issuer(issuer)
                         .subject(subject)
                         .audience(audience)
-                        .issueTime(Date.from(now.minusSeconds(1)))
-                        .notBeforeTime(Date.from(now.minusSeconds(1)))
+                        .issueTime(Date.from(issuedAt))
+                        .notBeforeTime(Date.from(issuedAt.minusSeconds(1)))
                         .expirationTime(Date.from(now.plusSeconds(expiresInSeconds)))
                         .claim("email", subject + "@example.test")
                         .claim("name", subject)
@@ -553,6 +868,15 @@ class PlannerApiIT {
                         .build());
         jwt.sign(new MACSigner(TEST_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         return jwt.serialize();
+    }
+
+    private Instant awaitJwtSecondAfter(Instant cutoff) throws InterruptedException {
+        Instant candidate = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        while (!candidate.isAfter(cutoff)) {
+            Thread.sleep(10);
+            candidate = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        }
+        return candidate;
     }
 
     private URI uri(String path) {

@@ -75,7 +75,8 @@ const runAndWaitForPlannerSave = async (page, action, label) => {
   await action();
   const response = await responsePromise;
   if (!response.ok()) {
-    fail(`${label} save failed with ${response.status()}: ${await response.text()}`);
+    const requestHeaders = response.request().headers();
+    fail(`${label} save failed with ${response.status()} (If-Match: ${requestHeaders['if-match'] ?? 'missing'}, If-None-Match: ${requestHeaders['if-none-match'] ?? 'missing'}): ${await response.text()}`);
   }
   await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
 };
@@ -125,6 +126,13 @@ const acceptConsent = async (page) => {
   await page.getByRole('heading', { name: '이번 분기에 무엇을 바꿀까요?' }).waitFor();
 };
 
+const enterAppFromLanding = async (page) => {
+  const startLink = page.getByRole('link', { name: '웹앱 바로 시작' }).first();
+  await startLink.waitFor();
+  await activateByKeyboard(page, startLink);
+  await page.waitForURL(/\/today$/);
+};
+
 const completeOnboarding = async (page, prefix) => {
   await page.getByPlaceholder('예: 기술 글 6개를 발행한다').fill(`${prefix} 결과를 검증한다`);
   await activateByKeyboard(page, page.getByRole('button', { name: '계속' }));
@@ -140,13 +148,30 @@ const completeOnboarding = async (page, prefix) => {
   if (!onboardingSave.ok()) {
     fail(`Onboarding save failed with ${onboardingSave.status()}: ${await onboardingSave.text()}`);
   }
-  await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor();
+  await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor();
   await page.getByText('서버에 저장됨').waitFor({ timeout: 20_000 });
 };
 
 const assertNoDocumentOverflow = async (page, label) => {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  if (overflow > 1) fail(`${label} has ${overflow}px horizontal overflow`);
+  const result = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const overflow = document.documentElement.scrollWidth - viewportWidth;
+    const offenders = [...document.querySelectorAll('body *')].flatMap((element) => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || (rect.left >= -1 && rect.right <= viewportWidth + 1)) return [];
+      return [{
+        tag: element.tagName.toLowerCase(),
+        className: element.getAttribute('class') ?? '',
+        left: Math.round(rect.left * 100) / 100,
+        right: Math.round(rect.right * 100) / 100,
+        width: Math.round(rect.width * 100) / 100
+      }];
+    });
+    return { overflow, offenders: offenders.slice(0, 8) };
+  });
+  if (result.overflow > 1) {
+    fail(`${label} has ${result.overflow}px horizontal overflow: ${JSON.stringify(result.offenders)}`);
+  }
 };
 
 const assertVisibleTargets = async (page, label) => {
@@ -244,6 +269,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
     allowedHttpStatusConsole: new Set([404])
   });
   await page.goto(frontendUrl, { waitUntil: 'domcontentloaded' });
+  await enterAppFromLanding(page);
   await acceptConsent(page);
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '운영 E2E');
@@ -259,17 +285,17 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   );
 
   await page.goto(`${frontendUrl}/planner`);
-  await activateByKeyboard(page, page.getByRole('button', { name: /다음 행동 추가/ }));
-  await page.getByRole('dialog', { name: '다음 행동 추가' }).getByLabel('실행할 행동').fill('운영 E2E 회고 준비');
+  await activateByKeyboard(page, page.getByRole('button', { name: /새 할 일/ }));
+  await page.getByRole('dialog', { name: '새 할 일' }).getByLabel('할 일').fill('운영 E2E 회고 준비');
   await activateAndWaitForPlannerSave(
     page,
-    page.getByRole('dialog', { name: '다음 행동 추가' }).getByRole('button', { name: '목록에 추가' }),
+    page.getByRole('dialog', { name: '새 할 일' }).getByRole('button', { name: '할 일 추가' }),
     'Planner task creation'
   );
-  await page.getByRole('button', { name: /운영 E2E 회고 준비/ }).waitFor();
+  await page.getByRole('button', { name: '운영 E2E 회고 준비 일정에 배치', exact: true }).waitFor();
 
   await page.goto(`${frontendUrl}/goals`);
-  await activateByKeyboard(page, page.getByRole('button', { name: /계획 편집/ }));
+  await activateByKeyboard(page, page.getByRole('button', { name: '계획과 결과 편집' }));
   const planEditor = page.getByRole('dialog', { name: '계획 편집' });
   await planEditor.getByLabel('연간 방향').fill('운영 가능한 계획 서비스 완성');
   await activateAndWaitForPlannerSave(
@@ -281,6 +307,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
 
   await page.goto(`${frontendUrl}/review`);
   await page.getByPlaceholder('예: 24').fill('1');
+  await page.getByPlaceholder('예: 결제 대시보드 9월 2일 확인').fill('운영 E2E 주간 점검 근거');
   await activateAndWaitForPlannerSave(
     page,
     page.getByRole('button', { name: '반영', exact: true }),
@@ -352,7 +379,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   await page.keyboard.press('Enter');
   const createPlanDialog = page.getByRole('dialog', { name: '새 연간·분기 계획' });
   await createPlanDialog.waitFor();
-  const quarterFocusInput = createPlanDialog.getByLabel('이번 분기 핵심 결과');
+  const quarterFocusInput = createPlanDialog.getByLabel('이번 분기 초점');
   if (!await quarterFocusInput.evaluate((element) => element === document.activeElement)) {
     fail('New plan dialog did not move focus to its primary input');
   }
@@ -442,16 +469,16 @@ const exerciseMobile = async (frontendUrl) => {
   await assertVisibleTargets(page, 'Mobile Today');
 
   await page.goto(`${frontendUrl}/planner`);
-  await page.getByRole('heading', { name: '결과를 시간 안에 배치합니다.' }).waitFor();
-  await page.getByRole('button', { name: /다음 행동 추가/ }).click();
-  const addDialog = page.getByRole('dialog', { name: '다음 행동 추가' });
-  await addDialog.getByLabel('실행할 행동').fill('모바일 계획함 QA');
+  await page.getByRole('heading', { name: '이번 주 할 일과 일정을 함께 봅니다.' }).waitFor();
+  await page.getByRole('button', { name: /새 할 일/ }).click();
+  const addDialog = page.getByRole('dialog', { name: '새 할 일' });
+  await addDialog.getByLabel('할 일').fill('모바일 계획함 QA');
   await runAndWaitForPlannerSave(
     page,
-    () => addDialog.getByRole('button', { name: '목록에 추가' }).click(),
+    () => addDialog.getByRole('button', { name: '할 일 추가' }).click(),
     'Mobile planner task creation'
   );
-  await page.getByRole('button', { name: /모바일 계획함 QA/ }).waitFor();
+  await page.getByRole('button', { name: '모바일 계획함 QA 일정에 배치', exact: true }).waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Planner');
 
   await page.goto(`${frontendUrl}/goals`);
@@ -479,7 +506,7 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
   const page = await context.newPage();
   attachErrorCapture(page, errors);
   await page.goto(`${frontendUrl}/today`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor();
+  await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor();
 
   await page.keyboard.press('Tab');
   const skipFocused = await page.evaluate(() => document.activeElement?.textContent?.trim() === '본문으로 건너뛰기');
@@ -587,12 +614,17 @@ try {
 
   browser = await chromium.launch({ channel: process.env.NOWLINE_E2E_BROWSER_CHANNEL || 'chrome', headless: true });
   await exerciseDesktop(frontendUrl, backendUrl);
+  // Account deletion records a sub-second tombstone while local test JWTs use
+  // whole-second auth_time/iat claims. Cross the next JWT epoch before the
+  // mobile journey proves that a genuinely fresh sign-in can recreate consent.
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
   await exerciseMobile(frontendUrl);
   await exerciseKeyboardAndZoom(frontendUrl);
   if (fakeGoogle.stats.tokenRequests < 2 || fakeGoogle.stats.revokeRequests !== 1) {
     fail(`Calendar connect/refresh/revoke calls were incomplete: ${JSON.stringify(fakeGoogle.stats)}`);
   }
   console.log('production authenticated browser end-to-end verification passed');
+  console.log('production end-to-end verification passed');
 } catch (error) {
   const logs = runCompose(['logs', '--no-color', '--tail', '200', 'backend', 'frontend', 'mysql'], environment, true);
   if (logs.stdout) process.stderr.write(logs.stdout);

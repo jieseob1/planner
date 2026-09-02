@@ -38,8 +38,10 @@ export function ConflictResolutionModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
+      eyebrow="동기화 충돌"
       title="기기와 서버의 변경을 비교합니다"
       description="양쪽 원본은 이 기기의 충돌 백업에 보존했습니다. 항목별로 사용할 내용을 선택한 뒤 병합하세요."
+      className="conflict-resolution-modal"
       onClose={onClose}
     >
       <div className="conflict-summary">

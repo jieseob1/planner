@@ -77,7 +77,8 @@ public class PlannerService {
             return replayPut(replay.get(), requestHash);
         }
 
-        Optional<Long> currentRevision = repository.findRevision(userId);
+        Optional<PlannerEnvelope> currentPlanner = repository.find(userId);
+        Optional<Long> currentRevision = currentPlanner.map(PlannerEnvelope::revision);
         int status;
         long writtenRevision;
         UUID planId;
@@ -85,6 +86,7 @@ public class PlannerService {
             if (currentRevision.isPresent()) {
                 throw PlannerException.preconditionFailed(currentRevision.get());
             }
+            validator.ensureInitialMetricHistory(snapshot);
             writtenRevision = repository.nextRevision(userId);
             planId = planHistory.ensureActive(userId, snapshot, writtenRevision);
             repository.insert(userId, planId, writtenRevision, snapshot);
@@ -94,6 +96,7 @@ public class PlannerService {
             if (currentRevision.isEmpty() || currentRevision.get() != expected) {
                 throw PlannerException.preconditionFailed(currentRevision.orElse(null));
             }
+            validator.ensureMetricHistoryAppendOnly(currentPlanner.orElseThrow().snapshot(), snapshot);
             long nextRevision = repository.nextRevision(userId);
             planId = planHistory.activePlanId(userId)
                     .orElseGet(() -> planHistory.ensureActive(userId, snapshot, nextRevision));
@@ -175,6 +178,7 @@ public class PlannerService {
         repository.lockUser(userId);
         PlannerEnvelope current = repository.find(userId).orElseThrow(PlannerException::notFound);
         PlannerSnapshot updated = validator.validateAndCanonicalize(updater.apply(current.snapshot()));
+        validator.ensureMetricHistoryAppendOnly(current.snapshot(), updated);
         if (updated.equals(current.snapshot())) return current;
 
         UUID planId = planHistory.activePlanId(userId)

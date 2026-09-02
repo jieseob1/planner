@@ -60,8 +60,23 @@ public record PlannerSnapshot(
             @Min(0) @Max(1_439) int startMinutes,
             @Positive @Max(1_440) int durationMinutes,
             Boolean external,
-            @Min(-520) @Max(520) Integer weekOffset
+            @Min(-520) @Max(520) Integer weekOffset,
+            @JsonInclude(JsonInclude.Include.NON_NULL) LocalDate date
     ) {
+        /** Legacy constructor for snapshots persisted before absolute block dates were introduced. */
+        public TimeBlock(
+                String id,
+                String taskId,
+                String title,
+                DayKey day,
+                int startMinutes,
+                int durationMinutes,
+                Boolean external,
+                Integer weekOffset
+        ) {
+            this(id, taskId, title, day, startMinutes, durationMinutes, external, weekOffset, null);
+        }
+
         public boolean externalOrFalse() {
             return Boolean.TRUE.equals(external);
         }
@@ -91,6 +106,9 @@ public record PlannerSnapshot(
             @NotBlank @Size(max = 40) String unit,
             @NotNull Confidence confidence,
             @Min(0) @Max(100_000) Integer lastUpdatedDays,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Instant metricUpdatedAt,
+            @JsonInclude(JsonInclude.Include.NON_NULL) LocalDate nextCheckDate,
+            @Size(max = 10_000) List<@Valid @NotNull MetricHistoryEntry> metricHistory,
             @NotNull @DecimalMin("0") @DecimalMax("1000000") @Digits(integer = 14, fraction = 6) BigDecimal actualHours,
             @NotNull @DecimalMin("0") @DecimalMax("1000000") @Digits(integer = 14, fraction = 6) BigDecimal neededHours,
             @NotNull @DecimalMin("0") @DecimalMax("1000000") @Digits(integer = 14, fraction = 6) BigDecimal availableHours,
@@ -98,6 +116,40 @@ public record PlannerSnapshot(
             @NotBlank @Size(max = 500) String changeLabel,
             @NotNull Attention attention,
             @JsonInclude(JsonInclude.Include.NON_NULL) Decision decision
+    ) {
+        /** Source-compatible constructor for snapshots created before metric history was introduced. */
+        public Outcome(
+                String id,
+                String title,
+                String parentTitle,
+                BigDecimal current,
+                BigDecimal target,
+                String unit,
+                Confidence confidence,
+                Integer lastUpdatedDays,
+                BigDecimal actualHours,
+                BigDecimal neededHours,
+                BigDecimal availableHours,
+                String evidenceLabel,
+                String changeLabel,
+                Attention attention,
+                Decision decision
+        ) {
+            this(id, title, parentTitle, current, target, unit, confidence, lastUpdatedDays,
+                    null, null, List.of(), actualHours, neededHours, availableHours,
+                    evidenceLabel, changeLabel, attention, decision);
+        }
+
+        public List<MetricHistoryEntry> metricHistoryOrEmpty() {
+            return metricHistory == null ? List.of() : metricHistory;
+        }
+    }
+
+    public record MetricHistoryEntry(
+            @NotBlank @Size(max = 160) String id,
+            @DecimalMin("0") @DecimalMax("1000000000") @Digits(integer = 14, fraction = 6) BigDecimal value,
+            @NotNull Instant observedAt,
+            @NotBlank @Size(max = 500) String evidence
     ) {
     }
 

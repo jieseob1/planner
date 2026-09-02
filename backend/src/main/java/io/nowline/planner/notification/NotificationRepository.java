@@ -28,6 +28,7 @@ public class NotificationRepository {
                     device_id, user_id, platform, subscription_cipher, label
                 ) VALUES (?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
+                    user_id = VALUES(user_id),
                     platform = VALUES(platform),
                     subscription_cipher = VALUES(subscription_cipher),
                     label = VALUES(label),

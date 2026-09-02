@@ -1,15 +1,8 @@
 import type { DayKey, Outcome, PlanContext, PlannerSnapshot, Task, TimeBlock } from '../domain/types';
-import { getToday, weekDayMeta } from '../lib/calendarDate';
+import { getDateForDay, getToday, getWeekDays, weekDayMeta } from '../lib/calendarDate';
 
-export const weekDays: Array<{ key: DayKey; short: string; date: string }> = [
-  { key: 'mon', short: '월', date: '31' },
-  { key: 'tue', short: '화', date: '1' },
-  { key: 'wed', short: '수', date: '2' },
-  { key: 'thu', short: '목', date: '3' },
-  { key: 'fri', short: '금', date: '4' },
-  { key: 'sat', short: '토', date: '5' },
-  { key: 'sun', short: '일', date: '6' }
-];
+export const weekDays: Array<{ key: DayKey; short: string; date: string }> = getWeekDays(0)
+  .map(({ key, short, date }) => ({ key, short, date }));
 
 const demoToday = getToday();
 const demoTomorrow = weekDayMeta[(demoToday.index + 1) % 7].key;
@@ -32,10 +25,16 @@ export const demoOutcomes: Outcome[] = [
     unit: '편',
     confidence: 'medium',
     lastUpdatedDays: 3,
+    metricUpdatedAt: '2026-08-30T03:00:00.000Z',
+    nextCheckDate: '2026-09-04',
+    metricHistory: [
+      { id: 'metric-writing-1', value: 1, observedAt: '2026-08-23T03:00:00.000Z', evidence: '게시 URL 1건 확인' },
+      { id: 'metric-writing-2', value: 2, observedAt: '2026-08-30T03:00:00.000Z', evidence: '게시 URL 2건 확인' }
+    ],
     actualHours: 18,
     neededHours: 6,
     availableHours: 12,
-    evidenceLabel: '3일 전 갱신',
+    evidenceLabel: '게시 URL 2건 확인',
     changeLabel: '지난 갱신 대비 변화 없음',
     attention: 'stalled'
   },
@@ -48,10 +47,16 @@ export const demoOutcomes: Outcome[] = [
     unit: '단계',
     confidence: 'low',
     lastUpdatedDays: 9,
+    metricUpdatedAt: '2026-08-24T03:00:00.000Z',
+    nextCheckDate: '2026-09-01',
+    metricHistory: [
+      { id: 'metric-redis-1', value: 1, observedAt: '2026-08-17T03:00:00.000Z', evidence: '로컬 소비자 테스트 통과' },
+      { id: 'metric-redis-2', value: 2, observedAt: '2026-08-24T03:00:00.000Z', evidence: '스테이징 배포 로그 확인' }
+    ],
     actualHours: 6,
     neededHours: 22,
     availableHours: 9,
-    evidenceLabel: '갱신 지연 9일',
+    evidenceLabel: '스테이징 배포 로그 확인',
     changeLabel: '지난 갱신 대비 +1단계',
     attention: 'time-shortage'
   },
@@ -63,11 +68,14 @@ export const demoOutcomes: Outcome[] = [
     target: 80,
     unit: '만원',
     confidence: 'unknown',
-    lastUpdatedDays: 12,
+    lastUpdatedDays: null,
+    metricUpdatedAt: null,
+    nextCheckDate: '2026-09-03',
+    metricHistory: [],
     actualHours: 4,
     neededHours: 4,
     availableHours: 9,
-    evidenceLabel: '갱신 지연 12일',
+    evidenceLabel: '근거 없음',
     changeLabel: '현재 미확인',
     attention: 'stale'
   },
@@ -79,7 +87,10 @@ export const demoOutcomes: Outcome[] = [
     target: 5,
     unit: '회',
     confidence: 'low',
-    lastUpdatedDays: 61,
+    lastUpdatedDays: null,
+    metricUpdatedAt: null,
+    nextCheckDate: null,
+    metricHistory: [],
     actualHours: 0,
     neededHours: 8,
     availableHours: 0,
@@ -155,6 +166,7 @@ export const demoTimeBlocks: TimeBlock[] = [
     startMinutes: 600,
     durationMinutes: 60,
     external: true,
+    date: getDateForDay(demoToday.key, 0),
     weekOffset: 0
   },
   {
@@ -165,6 +177,7 @@ export const demoTimeBlocks: TimeBlock[] = [
     startMinutes: 840,
     durationMinutes: 60,
     external: true,
+    date: getDateForDay(demoToday.key, 0),
     weekOffset: 0
   },
   {
@@ -174,6 +187,7 @@ export const demoTimeBlocks: TimeBlock[] = [
     day: demoToday.key,
     startMinutes: 1170,
     durationMinutes: 90,
+    date: getDateForDay(demoToday.key, 0),
     weekOffset: 0
   },
   {
@@ -183,6 +197,7 @@ export const demoTimeBlocks: TimeBlock[] = [
     day: demoTomorrow,
     startMinutes: 1170,
     durationMinutes: 90,
+    date: getDateForDay(demoTomorrow, demoToday.index === 6 ? 1 : 0),
     weekOffset: demoToday.index === 6 ? 1 : 0
   }
 ];

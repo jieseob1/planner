@@ -22,10 +22,13 @@ import type { DayKey, Task, TimeBlock } from '../domain/types';
 import { formatClock, formatMinutes } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
-import { getToday, getWeekDays } from '../lib/calendarDate';
+import { getToday, getWeekDays, toLocalDate } from '../lib/calendarDate';
+import { useTimeZone } from '../timezone/TimeZoneProvider';
 
 const defaultPlacementStart = 1020;
 const estimateOptions = [15, 25, 40, 60, 90, 120];
+
+export const isActualToday = (date: string, today = toLocalDate()) => date === today;
 
 interface PlannerBlockDraft {
   blockId?: string;
@@ -35,10 +38,11 @@ interface PlannerBlockDraft {
   startMinutes: number;
   durationMinutes: number;
   mode?: TimeBlockMode;
+  /** True only when Review explicitly sent this task through the carryover path. */
+  explicitCarryover?: boolean;
 }
 
-function getWeekLabel(weekOffset: number) {
-  const days = getWeekDays(weekOffset);
+function getWeekLabel(days: ReturnType<typeof getWeekDays>) {
   const first = days[0];
   const last = days[days.length - 1];
   const start = `${first.month}월 ${first.date}일`;
@@ -54,6 +58,7 @@ function getSplitEstimate(durationMinutes: number) {
 }
 
 export function PlannerScreen() {
+  const { timeZone } = useTimeZone();
   const {
     tasks,
     outcomes,
@@ -63,7 +68,6 @@ export function PlannerScreen() {
     addTask,
     updateTask,
     removeTask,
-    scheduleTask,
     saveTimeBlock,
     removeTimeBlock,
     setPlannerWeekOffset
@@ -83,11 +87,20 @@ export function PlannerScreen() {
   const queryAction = searchParams.get('action');
   const queryTaskId = searchParams.get('task');
 
-  const weekDays = useMemo(() => getWeekDays(plannerWeekOffset), [plannerWeekOffset]);
-  const weekBlocks = useMemo(
-    () => timeBlocks.filter((block) => (block.weekOffset ?? 0) === plannerWeekOffset),
-    [plannerWeekOffset, timeBlocks]
+  const weekDays = useMemo(
+    () => getWeekDays(plannerWeekOffset, new Date(), timeZone),
+    [plannerWeekOffset, timeZone]
   );
+  const weekDateSet = useMemo(() => new Set(weekDays.map((day) => day.isoDate)), [weekDays]);
+  const weekBlocks = useMemo(
+    () => timeBlocks.filter((block) => weekDateSet.has(block.date)),
+    [timeBlocks, weekDateSet]
+  );
+  const comparableWeekBlocks = useMemo(
+    () => weekBlocks.map((block) => ({ ...block, weekOffset: plannerWeekOffset })),
+    [plannerWeekOffset, weekBlocks]
+  );
+  const actualToday = toLocalDate(new Date(), timeZone);
 
   const unscheduled = useMemo(() => {
     const items = tasks.filter((task) => (
@@ -173,9 +186,10 @@ export function PlannerScreen() {
 
   const openPlacement = (
     task: Task | null = null,
-    day: DayKey = getToday().key,
+    day: DayKey = getToday(new Date(), timeZone).key,
     startMinutes = defaultPlacementStart,
-    mode?: TimeBlockMode
+    mode?: TimeBlockMode,
+    explicitCarryover = false
   ) => {
     setPlacementDraft({
       taskId: task?.id ?? '',
@@ -183,7 +197,8 @@ export function PlannerScreen() {
       day,
       startMinutes,
       durationMinutes: task?.estimateMinutes ?? 30,
-      mode
+      mode,
+      explicitCarryover
     });
     setPlacementError('');
   };
@@ -230,7 +245,7 @@ export function PlannerScreen() {
     day: DayKey,
     startMinutes: number,
     durationMinutes: number
-  ) => findTimeBlockConflict(weekBlocks, {
+  ) => findTimeBlockConflict(comparableWeekBlocks, {
     day,
     startMinutes,
     durationMinutes,
@@ -244,7 +259,20 @@ export function PlannerScreen() {
       setPlacementError(message);
       return false;
     }
-    const saved = scheduleTask(task.id, day, startMinutes, durationMinutes, plannerWeekOffset);
+    const targetDate = weekDays.find((item) => item.key === day)?.isoDate;
+    const existing = targetDate
+      ? weekBlocks.find((block) => block.taskId === task.id && block.date === targetDate && !block.external)
+      : undefined;
+    const saved = Boolean(targetDate) && saveTimeBlock({
+      id: existing?.id,
+      taskId: task.id,
+      title: task.title,
+      day,
+      startMinutes,
+      durationMinutes,
+      date: targetDate,
+      weekOffset: plannerWeekOffset
+    });
     if (saved === false) {
       setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시작 시간을 바꿔주세요.');
       return false;
@@ -279,7 +307,7 @@ export function PlannerScreen() {
   };
 
   const saveBlockDraft = (value: TimeBlockEditorValue) => {
-    const conflict = findTimeBlockConflict(weekBlocks, {
+    const conflict = findTimeBlockConflict(comparableWeekBlocks, {
       day: value.day,
       startMinutes: value.startMinutes,
       durationMinutes: value.durationMinutes,
@@ -310,7 +338,9 @@ export function PlannerScreen() {
       day: value.day,
       startMinutes: value.startMinutes,
       durationMinutes: value.durationMinutes,
-      weekOffset: plannerWeekOffset
+      date: weekDays.find((day) => day.key === value.day)?.isoDate,
+      weekOffset: plannerWeekOffset,
+      incrementCarryCount: placementDraft?.explicitCarryover === true
     })) {
       setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시간을 바꿔주세요.');
       return;
@@ -338,7 +368,7 @@ export function PlannerScreen() {
       setAddOpen(true);
     }
     if (queryAction === 'reschedule') {
-      openPlacement(task, 'mon', defaultPlacementStart, 'existing-task');
+      openPlacement(task, 'mon', defaultPlacementStart, 'existing-task', true);
     }
     setSearchParams({}, { replace: true });
   }, [queryAction, queryTaskId, setSearchParams, tasks]);
@@ -356,7 +386,7 @@ export function PlannerScreen() {
     <div className="page page--planner planner-nowline">
       <header className="page-header page-header--compact planner-header">
         <div>
-          <p className="eyebrow" aria-live="polite">주간 Planner · {getWeekLabel(plannerWeekOffset)}</p>
+          <p className="eyebrow" aria-live="polite">주간 Planner · {getWeekLabel(weekDays)}</p>
           <h1>이번 주 할 일과 일정을 함께 봅니다.</h1>
           <p className="page-header__description">목표 연결은 선택입니다. 할 일만 적거나 일정만 만들어도 바로 저장됩니다.</p>
         </div>
@@ -420,13 +450,12 @@ export function PlannerScreen() {
           >
             이월 {carryoverCount}
           </button>
-          <button
+          <Link
             className="button button--primary button--small"
-            type="button"
-            onClick={() => showNotice('이번 주 계획을 확인했어요. Today에서 첫 실행을 시작하세요.')}
+            to="/today"
           >
-            <Check size={15} /> 계획 확정
-          </button>
+            <Check size={15} /> 오늘 실행 보기
+          </Link>
         </div>
       </section>
 
@@ -516,7 +545,7 @@ export function PlannerScreen() {
                 {weekDays.map((day) => (
                   <div
                     key={day.key}
-                    className={clsx('outcome-grid__day-header', plannerWeekOffset === 0 && day.key === 'mon' && 'is-today')}
+                    className={clsx('outcome-grid__day-header', isActualToday(day.isoDate, actualToday) && 'is-today')}
                     role="columnheader"
                   >
                     <span>{day.short}요일</span>
@@ -584,7 +613,7 @@ export function PlannerScreen() {
                         return (taskById.get(block.taskId)?.outcomeId ?? 'inbox') === lane.id;
                       });
                       return (
-                        <div key={day.key} className={clsx('outcome-day-cell', plannerWeekOffset === 0 && day.key === 'mon' && 'is-today')} role="cell">
+                        <div key={day.key} className={clsx('outcome-day-cell', isActualToday(day.isoDate, actualToday) && 'is-today')} role="cell">
                           {blocks.map((block) => (
                             <button
                               key={block.id}

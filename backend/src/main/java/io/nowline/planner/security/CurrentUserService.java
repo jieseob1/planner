@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.UUID;
 
 import static io.nowline.planner.persistence.JdbcValues.id;
@@ -51,6 +52,7 @@ public class CurrentUserService {
             throw new IllegalArgumentException("Authenticated token has no usable subject");
         }
         UUID userId = stableUserId(issuer, subject);
+        lockDeletionState(userId, jwt);
         jdbc.sql("""
                         INSERT INTO app_user (
                             user_id, oidc_issuer, oidc_subject, email, display_name, last_seen_at
@@ -78,6 +80,46 @@ public class CurrentUserService {
                 .single();
         entitlements.ensureBetaEntitlement(resolvedUserId);
         return resolvedUserId;
+    }
+
+    private void lockDeletionState(UUID userId, Jwt jwt) {
+        jdbc.sql("""
+                        INSERT INTO deleted_identity_tombstone (user_id, deleted_at)
+                        VALUES (:userId, NULL) AS identity_guard
+                        ON DUPLICATE KEY UPDATE user_id = identity_guard.user_id
+                        """)
+                .param("userId", id(userId))
+                .update();
+
+        DeletionState state = jdbc.sql("""
+                        SELECT deleted_at,
+                               CAST(UNIX_TIMESTAMP(deleted_at) * 1000 AS SIGNED) AS deleted_epoch_millis
+                        FROM deleted_identity_tombstone
+                        WHERE user_id = :userId
+                        """)
+                .param("userId", id(userId))
+                .query((rs, row) -> {
+                    Long deletedEpochMillis = rs.getObject("deleted_epoch_millis", Long.class);
+                    return new DeletionState(deletedEpochMillis == null
+                            ? null
+                            : Instant.ofEpochMilli(deletedEpochMillis));
+                })
+                .single();
+        if (state.deletedAt() != null && !isAuthenticatedAfterDeletion(jwt, state.deletedAt())) {
+            throw io.nowline.planner.service.PlannerException.deletedAccountSession();
+        }
+    }
+
+    private boolean isAuthenticatedAfterDeletion(Jwt jwt, Instant deletedAt) {
+        Instant authenticationTime = jwt.getClaimAsInstant("auth_time");
+        Instant issuedAt = jwt.getIssuedAt();
+        Instant latestAcceptedTimestamp = Instant.now().plusSeconds(30);
+        return authenticationTime != null
+                && issuedAt != null
+                && authenticationTime.isAfter(deletedAt)
+                && issuedAt.isAfter(deletedAt)
+                && !authenticationTime.isAfter(latestAcceptedTimestamp)
+                && !issuedAt.isAfter(latestAcceptedTimestamp);
     }
 
     @Transactional(readOnly = true)
@@ -113,6 +155,8 @@ public class CurrentUserService {
     }
 
     public record ConsentStatus(boolean accepted, String policyVersion) {}
+
+    private record DeletionState(Instant deletedAt) {}
 
     private String issuer(Jwt jwt) {
         var issuer = jwt.getIssuer();

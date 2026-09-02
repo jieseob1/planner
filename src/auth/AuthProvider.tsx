@@ -14,6 +14,7 @@ import { Capacitor } from '@capacitor/core';
 import { setAccessTokenProvider } from './accessToken';
 import { NativeOidcNavigator } from './NativeOidcNavigator';
 import { SecureStateStore } from './SecureStateStore';
+import { cleanupNotificationRegistration } from './notificationRegistration';
 import { FocusAlert } from '../components/FocusAlert';
 
 type AuthStatus = 'loading' | 'consent' | 'authenticated' | 'anonymous' | 'error';
@@ -21,7 +22,10 @@ type AuthStatus = 'loading' | 'consent' | 'authenticated' | 'anonymous' | 'error
 interface AuthContextValue {
   status: AuthStatus;
   user: User | null;
+  /** Stable, provider-qualified identity used to isolate browser-local account data. */
+  subject: string | null;
   login: () => Promise<void>;
+  reauthenticate: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -96,6 +100,50 @@ const clearLocalToken = () => {
   window.sessionStorage.removeItem(LOCAL_TOKEN_EXPIRY_KEY);
 };
 
+const tokenSubject = (token: string): string | null => {
+  try {
+    const encoded = token.split('.')[1];
+    if (!encoded) return null;
+    const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const bytes = Uint8Array.from(window.atob(padded), (character) => character.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    return payload && typeof payload === 'object' && typeof (payload as { sub?: unknown }).sub === 'string'
+      ? (payload as { sub: string }).sub
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const localStorageSubject = (token: string) => `local:${tokenSubject(token) ?? 'development-user'}`;
+
+const oidcStorageSubject = (value: User) => {
+  const issuer = typeof value.profile.iss === 'string'
+    ? value.profile.iss
+    : import.meta.env.VITE_OIDC_AUTHORITY?.trim() || 'configured-provider';
+  return `oidc:${issuer}:${value.profile.sub}`;
+};
+
+export const freshOidcSigninRequest = (returnTo: string) => ({
+  state: { returnTo, interaction: 'reauthenticate' },
+  max_age: 0,
+  prompt: 'login'
+});
+
+const oidcReturnTo = (value: User, fallback = '/today') => {
+  const state = value.state && typeof value.state === 'object'
+    ? value.state as { returnTo?: unknown; interaction?: unknown }
+    : null;
+  const candidate = state?.returnTo;
+  return state?.interaction === 'reauthenticate'
+    && typeof candidate === 'string'
+    && candidate.startsWith('/')
+    && !candidate.startsWith('//')
+    ? candidate
+    : fallback;
+};
+
 const localToken = async (forceRefresh = false): Promise<string> => {
   if (!forceRefresh) {
     const cached = window.sessionStorage.getItem(LOCAL_TOKEN_KEY);
@@ -138,6 +186,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const manager = oidc?.manager ?? null;
   const [status, setStatus] = useState<AuthStatus>(isTest ? 'authenticated' : 'loading');
   const [user, setUser] = useState<User | null>(null);
+  const [subject, setSubject] = useState<string | null>(isTest ? 'test:test-user' : null);
   const [message, setMessage] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -155,6 +204,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (authMode() === 'local') {
           const token = await localToken();
           if (!active) return;
+          setSubject(localStorageSubject(token));
           setAccessTokenProvider(async () => localToken());
           setStatus(await consentStatus(token) ? 'authenticated' : 'consent');
           return;
@@ -165,7 +215,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         let authenticatedUser: User | null;
         if (window.location.pathname === '/auth/callback') {
           authenticatedUser = await manager.signinRedirectCallback(window.location.href);
-          window.history.replaceState({}, '', '/today');
+          window.history.replaceState({}, '', oidcReturnTo(authenticatedUser));
         } else if (window.location.pathname === '/auth/silent-callback') {
           await manager.signinSilentCallback(window.location.href);
           return;
@@ -175,12 +225,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (!active) return;
         if (authenticatedUser && !authenticatedUser.expired) {
           setUser(authenticatedUser);
+          setSubject(oidcStorageSubject(authenticatedUser));
           setAccessTokenProvider(async () => {
             const current = await manager.getUser();
             return current && !current.expired ? current.access_token : null;
           });
           setStatus(await consentStatus(authenticatedUser.access_token) ? 'authenticated' : 'consent');
         } else {
+          setSubject(null);
           setAccessTokenProvider(async () => null);
           setStatus('anonymous');
         }
@@ -195,6 +247,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (manager) {
       const onLoaded = (nextUser: User) => {
         setUser(nextUser);
+        setSubject(oidcStorageSubject(nextUser));
         setAccessTokenProvider(async () => nextUser.access_token);
         void consentStatus(nextUser.access_token)
           .then((accepted) => setStatus(accepted ? 'authenticated' : 'consent'))
@@ -205,6 +258,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       };
       const onUnloaded = () => {
         setUser(null);
+        setSubject(null);
         setAccessTokenProvider(async () => null);
         setStatus('anonymous');
       };
@@ -222,6 +276,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const login = useCallback(async () => {
     if (authMode() === 'local') {
       const token = await localToken();
+      setSubject(localStorageSubject(token));
       setAccessTokenProvider(async () => localToken());
       setStatus(await consentStatus(token) ? 'authenticated' : 'consent');
       return;
@@ -230,15 +285,50 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await manager.signinRedirect({ state: { returnTo: window.location.pathname }, max_age: 900 });
     if (oidc?.nativeNavigator) {
       const authenticatedUser = await manager.signinRedirectCallback(oidc.nativeNavigator.consumeCallbackUrl());
+      window.history.replaceState({}, '', oidcReturnTo(authenticatedUser, window.location.pathname));
       setUser(authenticatedUser);
+      setSubject(oidcStorageSubject(authenticatedUser));
+      setAccessTokenProvider(async () => authenticatedUser.access_token);
+      setStatus(await consentStatus(authenticatedUser.access_token) ? 'authenticated' : 'consent');
+    }
+  }, [manager, oidc]);
+
+  const reauthenticate = useCallback(async () => {
+    if (authMode() === 'local') {
+      const token = await localToken(true);
+      setSubject(localStorageSubject(token));
+      setAccessTokenProvider(async () => localToken());
+      setStatus(await consentStatus(token) ? 'authenticated' : 'consent');
+      return;
+    }
+    if (!manager) throw new Error('로그인 공급자 설정을 확인해 주세요.');
+    await manager.signinRedirect(freshOidcSigninRequest(window.location.pathname));
+    if (oidc?.nativeNavigator) {
+      const authenticatedUser = await manager.signinRedirectCallback(oidc.nativeNavigator.consumeCallbackUrl());
+      window.history.replaceState({}, '', oidcReturnTo(authenticatedUser, window.location.pathname));
+      setUser(authenticatedUser);
+      setSubject(oidcStorageSubject(authenticatedUser));
       setAccessTokenProvider(async () => authenticatedUser.access_token);
       setStatus(await consentStatus(authenticatedUser.access_token) ? 'authenticated' : 'consent');
     }
   }, [manager, oidc]);
 
   const logout = useCallback(async () => {
+    try {
+      const cleanup = await cleanupNotificationRegistration(subject);
+      if (cleanup.errors.length > 0) {
+        // Logout must continue even while offline. The subject-scoped identifier
+        // has already been removed so a later account cannot reuse it.
+        console.warn('Notification cleanup was incomplete during logout.', cleanup.errors);
+      }
+    } catch (reason) {
+      // Browser storage or a native bridge can itself be unavailable. That must
+      // not prevent credentials from being cleared or the IdP logout redirect.
+      console.warn('Notification cleanup could not start during logout.', reason);
+    }
     if (authMode() === 'local') {
       clearLocalToken();
+      setSubject(null);
       setAccessTokenProvider(async () => null);
       setStatus('anonymous');
       return;
@@ -248,13 +338,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (oidc?.nativeNavigator) {
         await manager.signoutRedirectCallback(oidc.nativeNavigator.consumeCallbackUrl());
         setUser(null);
+        setSubject(null);
         setAccessTokenProvider(async () => null);
         setStatus('anonymous');
       }
     }
-  }, [manager, oidc]);
+  }, [manager, oidc, subject]);
 
-  const value = useMemo<AuthContextValue>(() => ({ status, user, login, logout }), [login, logout, status, user]);
+  const value = useMemo<AuthContextValue>(
+    () => ({ status, user, subject, login, reauthenticate, logout }),
+    [login, logout, reauthenticate, status, subject, user]
+  );
 
   const acceptPolicies = async () => {
     if (!termsAccepted || !privacyAccepted) return;

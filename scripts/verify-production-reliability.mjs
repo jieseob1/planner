@@ -118,7 +118,8 @@ const snapshot = {
     day: 'mon',
     startMinutes: 600,
     durationMinutes: 30,
-    weekOffset: 0
+    weekOffset: 0,
+    date: '2026-09-07'
   }],
   timeEntries: [],
   outcomes: [{
@@ -130,6 +131,14 @@ const snapshot = {
     unit: '회',
     confidence: 'high',
     lastUpdatedDays: 0,
+    metricUpdatedAt: '2026-09-02T00:00:00.000Z',
+    nextCheckDate: '2026-09-09',
+    metricHistory: [{
+      id: 'metric-reliability-initial',
+      value: 0,
+      observedAt: '2026-09-02T00:00:00.000Z',
+      evidence: '검증 시작'
+    }],
     actualHours: 0,
     neededHours: 0.5,
     availableHours: 2,
@@ -266,10 +275,23 @@ try {
     body: JSON.stringify(snapshot)
   }), 201, 'planner create through backend A');
   const initialEtag = createResponse.headers.get('etag');
-  if (!initialEtag) fail('planner create did not return an ETag');
-  await expectStatus(await fetch(`${backendUrls[1]}/api/v1/planner`, {
+  if (!initialEtag || !/^"planner-[0-9a-f]{32}-1"$/.test(initialEtag)) {
+    fail(`planner create did not return a subject-aware ETag: ${initialEtag}`);
+  }
+  const createdPlanner = await createResponse.json();
+  if (createdPlanner.snapshot.timeBlocks[0].date !== '2026-09-07') {
+    fail('planner create did not round-trip the absolute block date');
+  }
+  const crossInstanceRead = await expectStatus(await fetch(`${backendUrls[1]}/api/v1/planner`, {
     headers: apiHeaders(userAToken)
   }), 200, 'cross-instance read through backend B');
+  if (crossInstanceRead.headers.get('etag') !== initialEtag) {
+    fail('cross-instance read returned a different subject ETag');
+  }
+  const crossInstancePlanner = await crossInstanceRead.json();
+  if (crossInstancePlanner.snapshot.timeBlocks[0].date !== '2026-09-07') {
+    fail('cross-instance read lost the absolute block date');
+  }
   await expectStatus(await fetch(`${backendUrls[0]}/api/v1/planner`, {
     headers: apiHeaders(userBToken)
   }), 404, 'tenant isolation');
@@ -426,6 +448,18 @@ try {
   }
   if (fakeGoogle.stats.maxConcurrentRequests > 4) {
     fail(`Google integration request concurrency exceeded 4: ${fakeGoogle.stats.maxConcurrentRequests}`);
+  }
+  const storedBlockDate = databaseQuery(
+    `SELECT DATE_FORMAT(block_date, '%Y-%m-%d') FROM planner_time_block WHERE user_id = '${userId}' AND block_id = 'block-reliability'`
+  );
+  if (storedBlockDate !== '2026-09-07') {
+    fail(`MySQL did not preserve the absolute block date: ${storedBlockDate}`);
+  }
+  const exportedStart = databaseQuery(
+    `SELECT DATE_FORMAT(start_at, '%Y-%m-%dT%H:%i:%sZ') FROM google_calendar_event_link WHERE user_id = '${userId}' AND origin = 'NOWLINE' AND nowline_block_id = 'block-reliability' ORDER BY updated_at DESC LIMIT 1`
+  );
+  if (exportedStart !== '2026-09-07T01:00:00Z') {
+    fail(`Google export ignored the stored Asia/Seoul date: ${exportedStart}`);
   }
 
   console.log(JSON.stringify({

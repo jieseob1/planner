@@ -42,8 +42,13 @@ const requireText = (file, values) => {
   'scripts/verify-production-e2e.mjs',
   'scripts/verify-production-reliability.mjs',
   'scripts/verify-mysql-contract.mjs',
-  'scripts/verify-secrets.mjs'
+  'scripts/verify-secrets.mjs',
+  'nginx.conf'
 ].forEach(requireFile);
+
+requireText('nginx.conf', [
+  'location /api/', 'gzip off;', 'proxy_pass http://nowline_api'
+]);
 
 requireText('src/auth/AuthProvider.tsx', [
   "response_type: 'code'", 'SecureStateStore', 'NativeOidcNavigator', 'max_age: 900', '/api/v1/account/consent'

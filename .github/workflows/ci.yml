@@ -64,3 +64,4 @@ jobs:
           cache: maven
       - run: npm ci
       - run: npm run verify:e2e
+      - run: npm run verify:production:e2e

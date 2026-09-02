@@ -20,6 +20,9 @@ import type {
   DayKey,
   OnboardingPayload,
   Outcome,
+  OutcomeInput,
+  OutcomeMetricHistoryEntry,
+  LinkedTaskDisposition,
   PlanContext,
   PlannerSnapshot,
   SaveTimeBlockInput,
@@ -30,12 +33,22 @@ import type {
   TimerSession,
   UpdateTaskInput
 } from '../domain/types';
+import { useAuth } from '../auth/AuthProvider';
+import {
+  getDateForDay,
+  getDayKeyForDate,
+  getMinuteOfDay,
+  getWeekOffsetForDate,
+  isLocalDate,
+  toLocalDate
+} from '../lib/calendarDate';
 import { findTimeBlockConflict, isValidTimeBlockSlot, normalizeWeekOffset } from '../lib/timeBlocks';
+import { useTimeZone } from '../timezone/TimeZoneProvider';
 
-const STORAGE_KEY = 'planner.mvp.snapshot.v1';
-const SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
-const CONFLICT_BACKUP_KEY = 'planner.mvp.last-conflict.v1';
-const ACTIVE_PLAN_ABSENT_KEY = 'nowline.active-plan.absent.v1';
+const LEGACY_STORAGE_KEY = 'planner.mvp.snapshot.v1';
+const LEGACY_SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
+const LEGACY_CONFLICT_BACKUP_KEY = 'planner.mvp.last-conflict.v1';
+const LEGACY_ACTIVE_PLAN_ABSENT_KEY = 'nowline.active-plan.absent.v1';
 const SERVER_SYNC_DELAY_MS = 350;
 const toApiDecimal = (value: number) => Number(value.toFixed(6));
 
@@ -77,6 +90,11 @@ export interface PlannerContextValue extends PlannerSnapshot {
   updateTask: (taskId: string, input: UpdateTaskInput) => boolean;
   removeTask: (taskId: string) => boolean;
   savePlan: (input: SavePlanInput) => void;
+  updatePlan: (plan: PlanContext) => boolean;
+  addOutcome: (input: OutcomeInput) => string;
+  updateOutcome: (outcomeId: string, input: OutcomeInput) => boolean;
+  stopOutcome: (outcomeId: string, disposition: LinkedTaskDisposition) => boolean;
+  removeOutcome: (outcomeId: string, disposition: LinkedTaskDisposition) => boolean;
   setPlannerWeekOffset: (offset: number) => void;
   scheduleTask: (
     taskId: string,
@@ -93,7 +111,7 @@ export interface PlannerContextValue extends PlannerSnapshot {
   addManualTime: (taskId: string, minutes: number) => string;
   removeTimeEntry: (entryId: string) => void;
   setOutcomeDecision: (outcomeId: string, decision: Outcome['decision']) => void;
-  updateOutcomeMetric: (outcomeId: string, current: number) => void;
+  updateOutcomeMetric: (outcomeId: string, current: number, evidence: string) => boolean;
   updateReview: (patch: Partial<PlannerSnapshot['review']>) => void;
   completeReview: () => void;
   finishOnboarding: (payload: OnboardingPayload) => void;
@@ -113,16 +131,24 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 );
 
-interface SyncMetadata {
+export interface SyncMetadata {
   revision: number;
   etag: string;
   acknowledgedSnapshot: string;
 }
 
-interface InitialPlannerState {
+export interface PlannerStorageKeys {
+  snapshot: string;
+  syncMetadata: string;
+  conflictBackup: string;
+  activePlanAbsent: string;
+}
+
+export interface InitialPlannerState {
   snapshot: PlannerSnapshot;
   hasStoredSnapshot: boolean;
   metadata: SyncMetadata | null;
+  activePlanAbsent: boolean;
 }
 
 interface PendingWrite {
@@ -174,19 +200,148 @@ const normalizeReview = (
   };
 };
 
+const isDayKey = (value: unknown): value is DayKey => (
+  typeof value === 'string' && ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].includes(value)
+);
+
+export const deriveOutcomeActualHours = (
+  outcomes: Outcome[],
+  tasks: Task[],
+  timeEntries: TimeEntry[]
+): Outcome[] => {
+  const outcomeByTask = new Map(tasks.map((task) => [task.id, task.outcomeId]));
+  const secondsByOutcome = new Map<string, number>();
+  for (const entry of timeEntries) {
+    const outcomeId = outcomeByTask.get(entry.taskId);
+    if (!outcomeId || !Number.isFinite(entry.durationSeconds) || entry.durationSeconds <= 0) continue;
+    secondsByOutcome.set(outcomeId, (secondsByOutcome.get(outcomeId) ?? 0) + entry.durationSeconds);
+  }
+  return outcomes.map((outcome) => ({
+    ...outcome,
+    actualHours: toApiDecimal((secondsByOutcome.get(outcome.id) ?? 0) / 3600)
+  }));
+};
+
+const localDayNumber = (value: Date, timeZone?: string) => (
+  Date.parse(`${toLocalDate(value, timeZone)}T00:00:00.000Z`) / (24 * 60 * 60 * 1_000)
+);
+
+export const deriveLastUpdatedDays = (
+  metricUpdatedAt: string | null,
+  now = new Date(),
+  timeZone?: string
+): number | null => {
+  if (!metricUpdatedAt) return null;
+  const updatedAt = new Date(metricUpdatedAt);
+  if (!Number.isFinite(updatedAt.getTime())) return null;
+  return Math.max(0, Math.trunc(
+    localDayNumber(now, timeZone) - localDayNumber(updatedAt, timeZone)
+  ));
+};
+
+export const deriveOutcomeAttention = (
+  outcome: Outcome,
+  now = new Date(),
+  timeZone?: string
+): Outcome['attention'] => {
+  if (
+    !outcome.evidenceLabel.trim()
+    || outcome.evidenceLabel === '근거 입력 전'
+    || outcome.evidenceLabel === '근거 없음'
+  ) return 'no-evidence';
+  if (outcome.current === null) return 'no-evidence';
+  const lastUpdatedDays = deriveLastUpdatedDays(outcome.metricUpdatedAt, now, timeZone);
+  const nextCheckOverdue = Boolean(
+    outcome.nextCheckDate
+    && isLocalDate(outcome.nextCheckDate)
+    && outcome.nextCheckDate < toLocalDate(now, timeZone)
+  );
+  if (lastUpdatedDays === null || lastUpdatedDays >= 7 || nextCheckOverdue) return 'stale';
+  if (outcome.neededHours > outcome.availableHours) return 'time-shortage';
+  if (outcome.actualHours > 0 && outcome.current === 0) return 'stalled';
+  return 'none';
+};
+
+const withDerivedOutcomeMetrics = (
+  snapshot: PlannerSnapshot,
+  now = new Date(),
+  timeZone?: string
+): PlannerSnapshot => {
+  const outcomesWithHours = deriveOutcomeActualHours(snapshot.outcomes, snapshot.tasks, snapshot.timeEntries);
+  return {
+    ...snapshot,
+    outcomes: outcomesWithHours.map((outcome) => ({
+      ...outcome,
+      lastUpdatedDays: deriveLastUpdatedDays(outcome.metricUpdatedAt, now, timeZone),
+      attention: deriveOutcomeAttention(outcome, now, timeZone)
+    }))
+  };
+};
+
+const isInstant = (value: unknown): value is string => (
+  typeof value === 'string' && Number.isFinite(new Date(value).getTime())
+);
+
+const normalizeMetricHistory = (value: unknown): OutcomeMetricHistoryEntry[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).flatMap((entry) => {
+    const metricValue = entry.value;
+    if (
+      typeof entry.id !== 'string'
+      || !entry.id.trim()
+      || (metricValue !== null && (typeof metricValue !== 'number' || !Number.isFinite(metricValue) || metricValue < 0))
+      || !isInstant(entry.observedAt)
+      || typeof entry.evidence !== 'string'
+      || !entry.evidence.trim()
+    ) return [];
+    return [{
+      id: entry.id,
+      value: metricValue === null ? null : toApiDecimal(metricValue),
+      observedAt: entry.observedAt,
+      evidence: entry.evidence.trim()
+    }];
+  });
+};
+
+const normalizeOutcome = (value: unknown): Outcome | null => {
+  if (!isRecord(value)) return null;
+  const metricHistory = normalizeMetricHistory(value.metricHistory);
+  return {
+    ...(value as unknown as Outcome),
+    metricUpdatedAt: isInstant(value.metricUpdatedAt) ? value.metricUpdatedAt : null,
+    nextCheckDate: isLocalDate(value.nextCheckDate) ? value.nextCheckDate : null,
+    metricHistory
+  };
+};
+
 /** Merge missing v1 fields while preserving the user's existing local arrays. */
-export const normalizePlannerSnapshot = (value: unknown): PlannerSnapshot => {
-  const fallback = createEmptySnapshot();
+export const normalizePlannerSnapshot = (
+  value: unknown,
+  now = new Date(),
+  timeZone?: string
+): PlannerSnapshot => {
+  const fallback = createEmptySnapshot(timeZone);
   if (!isRecord(value) || value.version !== 1) return fallback;
 
   const timeBlocks = Array.isArray(value.timeBlocks)
-    ? value.timeBlocks.filter(isRecord).map((block) => ({
-      ...block,
-      weekOffset: normalizeWeekOffset(typeof block.weekOffset === 'number' ? block.weekOffset : undefined)
-    })) as unknown as TimeBlock[]
+    ? value.timeBlocks.filter(isRecord).map((block) => {
+      const legacyDay = isDayKey(block.day) ? block.day : 'mon';
+      const legacyWeekOffset = normalizeWeekOffset(
+        typeof block.weekOffset === 'number' ? block.weekOffset : undefined
+      );
+      const date = isLocalDate(block.date)
+        ? block.date
+        : getDateForDay(legacyDay, legacyWeekOffset, now, timeZone);
+      return {
+        ...block,
+        date,
+        day: getDayKeyForDate(date),
+        weekOffset: getWeekOffsetForDate(date, now, timeZone)
+      };
+    }) as unknown as TimeBlock[]
     : fallback.timeBlocks;
 
-  return {
+  return withDerivedOutcomeMetrics({
     version: 1,
     plan: normalizePlanContext(value.plan, fallback.plan),
     plannerWeekOffset: typeof value.plannerWeekOffset === 'number' && Number.isFinite(value.plannerWeekOffset)
@@ -195,28 +350,67 @@ export const normalizePlannerSnapshot = (value: unknown): PlannerSnapshot => {
     tasks: Array.isArray(value.tasks) ? value.tasks as Task[] : fallback.tasks,
     timeBlocks,
     timeEntries: Array.isArray(value.timeEntries) ? value.timeEntries as TimeEntry[] : fallback.timeEntries,
-    outcomes: Array.isArray(value.outcomes) ? value.outcomes as Outcome[] : fallback.outcomes,
+    outcomes: Array.isArray(value.outcomes)
+      ? value.outcomes.map(normalizeOutcome).filter((outcome): outcome is Outcome => outcome !== null)
+      : fallback.outcomes,
     timer: value.timer === null || isRecord(value.timer)
       ? value.timer as TimerSession | null
       : fallback.timer,
     review: normalizeReview(value.review, fallback.review)
-  };
+  }, now, timeZone);
 };
 
 const serializeSnapshot = (snapshot: PlannerSnapshot) => JSON.stringify(snapshot);
 
-const parseSnapshot = (value: string | null): PlannerSnapshot | null => {
+export const getServerAcknowledgementKey = (snapshot: PlannerSnapshot) => serializeSnapshot(snapshot);
+
+export const needsTimeBlockDateMigration = (snapshot: PlannerSnapshot) => (
+  snapshot.timeBlocks.some((block) => !isLocalDate(block.date))
+);
+
+const parseSnapshot = (value: string | null, now = new Date(), timeZone?: string): PlannerSnapshot | null => {
   if (!value) return null;
   try {
-    return normalizePlannerSnapshot(JSON.parse(value) as unknown);
+    return normalizePlannerSnapshot(JSON.parse(value) as unknown, now, timeZone);
   } catch {
     return null;
   }
 };
 
-const readSyncMetadata = (): SyncMetadata | null => {
+export const getPlannerStorageKeys = (subject: string): PlannerStorageKeys => {
+  const suffix = encodeURIComponent(subject);
+  return {
+    snapshot: `${LEGACY_STORAGE_KEY}:${suffix}`,
+    syncMetadata: `${LEGACY_SYNC_METADATA_KEY}:${suffix}`,
+    conflictBackup: `${LEGACY_CONFLICT_BACKUP_KEY}:${suffix}`,
+    activePlanAbsent: `${LEGACY_ACTIVE_PLAN_ABSENT_KEY}:${suffix}`
+  };
+};
+
+const canAdoptLegacyStorage = (subject: string) => (
+  subject.startsWith('local:') || subject.startsWith('test:')
+);
+
+const migrateLegacyStorage = (keys: PlannerStorageKeys) => {
+  const pairs: Array<[string, string]> = [
+    [LEGACY_STORAGE_KEY, keys.snapshot],
+    [LEGACY_SYNC_METADATA_KEY, keys.syncMetadata],
+    [LEGACY_CONFLICT_BACKUP_KEY, keys.conflictBackup],
+    [LEGACY_ACTIVE_PLAN_ABSENT_KEY, keys.activePlanAbsent]
+  ];
+  for (const [legacyKey, scopedKey] of pairs) {
+    const legacyValue = window.localStorage.getItem(legacyKey);
+    if (legacyValue === null) continue;
+    if (window.localStorage.getItem(scopedKey) === null) {
+      window.localStorage.setItem(scopedKey, legacyValue);
+    }
+    window.localStorage.removeItem(legacyKey);
+  }
+};
+
+const readSyncMetadata = (keys: PlannerStorageKeys): SyncMetadata | null => {
   try {
-    const value = JSON.parse(window.localStorage.getItem(SYNC_METADATA_KEY) ?? 'null') as unknown;
+    const value = JSON.parse(window.localStorage.getItem(keys.syncMetadata) ?? 'null') as unknown;
     if (
       !isRecord(value)
       || typeof value.revision !== 'number'
@@ -235,34 +429,54 @@ const readSyncMetadata = (): SyncMetadata | null => {
   }
 };
 
-const loadInitialPlannerState = (): InitialPlannerState => {
+export const loadInitialPlannerState = (
+  subject: string,
+  allowLegacyMigration = canAdoptLegacyStorage(subject),
+  now = new Date(),
+  timeZone?: string
+): InitialPlannerState => {
   if (typeof window === 'undefined') {
-    return { snapshot: createEmptySnapshot(), hasStoredSnapshot: false, metadata: null };
-  }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
     return {
-      snapshot: raw ? normalizePlannerSnapshot(JSON.parse(raw) as unknown) : createEmptySnapshot(),
+      snapshot: createEmptySnapshot(timeZone),
+      hasStoredSnapshot: false,
+      metadata: null,
+      activePlanAbsent: false
+    };
+  }
+  const keys = getPlannerStorageKeys(subject);
+  try {
+    if (allowLegacyMigration) migrateLegacyStorage(keys);
+    const raw = window.localStorage.getItem(keys.snapshot);
+    return {
+      snapshot: raw
+        ? normalizePlannerSnapshot(JSON.parse(raw) as unknown, now, timeZone)
+        : createEmptySnapshot(timeZone),
       hasStoredSnapshot: raw !== null,
-      metadata: readSyncMetadata()
+      metadata: readSyncMetadata(keys),
+      activePlanAbsent: window.localStorage.getItem(keys.activePlanAbsent) === '1'
     };
   } catch {
-    return { snapshot: createEmptySnapshot(), hasStoredSnapshot: false, metadata: null };
+    return {
+      snapshot: createEmptySnapshot(timeZone),
+      hasStoredSnapshot: false,
+      metadata: null,
+      activePlanAbsent: false
+    };
   }
 };
 
-const writeLocalSnapshot = (snapshot: PlannerSnapshot): boolean => {
+const writeLocalSnapshot = (keys: PlannerStorageKeys, snapshot: PlannerSnapshot): boolean => {
   try {
-    window.localStorage.setItem(STORAGE_KEY, serializeSnapshot(snapshot));
+    window.localStorage.setItem(keys.snapshot, serializeSnapshot(snapshot));
     return true;
   } catch {
     return false;
   }
 };
 
-const writeSyncMetadata = (metadata: SyncMetadata): boolean => {
+const writeSyncMetadata = (keys: PlannerStorageKeys, metadata: SyncMetadata): boolean => {
   try {
-    window.localStorage.setItem(SYNC_METADATA_KEY, JSON.stringify(metadata));
+    window.localStorage.setItem(keys.syncMetadata, JSON.stringify(metadata));
     return true;
   } catch {
     return false;
@@ -297,9 +511,305 @@ const metricChangeLabel = (outcome: Outcome, current: number) => {
   return `지난 갱신 대비 ${delta > 0 ? '+' : ''}${delta}${outcome.unit}`;
 };
 
-export function PlannerProvider({ children }: PropsWithChildren) {
+const isValidPlanContext = (plan: PlanContext) => (
+  Number.isFinite(plan.year)
+  && [1, 2, 3, 4].includes(plan.quarter)
+  && plan.annualDirection.trim().length > 0
+  && plan.quarterFocus.trim().length > 0
+  && plan.quarterEndDate.trim().length > 0
+);
+
+const normalizeOutcomeInput = (input: OutcomeInput): OutcomeInput | null => {
+  const title = input.title.trim();
+  const unit = input.unit.trim();
+  const evidenceLabel = input.evidenceLabel.trim();
+  if (
+    !title
+    || !unit
+    || !evidenceLabel
+    || (input.current !== null && (!Number.isFinite(input.current) || input.current < 0))
+    || !Number.isFinite(input.target)
+    || input.target <= 0
+    || !Number.isFinite(input.neededHours)
+    || input.neededHours < 0
+    || !Number.isFinite(input.availableHours)
+    || input.availableHours < 0
+    || (input.nextCheckDate !== null && !isLocalDate(input.nextCheckDate))
+  ) return null;
+
+  return {
+    ...input,
+    title,
+    unit,
+    evidenceLabel,
+    current: input.current === null ? null : toApiDecimal(input.current),
+    target: toApiDecimal(input.target),
+    neededHours: toApiDecimal(input.neededHours),
+    availableHours: toApiDecimal(input.availableHours),
+    nextCheckDate: input.nextCheckDate
+  };
+};
+
+const metricHistoryEntry = (
+  value: number | null,
+  evidence: string,
+  observedAt = new Date()
+): OutcomeMetricHistoryEntry => ({
+  id: safeId('metric'),
+  value,
+  observedAt: observedAt.toISOString(),
+  evidence: evidence.trim()
+});
+
+export const appendOutcomeMetricHistory = (
+  outcome: Outcome,
+  value: number | null,
+  evidence: string,
+  observedAt = new Date(),
+  timeZone?: string
+): Outcome => {
+  const previousObservedAt = outcome.metricHistory.at(-1)?.observedAt;
+  const previousObservedAtMillis = previousObservedAt ? Date.parse(previousObservedAt) : Number.NaN;
+  const observedAtMillis = observedAt.getTime();
+  const monotonicObservedAt = Number.isFinite(previousObservedAtMillis)
+    && observedAtMillis <= previousObservedAtMillis
+    ? new Date(previousObservedAtMillis + 1)
+    : observedAt;
+  const entry = metricHistoryEntry(value, evidence, monotonicObservedAt);
+  const next = {
+    ...outcome,
+    current: value,
+    metricUpdatedAt: entry.observedAt,
+    metricHistory: [...outcome.metricHistory, entry],
+    evidenceLabel: entry.evidence,
+    changeLabel: value === null ? '현재 미확인' : metricChangeLabel(outcome, value)
+  };
+  return {
+    ...next,
+    lastUpdatedDays: 0,
+    attention: deriveOutcomeAttention(next, monotonicObservedAt, timeZone)
+  };
+};
+
+export const incrementExplicitCarryCount = (
+  tasks: Task[],
+  taskId: string | null,
+  shouldIncrement: boolean
+): Task[] => {
+  if (!shouldIncrement || !taskId) return tasks;
+  return tasks.map((task) => task.id === taskId
+    ? { ...task, carryCount: task.carryCount + 1 }
+    : task);
+};
+
+export const applyOutcomeLifecycle = (
+  snapshot: PlannerSnapshot,
+  outcomeId: string,
+  action: 'stop' | 'remove',
+  disposition: LinkedTaskDisposition,
+  now = new Date(),
+  timeZone?: string
+): PlannerSnapshot => {
+  if (!snapshot.outcomes.some((outcome) => outcome.id === outcomeId)) return snapshot;
+  const cancellableTaskIds = new Set(
+    snapshot.tasks
+      .filter((task) => task.outcomeId === outcomeId && task.status !== 'done')
+      .map((task) => task.id)
+  );
+  const cancelTasks = disposition === 'cancel';
+  const today = toLocalDate(now, timeZone);
+  const currentMinutes = getMinuteOfDay(now, timeZone);
+  const isPastBlock = (block: TimeBlock) => (
+    block.date < today
+    || (block.date === today && block.startMinutes + block.durationMinutes <= currentMinutes)
+  );
+
+  return withDerivedOutcomeMetrics({
+    ...snapshot,
+    outcomes: action === 'remove'
+      ? snapshot.outcomes.filter((outcome) => outcome.id !== outcomeId)
+      : snapshot.outcomes.map((outcome) => outcome.id === outcomeId
+        ? { ...outcome, decision: 'stop' }
+        : outcome),
+    tasks: snapshot.tasks.map((task) => task.outcomeId === outcomeId
+      ? {
+        ...task,
+        outcomeId: action === 'remove' || disposition === 'detach' ? null : task.outcomeId,
+        status: cancelTasks && task.status !== 'done' ? 'cancelled' : task.status
+      }
+      : task),
+    timeBlocks: cancelTasks
+      ? snapshot.timeBlocks.filter((block) => (
+        block.taskId === null
+        || !cancellableTaskIds.has(block.taskId)
+        || isPastBlock(block)
+      ))
+      : snapshot.timeBlocks,
+    timer: cancelTasks && snapshot.timer && cancellableTaskIds.has(snapshot.timer.taskId)
+      ? null
+      : snapshot.timer,
+    review: cancelTasks
+      ? {
+        ...snapshot.review,
+        selectedTopTaskIds: snapshot.review.selectedTopTaskIds.filter((id) => !cancellableTaskIds.has(id))
+      }
+      : snapshot.review
+  }, now, timeZone);
+};
+
+/** Preserve selected conflict data while restoring the cross-section references the API validates. */
+export const reconcileSnapshotReferences = (
+  snapshot: PlannerSnapshot,
+  ...sources: PlannerSnapshot[]
+): PlannerSnapshot => {
+  const candidates = [snapshot, ...sources];
+  const taskCandidates = new Map<string, Task>();
+  const outcomeCandidates = new Map<string, Outcome>();
+  for (const candidate of candidates) {
+    for (const task of candidate.tasks) if (!taskCandidates.has(task.id)) taskCandidates.set(task.id, task);
+    for (const outcome of candidate.outcomes) {
+      if (!outcomeCandidates.has(outcome.id)) outcomeCandidates.set(outcome.id, outcome);
+    }
+  }
+
+  const requiredTaskIds = new Set<string>();
+  for (const block of snapshot.timeBlocks) if (block.taskId) requiredTaskIds.add(block.taskId);
+  for (const entry of snapshot.timeEntries) requiredTaskIds.add(entry.taskId);
+  if (snapshot.timer) requiredTaskIds.add(snapshot.timer.taskId);
+  for (const taskId of snapshot.review.selectedTopTaskIds) requiredTaskIds.add(taskId);
+
+  const tasks = [...snapshot.tasks];
+  const knownTaskIds = new Set(tasks.map((task) => task.id));
+  for (const taskId of requiredTaskIds) {
+    if (knownTaskIds.has(taskId)) continue;
+    const recovered = taskCandidates.get(taskId);
+    const blockTitle = snapshot.timeBlocks.find((block) => block.taskId === taskId)?.title;
+    const recoveredSeconds = snapshot.timeEntries
+      .filter((entry) => entry.taskId === taskId)
+      .reduce((sum, entry) => sum + Math.max(0, entry.durationSeconds), 0);
+    tasks.push(recovered ?? {
+      id: taskId,
+      title: blockTitle?.trim() || '복구된 작업',
+      outcomeId: null,
+      estimateMinutes: Math.max(5, Math.round(recoveredSeconds / 60) || 25),
+      status: recoveredSeconds > 0 ? 'in-progress' : 'todo',
+      pinned: false,
+      carryCount: 0,
+      note: '동기화 충돌에서 참조 데이터를 보존하기 위해 복구했습니다.'
+    });
+    knownTaskIds.add(taskId);
+  }
+
+  const outcomes = [...snapshot.outcomes];
+  const knownOutcomeIds = new Set(outcomes.map((outcome) => outcome.id));
+  const repairedTasks = tasks.map((task) => {
+    if (!task.outcomeId || knownOutcomeIds.has(task.outcomeId)) return task;
+    const recovered = outcomeCandidates.get(task.outcomeId);
+    if (!recovered) return { ...task, outcomeId: null };
+    outcomes.push(recovered);
+    knownOutcomeIds.add(recovered.id);
+    return task;
+  });
+
+  return withDerivedOutcomeMetrics({ ...snapshot, tasks: repairedTasks, outcomes });
+};
+
+export const applyOnboardingPayload = (
+  base: PlannerSnapshot,
+  payload: OnboardingPayload,
+  now = new Date(),
+  timeZone?: string
+): PlannerSnapshot => {
+  const outcomeTitle = payload.outcomeTitle.trim();
+  const taskTitle = payload.taskTitle.trim();
+  const hasOutcome = outcomeTitle.length > 0;
+  const hasTask = taskTitle.length > 0
+    && Number.isFinite(payload.estimateMinutes)
+    && payload.estimateMinutes > 0;
+  const outcomeId = safeId('outcome');
+  const taskId = safeId('task');
+  const candidateDate = !hasTask || payload.startMinutes === null
+    ? null
+    : getDateForDay(payload.day, payload.weekOffset, now, timeZone);
+  const candidate = !hasTask || payload.startMinutes === null || candidateDate === null ? null : {
+    day: payload.day,
+    startMinutes: payload.startMinutes,
+    durationMinutes: Math.round(payload.estimateMinutes),
+    weekOffset: payload.weekOffset
+  };
+  const candidateBlocks = candidateDate === null
+    ? []
+    : base.timeBlocks
+      .filter((block) => block.date === candidateDate)
+      .map((block) => ({ ...block, weekOffset: payload.weekOffset }));
+  const conflict = candidate !== null && (
+    !isValidTimeBlockSlot(candidate)
+    || Boolean(findTimeBlockConflict(candidateBlocks, candidate))
+  );
+  const outcome: Outcome = {
+    id: outcomeId,
+    title: outcomeTitle,
+    parentTitle: outcomeTitle,
+    current: null,
+    target: 1,
+    unit: '결과',
+    confidence: 'unknown',
+    lastUpdatedDays: null,
+    metricUpdatedAt: null,
+    nextCheckDate: null,
+    metricHistory: [],
+    actualHours: 0,
+    neededHours: toApiDecimal(payload.estimateMinutes / 60),
+    availableHours: 4,
+    evidenceLabel: '첫 점검에서 측정 방식 설정',
+    changeLabel: '첫 실행 전',
+    attention: 'no-evidence'
+  };
+  const task: Task = {
+    id: taskId,
+    title: taskTitle,
+    outcomeId: hasOutcome ? outcomeId : null,
+    estimateMinutes: payload.estimateMinutes,
+    status: 'todo',
+    pinned: true,
+    carryCount: 0,
+    note: conflict ? '선택한 시간에 기존 일정이 있어 아직 배치되지 않았습니다.' : undefined
+  };
+  const block: TimeBlock | null = candidate && candidateDate ? {
+    id: safeId('block'),
+    taskId,
+    title: taskTitle,
+    ...candidate,
+    date: candidateDate
+  } : null;
+
+  return withDerivedOutcomeMetrics({
+    ...base,
+    plan: {
+      ...base.plan,
+      annualDirection: hasOutcome ? outcomeTitle : base.plan.annualDirection,
+      quarterFocus: hasOutcome ? outcomeTitle : base.plan.quarterFocus
+    },
+    outcomes: hasOutcome ? [outcome, ...base.outcomes] : base.outcomes,
+    tasks: hasTask ? [task, ...base.tasks] : base.tasks,
+    timeBlocks: conflict || block === null ? base.timeBlocks : [block, ...base.timeBlocks]
+  }, now, timeZone);
+};
+
+interface ScopedPlannerProviderProps extends PropsWithChildren {
+  subject: string;
+}
+
+function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps) {
+  const { timeZone } = useTimeZone();
+  const timeZoneRef = useRef(timeZone);
+  timeZoneRef.current = timeZone;
+  const previousTimeZoneRef = useRef(timeZone);
+  const storageKeys = useMemo(() => getPlannerStorageKeys(subject), [subject]);
   const initialStateRef = useRef<InitialPlannerState | null>(null);
-  if (initialStateRef.current === null) initialStateRef.current = loadInitialPlannerState();
+  if (initialStateRef.current === null) {
+    initialStateRef.current = loadInitialPlannerState(subject, canAdoptLegacyStorage(subject), new Date(), timeZone);
+  }
   const initialState = initialStateRef.current;
   const initialSnapshotKey = serializeSnapshot(initialState.snapshot);
 
@@ -314,7 +824,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
   const [plannerReady, setPlannerReady] = useState(initialState.hasStoredSnapshot || !isOnline);
   const [hasActivePlan, setHasActivePlan] = useState(() => (
     initialState.hasStoredSnapshot
-    && (typeof window === 'undefined' || window.localStorage.getItem(ACTIVE_PLAN_ABSENT_KEY) !== '1')
+    && !initialState.activePlanAbsent
   ));
   const hasActivePlanRef = useRef(hasActivePlan);
   const [syncPulse, setSyncPulse] = useState(0);
@@ -348,7 +858,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     dirtyRef.current = true;
     if (serverSnapshot && serverRevision !== undefined && serverEtag) {
       const conflict: SyncConflict = {
-        base: parseSnapshot(acknowledgedSnapshotRef.current),
+        base: parseSnapshot(acknowledgedSnapshotRef.current, new Date(), timeZoneRef.current),
         local: structuredClone(snapshotRef.current),
         server: structuredClone(serverSnapshot),
         serverRevision,
@@ -357,13 +867,13 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       };
       setSyncConflict(conflict);
       try {
-        window.localStorage.setItem(CONFLICT_BACKUP_KEY, JSON.stringify(conflict));
+        window.localStorage.setItem(storageKeys.conflictBackup, JSON.stringify(conflict));
       } catch {
         // The active local and server snapshots remain in React state even if backup storage is full.
       }
     }
     setSaveStatus('conflict');
-  }, []);
+  }, [storageKeys.conflictBackup]);
 
   const acknowledgeSnapshot = useCallback((
     revision: number,
@@ -373,41 +883,42 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     revisionRef.current = revision;
     etagRef.current = etag;
     acknowledgedSnapshotRef.current = acknowledgedSnapshot;
-    return writeSyncMetadata({ revision, etag, acknowledgedSnapshot });
-  }, []);
+    return writeSyncMetadata(storageKeys, { revision, etag, acknowledgedSnapshot });
+  }, [storageKeys]);
 
   const replaceWithServerSnapshot = useCallback((
     serverSnapshot: PlannerSnapshot,
     revision: number,
-    etag: string
+    etag: string,
+    acknowledgedSnapshotKey = serializeSnapshot(serverSnapshot)
   ) => {
-    const serverSnapshotKey = serializeSnapshot(serverSnapshot);
     snapshotRef.current = serverSnapshot;
     setSnapshot(serverSnapshot);
     hasActivePlanRef.current = true;
     setHasActivePlan(true);
     setPlannerReady(true);
-    window.localStorage.removeItem(ACTIVE_PLAN_ABSENT_KEY);
+    window.localStorage.removeItem(storageKeys.activePlanAbsent);
     hasStoredSnapshotRef.current = true;
     dirtyRef.current = false;
     conflictRef.current = false;
     setSyncConflict(null);
     pendingWriteRef.current = null;
-    const localStored = writeLocalSnapshot(serverSnapshot);
-    const metadataStored = acknowledgeSnapshot(revision, etag, serverSnapshotKey);
+    const localStored = writeLocalSnapshot(storageKeys, serverSnapshot);
+    const metadataStored = acknowledgeSnapshot(revision, etag, acknowledgedSnapshotKey);
     setSaveStatus(localStored && metadataStored ? 'saved' : 'storage-error');
-  }, [acknowledgeSnapshot]);
+  }, [acknowledgeSnapshot, storageKeys]);
 
   const updateSnapshot = useCallback((updater: (current: PlannerSnapshot) => PlannerSnapshot) => {
     const current = snapshotRef.current;
-    const next = updater(current);
+    const updated = updater(current);
+    const next = updated === current ? current : withDerivedOutcomeMetrics(updated, new Date(), timeZone);
     if (next !== current) {
       snapshotRef.current = next;
       setSnapshot(next);
       hasStoredSnapshotRef.current = true;
       dirtyRef.current = true;
       localChangeCountRef.current += 1;
-      const stored = writeLocalSnapshot(next);
+      const stored = writeLocalSnapshot(storageKeys, next);
       if (!stored) {
         setSaveStatus('storage-error');
       } else if (conflictRef.current) {
@@ -418,9 +929,9 @@ export function PlannerProvider({ children }: PropsWithChildren) {
             local: structuredClone(next)
           };
           try {
-            window.localStorage.setItem(CONFLICT_BACKUP_KEY, JSON.stringify(nextConflict));
+            window.localStorage.setItem(storageKeys.conflictBackup, JSON.stringify(nextConflict));
           } catch {
-            // The latest local snapshot is still preserved by STORAGE_KEY.
+            // The latest local snapshot is still preserved by the account-scoped snapshot key.
           }
           return nextConflict;
         });
@@ -430,7 +941,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       }
     }
     return next;
-  }, []);
+  }, [storageKeys, timeZone]);
 
   const syncNow = useCallback(async () => {
     if (
@@ -447,7 +958,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     const requestEpoch = resetEpochRef.current;
     const submittedSnapshot = snapshotRef.current;
     const submittedSnapshotKey = serializeSnapshot(submittedSnapshot);
-    const localStored = writeLocalSnapshot(submittedSnapshot);
+    const localStored = writeLocalSnapshot(storageKeys, submittedSnapshot);
     hasStoredSnapshotRef.current = localStored || hasStoredSnapshotRef.current;
     const submittedRevision = revisionRef.current;
     const matchingPendingWrite = pendingWriteRef.current?.snapshotKey === submittedSnapshotKey
@@ -467,7 +978,8 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       const result = await plannerApi.put(
         submittedSnapshot,
         submittedRevision,
-        pendingWrite.idempotencyKey
+        pendingWrite.idempotencyKey,
+        etagRef.current
       );
       if (requestEpoch !== resetEpochRef.current) return;
       pendingWriteRef.current = null;
@@ -495,7 +1007,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
           const latest = await plannerApi.get(null);
           if (latest.kind === 'found') {
             markConflict(
-              normalizePlannerSnapshot(latest.aggregate.snapshot),
+              normalizePlannerSnapshot(latest.aggregate.snapshot, new Date(), timeZoneRef.current),
               latest.aggregate.revision,
               latest.etag
             );
@@ -512,7 +1024,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       requestInFlightRef.current = false;
       if (scheduleFollowUp) setSyncPulse((value) => value + 1);
     }
-  }, [acknowledgeSnapshot, markConflict]);
+  }, [acknowledgeSnapshot, markConflict, storageKeys]);
 
   const initializeFromServer = useCallback(async () => {
     if (!onlineRef.current || requestInFlightRef.current || conflictRef.current) return;
@@ -553,8 +1065,14 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         shouldSyncAfterHandshake = hasUnsyncedLocalPlan;
         if (!hasUnsyncedLocalPlan) setSaveStatus('saved');
       } else {
-        const serverSnapshot = normalizePlannerSnapshot(result.aggregate.snapshot);
+        const serverSnapshot = normalizePlannerSnapshot(
+          result.aggregate.snapshot,
+          new Date(),
+          timeZoneRef.current
+        );
+        const rawServerSnapshotKey = getServerAcknowledgementKey(result.aggregate.snapshot);
         const serverSnapshotKey = serializeSnapshot(serverSnapshot);
+        const serverNeedsDateMigration = needsTimeBlockDateMigration(result.aggregate.snapshot);
         const currentLocalSnapshotKey = serializeSnapshot(snapshotRef.current);
         const localWasAcknowledged = acknowledgedSnapshotRef.current === currentLocalSnapshotKey;
         const sameSnapshot = serverSnapshotKey === currentLocalSnapshotKey;
@@ -563,7 +1081,17 @@ export function PlannerProvider({ children }: PropsWithChildren) {
           || (!changedWhileLoading && (!hasStoredSnapshotRef.current || !dirtyRef.current || localWasAcknowledged));
 
         if (canHydrate) {
-          replaceWithServerSnapshot(serverSnapshot, result.aggregate.revision, result.etag);
+          replaceWithServerSnapshot(
+            serverSnapshot,
+            result.aggregate.revision,
+            result.etag,
+            serverNeedsDateMigration ? rawServerSnapshotKey : serverSnapshotKey
+          );
+          if (serverNeedsDateMigration) {
+            dirtyRef.current = true;
+            shouldSyncAfterHandshake = true;
+            setSaveStatus(onlineRef.current ? 'saving' : 'offline');
+          }
         } else if (changedWhileLoading && serverStillMatchesStart) {
           revisionRef.current = result.aggregate.revision;
           etagRef.current = result.etag;
@@ -613,7 +1141,11 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         setSaveStatus(result.kind === 'missing' ? 'retry' : 'saved');
         return false;
       }
-      const serverSnapshot = normalizePlannerSnapshot(result.aggregate.snapshot);
+      const serverSnapshot = normalizePlannerSnapshot(
+        result.aggregate.snapshot,
+        new Date(),
+        timeZoneRef.current
+      );
       replaceWithServerSnapshot(serverSnapshot, result.aggregate.revision, result.etag);
       return true;
     } catch {
@@ -625,8 +1157,8 @@ export function PlannerProvider({ children }: PropsWithChildren) {
   }, [replaceWithServerSnapshot]);
 
   const markActivePlanClosed = useCallback(() => {
-    window.localStorage.setItem(ACTIVE_PLAN_ABSENT_KEY, '1');
-    window.localStorage.removeItem(SYNC_METADATA_KEY);
+    window.localStorage.setItem(storageKeys.activePlanAbsent, '1');
+    window.localStorage.removeItem(storageKeys.syncMetadata);
     hasActivePlanRef.current = false;
     setHasActivePlan(false);
     setPlannerReady(true);
@@ -635,7 +1167,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     acknowledgedSnapshotRef.current = null;
     dirtyRef.current = false;
     setSaveStatus('saved');
-  }, []);
+  }, [storageKeys]);
 
   const resolveConflict = useCallback((
     strategy: 'local' | 'server' | 'merge',
@@ -659,21 +1191,41 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       for (const section of Object.keys(syncConflict.server) as SnapshotSection[]) {
         if (choices[section] === 'local') target[section] = structuredClone(local[section]);
       }
-      resolved = normalizePlannerSnapshot(resolved);
+      resolved = withDerivedOutcomeMetrics(reconcileSnapshotReferences(
+        normalizePlannerSnapshot(resolved, new Date(), timeZone),
+        syncConflict.local,
+        syncConflict.server
+      ), new Date(), timeZone);
     }
 
     const serverSnapshotKey = serializeSnapshot(syncConflict.server);
     acknowledgeSnapshot(syncConflict.serverRevision, syncConflict.serverEtag, serverSnapshotKey);
     snapshotRef.current = resolved;
     setSnapshot(resolved);
-    writeLocalSnapshot(resolved);
+    writeLocalSnapshot(storageKeys, resolved);
     pendingWriteRef.current = null;
     conflictRef.current = false;
     dirtyRef.current = serializeSnapshot(resolved) !== serverSnapshotKey;
     setSyncConflict(null);
     setSaveStatus(dirtyRef.current ? (onlineRef.current ? 'saving' : 'offline') : 'saved');
     if (dirtyRef.current) setSyncPulse((value) => value + 1);
-  }, [acknowledgeSnapshot, replaceWithServerSnapshot, syncConflict]);
+  }, [acknowledgeSnapshot, replaceWithServerSnapshot, storageKeys, syncConflict, timeZone]);
+
+  useEffect(() => {
+    if (previousTimeZoneRef.current === timeZone) return;
+    previousTimeZoneRef.current = timeZone;
+    updateSnapshot((current) => {
+      const recalculated = withDerivedOutcomeMetrics(current, new Date(), timeZone);
+      const changed = recalculated.outcomes.some((outcome, index) => {
+        const previous = current.outcomes[index];
+        return !previous
+          || outcome.actualHours !== previous.actualHours
+          || outcome.lastUpdatedDays !== previous.lastUpdatedDays
+          || outcome.attention !== previous.attention;
+      });
+      return changed ? recalculated : current;
+    });
+  }, [timeZone, updateSnapshot]);
 
   useEffect(() => {
     const goOnline = () => {
@@ -697,7 +1249,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
   }, [initializeFromServer, syncNow]);
 
   useEffect(() => {
-    if (onlineRef.current) void initializeFromServer();
+    if (onlineRef.current && !serverReadyRef.current) void initializeFromServer();
   }, [initializeFromServer]);
 
   useEffect(() => {
@@ -828,6 +1380,124 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     });
   }, [updateSnapshot]);
 
+  const updatePlan = useCallback((input: PlanContext): boolean => {
+    if (!isValidPlanContext(input)) return false;
+    updateSnapshot((current) => ({
+      ...current,
+      plan: {
+        ...input,
+        year: Math.trunc(input.year),
+        annualDirection: input.annualDirection.trim(),
+        quarterFocus: input.quarterFocus.trim(),
+        quarterEndDate: input.quarterEndDate.trim()
+      }
+    }));
+    return true;
+  }, [updateSnapshot]);
+
+  const addOutcome = useCallback((input: OutcomeInput): string => {
+    const normalized = normalizeOutcomeInput(input);
+    if (!normalized) return '';
+    const outcomeId = safeId('outcome');
+    updateSnapshot((current) => {
+      const createdAt = new Date();
+      const baseOutcome: Outcome = {
+        id: outcomeId,
+        title: normalized.title,
+        parentTitle: current.plan.quarterFocus.trim() || '독립 분기 결과',
+        current: null,
+        target: normalized.target,
+        unit: normalized.unit,
+        confidence: normalized.confidence,
+        lastUpdatedDays: null,
+        metricUpdatedAt: null,
+        nextCheckDate: normalized.nextCheckDate,
+        metricHistory: [],
+        actualHours: 0,
+        neededHours: normalized.neededHours,
+        availableHours: normalized.availableHours,
+        evidenceLabel: normalized.evidenceLabel,
+        changeLabel: '현재 미확인',
+        attention: 'no-evidence'
+      };
+      const outcome = normalized.current === null
+        ? { ...baseOutcome, attention: deriveOutcomeAttention(baseOutcome, createdAt, timeZone) }
+        : appendOutcomeMetricHistory(
+          baseOutcome,
+          normalized.current,
+          normalized.evidenceLabel,
+          createdAt,
+          timeZone
+        );
+      return { ...current, outcomes: [...current.outcomes, outcome] };
+    });
+    return outcomeId;
+  }, [timeZone, updateSnapshot]);
+
+  const updateOutcome = useCallback((outcomeId: string, input: OutcomeInput): boolean => {
+    const normalized = normalizeOutcomeInput(input);
+    if (!normalized || !snapshotRef.current.outcomes.some((outcome) => outcome.id === outcomeId)) return false;
+    updateSnapshot((current) => ({
+      ...current,
+      outcomes: current.outcomes.map((outcome) => outcome.id === outcomeId
+        ? (() => {
+          const metricChanged = outcome.current !== normalized.current
+            || outcome.evidenceLabel !== normalized.evidenceLabel;
+          const nextOutcome: Outcome = {
+            ...outcome,
+            title: normalized.title,
+            target: normalized.target,
+            unit: normalized.unit,
+            confidence: normalized.confidence,
+            neededHours: normalized.neededHours,
+            availableHours: normalized.availableHours,
+            nextCheckDate: normalized.nextCheckDate
+          };
+          if (metricChanged) {
+            return appendOutcomeMetricHistory(
+              nextOutcome,
+              normalized.current,
+              normalized.evidenceLabel,
+              new Date(),
+              timeZone
+            );
+          }
+          return {
+            ...nextOutcome,
+            attention: deriveOutcomeAttention(nextOutcome, new Date(), timeZone)
+          };
+        })()
+        : outcome)
+    }));
+    return true;
+  }, [timeZone, updateSnapshot]);
+
+  const stopOutcome = useCallback((outcomeId: string, disposition: LinkedTaskDisposition): boolean => {
+    if (!snapshotRef.current.outcomes.some((outcome) => outcome.id === outcomeId)) return false;
+    updateSnapshot((current) => applyOutcomeLifecycle(
+      current,
+      outcomeId,
+      'stop',
+      disposition,
+      new Date(),
+      timeZone
+    ));
+    return true;
+  }, [timeZone, updateSnapshot]);
+
+  const removeOutcome = useCallback((outcomeId: string, disposition: LinkedTaskDisposition): boolean => {
+    if (!snapshotRef.current.outcomes.some((outcome) => outcome.id === outcomeId)) return false;
+    updateSnapshot((current) => applyOutcomeLifecycle(
+      current,
+      outcomeId,
+      'remove',
+      disposition,
+      new Date(),
+      timeZone
+    ));
+    return true;
+  }, [timeZone, updateSnapshot]);
+
   const setPlannerWeekOffset = useCallback((offset: number) => {
     if (!Number.isFinite(offset)) return;
     const normalized = Math.trunc(offset);
@@ -843,9 +1513,14 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         ? null
         : current.tasks.find((item) => item.id === input.taskId);
       const title = (task?.title ?? input.title).trim();
-      const targetWeek = normalizeWeekOffset(input.weekOffset ?? current.plannerWeekOffset);
+      const requestedWeek = normalizeWeekOffset(input.weekOffset ?? current.plannerWeekOffset);
+      const targetDate = isLocalDate(input.date)
+        ? input.date
+        : getDateForDay(input.day, requestedWeek, new Date(), timeZone);
+      const targetWeek = getWeekOffsetForDate(targetDate, new Date(), timeZone);
+      const targetDay = getDayKeyForDate(targetDate);
       const slot = {
-        day: input.day,
+        day: targetDay,
         startMinutes: Math.trunc(input.startMinutes),
         durationMinutes: Math.round(input.durationMinutes),
         weekOffset: targetWeek
@@ -856,24 +1531,35 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         ? current.timeBlocks.find((block) => block.id === input.id && !block.external)
         : undefined;
       if (input.id && !existing) return current;
-      if (findTimeBlockConflict(current.timeBlocks, slot, { ignoreBlockId: existing?.id })) return current;
+      const sameDateBlocks = current.timeBlocks
+        .filter((block) => block.date === targetDate)
+        .map((block) => ({ ...block, day: targetDay, weekOffset: targetWeek }));
+      if (findTimeBlockConflict(sameDateBlocks, slot, { ignoreBlockId: existing?.id })) return current;
 
       const block: TimeBlock = {
         id: existing?.id ?? safeId('block'),
         taskId: input.taskId,
         title,
-        ...slot
+        ...slot,
+        date: targetDate
       };
       saved = true;
+      const shouldIncrementCarry = Boolean(
+        input.incrementCarryCount
+        && !existing
+        && task
+        && targetWeek === 1
+      );
       return {
         ...current,
+        tasks: incrementExplicitCarryCount(current.tasks, input.taskId, shouldIncrementCarry),
         timeBlocks: existing
           ? current.timeBlocks.map((item) => item.id === existing.id ? block : item)
           : [...current.timeBlocks, block]
       };
     });
     return saved;
-  }, [updateSnapshot]);
+  }, [timeZone, updateSnapshot]);
 
   const removeTimeBlock = useCallback((blockId: string): boolean => {
     let removed = false;
@@ -894,12 +1580,13 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     weekOffset?: number
   ): boolean => {
     const targetWeek = normalizeWeekOffset(weekOffset ?? snapshotRef.current.plannerWeekOffset);
+    const targetDate = getDateForDay(day, targetWeek, new Date(), timeZone);
     const task = snapshotRef.current.tasks.find((item) => item.id === taskId);
     if (!task) return false;
     const existing = snapshotRef.current.timeBlocks.find((block) => (
       block.taskId === taskId
       && !block.external
-      && normalizeWeekOffset(block.weekOffset) === targetWeek
+      && block.date === targetDate
     ));
     return saveTimeBlock({
       id: existing?.id,
@@ -908,9 +1595,10 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       day,
       startMinutes,
       durationMinutes,
+      date: targetDate,
       weekOffset: targetWeek
     });
-  }, [saveTimeBlock]);
+  }, [saveTimeBlock, timeZone]);
 
   const startTimer = useCallback((taskId: string) => {
     updateSnapshot((current) => {
@@ -986,34 +1674,38 @@ export function PlannerProvider({ children }: PropsWithChildren) {
   }, [updateSnapshot]);
 
   const setOutcomeDecision = useCallback((outcomeId: string, decision: Outcome['decision']) => {
+    if (decision === 'stop') return;
     updateSnapshot((current) => ({
       ...current,
       outcomes: current.outcomes.map((outcome) => outcome.id === outcomeId ? { ...outcome, decision } : outcome)
     }));
   }, [updateSnapshot]);
 
-  const updateOutcomeMetric = useCallback((outcomeId: string, currentValue: number) => {
-    if (!Number.isFinite(currentValue) || currentValue < 0) return;
+  const updateOutcomeMetric = useCallback((outcomeId: string, currentValue: number, evidence: string): boolean => {
+    const normalizedEvidence = evidence.trim();
+    if (!Number.isFinite(currentValue) || currentValue < 0 || !normalizedEvidence) return false;
     const normalizedCurrent = toApiDecimal(currentValue);
+    let updated = false;
     updateSnapshot((current) => {
       const target = current.outcomes.find((outcome) => outcome.id === outcomeId);
       if (!target) return current;
+      updated = true;
       return {
         ...current,
         outcomes: current.outcomes.map((outcome) => outcome.id === outcomeId
-          ? {
-            ...outcome,
-            current: normalizedCurrent,
-            lastUpdatedDays: 0,
-            evidenceLabel: '방금 갱신',
-            changeLabel: metricChangeLabel(outcome, normalizedCurrent),
-            attention: outcome.neededHours > outcome.availableHours ? 'time-shortage' : 'none'
-          }
+          ? appendOutcomeMetricHistory(
+            outcome,
+            normalizedCurrent,
+            normalizedEvidence,
+            new Date(),
+            timeZone
+          )
           : outcome),
         review: { ...current.review, metricDraft: String(normalizedCurrent) }
       };
     });
-  }, [updateSnapshot]);
+    return updated;
+  }, [timeZone, updateSnapshot]);
 
   const updateReview = useCallback((patch: Partial<PlannerSnapshot['review']>) => {
     updateSnapshot((current) => ({ ...current, review: { ...current.review, ...patch } }));
@@ -1029,67 +1721,15 @@ export function PlannerProvider({ children }: PropsWithChildren) {
 
   const finishOnboarding = useCallback((payload: OnboardingPayload) => {
     updateSnapshot((current) => {
-      const base = hasActivePlanRef.current ? current : createEmptySnapshot();
-      const outcomeId = safeId('outcome');
-      const taskId = safeId('task');
-      const candidate = {
-        day: payload.day,
-        startMinutes: payload.startMinutes,
-        durationMinutes: Math.round(payload.estimateMinutes),
-        weekOffset: payload.weekOffset
-      };
-      const conflict = !isValidTimeBlockSlot(candidate)
-        || Boolean(findTimeBlockConflict(base.timeBlocks, candidate));
-      const outcome: Outcome = {
-        id: outcomeId,
-        title: payload.outcomeTitle,
-        parentTitle: payload.outcomeTitle,
-        current: null,
-        target: 1,
-        unit: '결과',
-        confidence: 'unknown',
-        lastUpdatedDays: null,
-        actualHours: 0,
-        neededHours: toApiDecimal(payload.estimateMinutes / 60),
-        availableHours: 4,
-        evidenceLabel: '첫 점검에서 측정 방식 설정',
-        changeLabel: '첫 실행 전',
-        attention: 'none'
-      };
-      const task: Task = {
-        id: taskId,
-        title: payload.taskTitle,
-        outcomeId,
-        estimateMinutes: payload.estimateMinutes,
-        status: 'todo',
-        pinned: true,
-        carryCount: 0,
-        note: conflict ? '선택한 시간에 기존 일정이 있어 아직 배치되지 않았습니다.' : undefined
-      };
-      const block: TimeBlock = {
-        id: safeId('block'),
-        taskId,
-        title: payload.taskTitle,
-        ...candidate
-      };
-      return {
-        ...base,
-        plan: {
-          ...base.plan,
-          annualDirection: payload.outcomeTitle,
-          quarterFocus: payload.outcomeTitle
-        },
-        outcomes: [outcome, ...base.outcomes],
-        tasks: [task, ...base.tasks],
-        timeBlocks: conflict ? base.timeBlocks : [block, ...base.timeBlocks]
-      };
+      const base = hasActivePlanRef.current ? current : createEmptySnapshot(timeZone);
+      return applyOnboardingPayload(base, payload, new Date(), timeZone);
     });
     hasActivePlanRef.current = true;
     setHasActivePlan(true);
     setPlannerReady(true);
-    window.localStorage.removeItem(ACTIVE_PLAN_ABSENT_KEY);
+    window.localStorage.removeItem(storageKeys.activePlanAbsent);
     setSyncPulse((value) => value + 1);
-  }, [updateSnapshot]);
+  }, [storageKeys.activePlanAbsent, timeZone, updateSnapshot]);
 
   const resetPlanner = useCallback(async (): Promise<boolean> => {
     if (!onlineRef.current || resettingRef.current) {
@@ -1106,14 +1746,16 @@ export function PlannerProvider({ children }: PropsWithChildren) {
         const current: PlannerReadResult = await plannerApi.get();
         const revision = current.kind === 'found' ? current.aggregate.revision : null;
         try {
-          if (revision !== null) await plannerApi.delete(revision, createIdempotencyKey());
+          if (revision !== null) {
+            await plannerApi.delete(revision, createIdempotencyKey(), current.kind === 'found' ? current.etag : null);
+          }
           deleted = true;
         } catch (error) {
           if (!(error instanceof PlannerConflictError) || attempt === 1) throw error;
         }
       }
 
-      const emptySnapshot = createEmptySnapshot();
+      const emptySnapshot = createEmptySnapshot(timeZone);
       snapshotRef.current = emptySnapshot;
       setSnapshot(emptySnapshot);
       hasStoredSnapshotRef.current = false;
@@ -1127,10 +1769,10 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       dirtyRef.current = false;
       pendingWriteRef.current = null;
       setSyncConflict(null);
-      window.localStorage.removeItem(STORAGE_KEY);
-      window.localStorage.removeItem(SYNC_METADATA_KEY);
-      window.localStorage.removeItem(CONFLICT_BACKUP_KEY);
-      window.localStorage.setItem(ACTIVE_PLAN_ABSENT_KEY, '1');
+      window.localStorage.removeItem(storageKeys.snapshot);
+      window.localStorage.removeItem(storageKeys.syncMetadata);
+      window.localStorage.removeItem(storageKeys.conflictBackup);
+      window.localStorage.setItem(storageKeys.activePlanAbsent, '1');
       markServerReady();
       setSaveStatus('saved');
       return true;
@@ -1141,7 +1783,7 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     } finally {
       resettingRef.current = false;
     }
-  }, [markConflict, markServerReady]);
+  }, [markConflict, markServerReady, storageKeys, timeZone]);
 
   const value = useMemo<PlannerContextValue>(() => ({
     ...snapshot,
@@ -1159,6 +1801,11 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     updateTask,
     removeTask,
     savePlan,
+    updatePlan,
+    addOutcome,
+    updateOutcome,
+    stopOutcome,
+    removeOutcome,
     setPlannerWeekOffset,
     scheduleTask,
     saveTimeBlock,
@@ -1190,6 +1837,11 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     updateTask,
     removeTask,
     savePlan,
+    updatePlan,
+    addOutcome,
+    updateOutcome,
+    stopOutcome,
+    removeOutcome,
     setPlannerWeekOffset,
     scheduleTask,
     saveTimeBlock,
@@ -1208,6 +1860,12 @@ export function PlannerProvider({ children }: PropsWithChildren) {
   ]);
 
   return <PlannerContext.Provider value={value}>{children}</PlannerContext.Provider>;
+}
+
+export function PlannerProvider({ children }: PropsWithChildren) {
+  const { subject } = useAuth();
+  if (!subject) throw new Error('PlannerProvider requires an authenticated storage subject');
+  return <ScopedPlannerProvider key={subject} subject={subject}>{children}</ScopedPlannerProvider>;
 }
 
 export const usePlanner = () => {

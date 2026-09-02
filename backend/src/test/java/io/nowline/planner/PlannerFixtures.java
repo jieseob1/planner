@@ -23,10 +23,17 @@ public final class PlannerFixtures {
                 "편",
                 PlannerSnapshot.Confidence.MEDIUM,
                 3,
+                Instant.parse("2026-08-30T03:00:00Z"),
+                LocalDate.parse("2026-09-04"),
+                List.of(new PlannerSnapshot.MetricHistoryEntry(
+                        "metric-writing-2",
+                        new BigDecimal("2"),
+                        Instant.parse("2026-08-30T03:00:00Z"),
+                        "게시 URL 2건 확인")),
                 new BigDecimal("18"),
                 new BigDecimal("6"),
                 new BigDecimal("12"),
-                "3일 전 갱신",
+                "게시 URL 2건 확인",
                 "지난 갱신 대비 변화 없음",
                 PlannerSnapshot.Attention.STALLED,
                 null
@@ -64,10 +71,10 @@ public final class PlannerFixtures {
                 List.of(
                         new PlannerSnapshot.TimeBlock(
                                 "block-draft", task.id(), "글 초안", PlannerSnapshot.DayKey.TUE,
-                                1_170, 90, null, null),
+                                1_170, 90, null, null, LocalDate.parse("2026-09-01")),
                         new PlannerSnapshot.TimeBlock(
                                 "block-standup", null, "팀 스탠드업", PlannerSnapshot.DayKey.MON,
-                                600, 60, true, 0)),
+                                600, 60, true, 0, LocalDate.parse("2026-08-31"))),
                 List.of(new PlannerSnapshot.TimeEntry(
                         "entry-1", task.id(), 1_200, PlannerSnapshot.TimeSource.TIMER,
                         Instant.parse("2026-08-31T05:00:00Z"), "초안 링크")),
@@ -92,7 +99,7 @@ public final class PlannerFixtures {
         ArrayList<PlannerSnapshot.TimeBlock> blocks = new ArrayList<>(source.timeBlocks());
         blocks.add(new PlannerSnapshot.TimeBlock(
                 "block-overlap", null, "겹치는 일정", PlannerSnapshot.DayKey.TUE,
-                1_200, 30, false, 0));
+                1_200, 30, false, 0, source.timeBlocks().getFirst().date()));
         return new PlannerSnapshot(
                 source.version(), source.plan(), source.plannerWeekOffset(), source.tasks(), blocks,
                 source.timeEntries(), source.outcomes(), source.timer(), source.review());
@@ -102,11 +109,28 @@ public final class PlannerFixtures {
         PlannerSnapshot.Outcome original = source.outcomes().getFirst();
         PlannerSnapshot.Outcome invalid = new PlannerSnapshot.Outcome(
                 original.id(), original.title(), original.parentTitle(), original.current(), BigDecimal.ZERO,
-                original.unit(), original.confidence(), original.lastUpdatedDays(), original.actualHours(),
+                original.unit(), original.confidence(), original.lastUpdatedDays(), original.metricUpdatedAt(),
+                original.nextCheckDate(), original.metricHistoryOrEmpty(), original.actualHours(),
                 original.neededHours(), original.availableHours(), original.evidenceLabel(), original.changeLabel(),
                 original.attention(), original.decision());
         return new PlannerSnapshot(
                 source.version(), source.plan(), source.plannerWeekOffset(), source.tasks(), source.timeBlocks(),
                 source.timeEntries(), List.of(invalid), source.timer(), source.review());
+    }
+
+    public static PlannerSnapshot withTamperedMetricEvidence(PlannerSnapshot source) {
+        PlannerSnapshot.Outcome original = source.outcomes().getFirst();
+        PlannerSnapshot.MetricHistoryEntry prior = original.metricHistoryOrEmpty().getFirst();
+        PlannerSnapshot.MetricHistoryEntry tamperedEntry = new PlannerSnapshot.MetricHistoryEntry(
+                prior.id(), prior.value(), prior.observedAt(), "과거 근거 위조");
+        PlannerSnapshot.Outcome tampered = new PlannerSnapshot.Outcome(
+                original.id(), original.title(), original.parentTitle(), original.current(), original.target(),
+                original.unit(), original.confidence(), original.lastUpdatedDays(), original.metricUpdatedAt(),
+                original.nextCheckDate(), List.of(tamperedEntry), original.actualHours(), original.neededHours(),
+                original.availableHours(), tamperedEntry.evidence(), original.changeLabel(), original.attention(),
+                original.decision());
+        return new PlannerSnapshot(
+                source.version(), source.plan(), source.plannerWeekOffset(), source.tasks(), source.timeBlocks(),
+                source.timeEntries(), List.of(tampered), source.timer(), source.review());
     }
 }

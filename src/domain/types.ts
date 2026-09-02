@@ -21,7 +21,9 @@ export interface TimeBlock {
   startMinutes: number;
   durationMinutes: number;
   external?: boolean;
-  /** Missing values belong to the original/current week for v1 snapshots. */
+  /** Absolute local calendar date (YYYY-MM-DD). This is authoritative for one-off blocks. */
+  date: string;
+  /** Derived compatibility field for legacy clients; `date` is authoritative. */
   weekOffset?: number;
 }
 
@@ -34,6 +36,13 @@ export interface TimeEntry {
   evidence?: string;
 }
 
+export interface OutcomeMetricHistoryEntry {
+  id: string;
+  value: number | null;
+  observedAt: string;
+  evidence: string;
+}
+
 export interface Outcome {
   id: string;
   title: string;
@@ -42,7 +51,11 @@ export interface Outcome {
   target: number;
   unit: string;
   confidence: Confidence;
+  /** Derived from metricUpdatedAt; legacy relative counters are never treated as timestamps. */
   lastUpdatedDays: number | null;
+  metricUpdatedAt: string | null;
+  nextCheckDate: string | null;
+  metricHistory: OutcomeMetricHistoryEntry[];
   actualHours: number;
   neededHours: number;
   availableHours: number;
@@ -50,6 +63,20 @@ export interface Outcome {
   changeLabel: string;
   attention: 'none' | 'stale' | 'time-shortage' | 'stalled' | 'no-evidence';
   decision?: 'keep' | 'reduce' | 'extend' | 'stop';
+}
+
+export type LinkedTaskDisposition = 'detach' | 'cancel';
+
+export interface OutcomeInput {
+  title: string;
+  current: number | null;
+  target: number;
+  unit: string;
+  confidence: Confidence;
+  evidenceLabel: string;
+  nextCheckDate: string | null;
+  neededHours: number;
+  availableHours: number;
 }
 
 export interface TimerSession {
@@ -96,7 +123,11 @@ export interface SaveTimeBlockInput {
   day: DayKey;
   startMinutes: number;
   durationMinutes: number;
+  /** Optional for backward-compatible callers; the provider derives it from day/weekOffset. */
+  date?: string;
   weekOffset?: number;
+  /** Set only by the explicit Review -> next-week carryover flow. */
+  incrementCarryCount?: boolean;
 }
 
 export interface SavePlanInput {
@@ -163,11 +194,14 @@ export interface ProblemDetails {
 }
 
 export interface OnboardingPayload {
+  /** Empty means start without creating a managed outcome. */
   outcomeTitle: string;
+  /** Empty means start without creating a first Todo. */
   taskTitle: string;
   slot: 'today-evening' | 'tomorrow-morning' | 'saturday-morning';
   estimateMinutes: number;
   day: DayKey;
-  startMinutes: number;
+  /** Null means create the first task without assigning a calendar slot yet. */
+  startMinutes: number | null;
   weekOffset: number;
 }

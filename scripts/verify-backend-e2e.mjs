@@ -64,6 +64,7 @@ const waitForReady = async (url, timeoutMs = 240_000) => {
   fail(`Backend readiness timed out: ${lastError}`);
 };
 
+const initialMetricObservedAt = new Date().toISOString();
 const snapshot = {
   version: 1,
   plan: {
@@ -93,7 +94,8 @@ const snapshot = {
       day: 'mon',
       startMinutes: 600,
       durationMinutes: 30,
-      weekOffset: 0
+      weekOffset: 0,
+      date: '2026-08-31'
     }
   ],
   timeEntries: [],
@@ -107,6 +109,14 @@ const snapshot = {
       unit: '회',
       confidence: 'high',
       lastUpdatedDays: 0,
+      metricUpdatedAt: initialMetricObservedAt,
+      nextCheckDate: '2026-09-09',
+      metricHistory: [{
+        id: 'metric-e2e-initial',
+        value: 0,
+        observedAt: initialMetricObservedAt,
+        evidence: 'E2E 시작'
+      }],
       actualHours: 0,
       neededHours: 0.5,
       availableHours: 2,
@@ -174,9 +184,13 @@ try {
     body: JSON.stringify(snapshot)
   }), [200, 201], 'create');
   const firstEtag = createResponse.headers.get('etag');
-  if (!firstEtag) fail('create: missing ETag header');
+  if (!firstEtag || !/^"planner-[0-9a-f]{32}-1"$/.test(firstEtag)) {
+    fail(`create: missing or non-subject ETag header (${firstEtag})`);
+  }
   const created = await createResponse.json();
-  if (created.revision !== 1 || created.snapshot.tasks[0].title !== 'E2E API 검증') {
+  if (created.revision !== 1
+      || created.snapshot.tasks[0].title !== 'E2E API 검증'
+      || created.snapshot.timeBlocks[0].date !== '2026-08-31') {
     fail(`create: unexpected response ${JSON.stringify(created)}`);
   }
 
@@ -191,12 +205,10 @@ try {
 
   const readResponse = await expectStatus(await fetch(plannerUrl, { headers: headers() }), 200, 'read');
   if (readResponse.headers.get('etag') !== firstEtag) fail('read: ETag does not match create');
-
-  await expectStatus(await fetch(plannerUrl, {
-    method: 'PUT',
-    headers: headers({ 'If-Match': '"999"', 'Idempotency-Key': randomUUID() }),
-    body: JSON.stringify(snapshot)
-  }), 412, 'stale update');
+  const read = await readResponse.json();
+  if (read.snapshot.timeBlocks[0].date !== '2026-08-31') {
+    fail(`read: absolute block date was not preserved (${JSON.stringify(read.snapshot.timeBlocks[0])})`);
+  }
 
   const updatedSnapshot = structuredClone(snapshot);
   updatedSnapshot.tasks[0].title = 'E2E API 검증 완료';
@@ -211,6 +223,15 @@ try {
   if (!secondEtag || secondEtag === firstEtag || updated.revision !== 2) {
     fail('update: revision did not advance exactly once');
   }
+  if (updated.snapshot.timeBlocks[0].date !== '2026-08-31') {
+    fail('update: absolute block date was not preserved');
+  }
+
+  await expectStatus(await fetch(plannerUrl, {
+    method: 'PUT',
+    headers: headers({ 'If-Match': firstEtag, 'Idempotency-Key': randomUUID() }),
+    body: JSON.stringify(snapshot)
+  }), 412, 'stale update');
 
   const reusedKeySnapshot = structuredClone(updatedSnapshot);
   reusedKeySnapshot.tasks[0].title = '같은 키로 다른 요청';
@@ -229,7 +250,8 @@ try {
     startMinutes: 615,
     durationMinutes: 30,
     external: false,
-    weekOffset: 0
+    weekOffset: 1,
+    date: '2026-08-31'
   });
   await expectStatus(await fetch(plannerUrl, {
     method: 'PUT',

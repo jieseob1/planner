@@ -70,6 +70,11 @@ public final class PlannerException extends RuntimeException {
                 "계정 삭제 전 15분 이내에 다시 로그인해 주세요.", Map.of());
     }
 
+    public static PlannerException deletedAccountSession() {
+        return new PlannerException(HttpStatus.UNAUTHORIZED, "account-deleted-session",
+                "삭제된 계정의 이전 로그인 세션입니다. 다시 로그인하면 새 계정으로 시작할 수 있습니다.", Map.of());
+    }
+
     public static PlannerException consentRequired() {
         return new PlannerException(HttpStatus.FORBIDDEN, "policy-consent-required",
                 "서비스 이용 전 이용약관과 개인정보 처리방침 동의가 필요합니다.", Map.of());

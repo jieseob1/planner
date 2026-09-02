@@ -20,7 +20,9 @@ import { TimeBlockSheet, type TimeBlockEditorValue, type TimeBlockMode } from '.
 import { formatClock, formatMinutes, formatTimer } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
-import { getToday, getWeekDays } from '../lib/calendarDate';
+import type { TimeBlock, TimeEntry } from '../domain/types';
+import { getMinuteOfDay, getToday, getWeekDays, isInstantOnLocalDate } from '../lib/calendarDate';
+import { useTimeZone } from '../timezone/TimeZoneProvider';
 
 const DAY_START_MINUTES = 0;
 const DAY_END_MINUTES = 24 * 60;
@@ -33,6 +35,26 @@ const dayHours = Array.from(
 const daySlots = Array.from(
   { length: (DAY_END_MINUTES - DAY_START_MINUTES) / DAY_SLOT_MINUTES },
   (_, index) => DAY_START_MINUTES + (index * DAY_SLOT_MINUTES)
+);
+
+export const getBlocksForDate = (blocks: readonly TimeBlock[], date: string) => (
+  blocks
+    .filter((block) => block.date === date)
+    .slice()
+    .sort((left, right) => left.startMinutes - right.startMinutes)
+);
+
+export const getLoggedSecondsForDate = (entries: readonly TimeEntry[], date: string, timeZone?: string) => (
+  entries.reduce((total, entry) => (
+    isInstantOnLocalDate(entry.observedAt, date, timeZone) ? total + entry.durationSeconds : total
+  ), 0)
+);
+
+export const getNextScheduledBlock = (blocks: readonly TimeBlock[], currentMinute: number) => (
+  blocks
+    .filter((block) => block.startMinutes + block.durationMinutes > currentMinute)
+    .slice()
+    .sort((left, right) => left.startMinutes - right.startMinutes)[0]
 );
 
 interface TimeBlockDraft {
@@ -57,24 +79,21 @@ function useTimerSeconds(startedAt: number | null, accumulatedSeconds: number, p
   return accumulatedSeconds + Math.max(0, Math.floor((now - startedAt) / 1000));
 }
 
-const minuteOfDay = () => {
-  const now = new Date();
-  return (now.getHours() * 60) + now.getMinutes();
-};
-
-function useCurrentMinute() {
-  const [currentMinute, setCurrentMinute] = useState(minuteOfDay);
+function useCurrentMinute(timeZone: string) {
+  const [currentMinute, setCurrentMinute] = useState(() => getMinuteOfDay(new Date(), timeZone));
 
   useEffect(() => {
-    const update = () => setCurrentMinute(minuteOfDay());
+    const update = () => setCurrentMinute(getMinuteOfDay(new Date(), timeZone));
+    update();
     const interval = window.setInterval(update, 30_000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [timeZone]);
 
   return currentMinute;
 }
 
 export function TodayScreen() {
+  const { timeZone } = useTimeZone();
   const {
     tasks,
     outcomes,
@@ -101,12 +120,14 @@ export function TodayScreen() {
     taskTitle: string;
     minutes: number;
   } | null>(null);
-  const today = getToday();
-  const currentWeekDays = getWeekDays(0);
+  const calendarNow = new Date();
+  const today = getToday(calendarNow, timeZone);
+  const todayDate = today.isoDate;
+  const currentWeekDays = getWeekDays(0, calendarNow, timeZone);
   const [timeBlockDraft, setTimeBlockDraft] = useState<TimeBlockDraft | null>(null);
   const [timeBlockError, setTimeBlockError] = useState('');
   const [timeBlockNotice, setTimeBlockNotice] = useState('');
-  const currentMinute = useCurrentMinute();
+  const currentMinute = useCurrentMinute(timeZone);
   const currentTimeTop = Math.round(
     (((currentMinute - DAY_START_MINUTES) / 60) * DAY_HOUR_HEIGHT) * 10
   ) / 10;
@@ -121,15 +142,17 @@ export function TodayScreen() {
     : [];
   const carryoverTask = activeTasks.find((task) => task.carryCount > 0);
   const todayBlocks = useMemo(
-    () => timeBlocks
-      .filter((block) => block.day === today.key && (block.weekOffset ?? 0) === 0)
-      .sort((a, b) => a.startMinutes - b.startMinutes),
-    [timeBlocks, today.key]
+    () => getBlocksForDate(timeBlocks, todayDate),
+    [timeBlocks, todayDate]
+  );
+  const todayCollisionBlocks = useMemo(
+    () => todayBlocks.map((block) => ({ ...block, day: today.key, weekOffset: 0 })),
+    [today.key, todayBlocks]
   );
   const remainingWeek = useMemo(
     () => currentWeekDays.slice(today.index + 1, 5).map((day) => {
       const blocks = timeBlocks.filter((block) => (
-        block.day === day.key && !block.external && (block.weekOffset ?? 0) === 0
+        block.date === day.isoDate && !block.external
       ));
       return {
         ...day,
@@ -139,17 +162,15 @@ export function TodayScreen() {
     }),
     [currentWeekDays, timeBlocks, today.index]
   );
-  const nextBlock = todayBlocks.find((block) => block.taskId === focusTask?.id)
-    ?? todayBlocks.find((block) => !block.external)
-    ?? todayBlocks[0];
+  const nextBlock = getNextScheduledBlock(todayBlocks, currentMinute);
   const elapsed = useTimerSeconds(timer?.startedAt ?? null, timer?.accumulatedSeconds ?? 0, timer?.paused ?? true);
-  const loggedToday = timeEntries.reduce((sum, entry) => sum + entry.durationSeconds, 0);
+  const loggedToday = getLoggedSecondsForDate(timeEntries, todayDate, timeZone);
   const plannedTodayMinutes = todayBlocks
     .filter((block) => !block.external)
     .reduce((sum, block) => sum + block.durationMinutes, 0);
   const executionPercentage = plannedTodayMinutes > 0
     ? Math.min(100, Math.round((loggedToday / (plannedTodayMinutes * 60)) * 100))
-    : loggedToday > 0 ? 100 : 0;
+    : null;
 
   const captureTask = () => {
     if (!capture.trim()) return;
@@ -202,7 +223,7 @@ export function TodayScreen() {
   };
 
   const saveTimeBlockDraft = (value: TimeBlockEditorValue) => {
-    const conflict = findTimeBlockConflict(todayBlocks, {
+    const conflict = findTimeBlockConflict(todayCollisionBlocks, {
       day: today.key,
       startMinutes: value.startMinutes,
       durationMinutes: value.durationMinutes,
@@ -233,6 +254,7 @@ export function TodayScreen() {
       day: today.key,
       startMinutes: value.startMinutes,
       durationMinutes: value.durationMinutes,
+      date: todayDate,
       weekOffset: 0
     });
     if (!saved) {
@@ -296,18 +318,24 @@ export function TodayScreen() {
             <div className="today-execution__metrics">
               <span><small>계획</small>{formatMinutes(plannedTodayMinutes)}</span>
               <span><small>실제</small>기록 {formatTimer(loggedToday)}</span>
-              <span><small>실행률</small>{executionPercentage}%</span>
+              <span><small>실행률</small>{executionPercentage === null ? '계획 없음' : `${executionPercentage}%`}</span>
             </div>
-            <div
-              className="today-execution__track"
-              role="progressbar"
-              aria-label={`오늘 실행률 ${executionPercentage}%`}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={executionPercentage}
-            >
-              <i style={{ width: `${executionPercentage}%` }} />
-            </div>
+            {executionPercentage === null ? (
+              <div className="today-execution__track" role="status" aria-label={`오늘 계획 없음, 기록 ${formatTimer(loggedToday)}`}>
+                <i style={{ width: '0%' }} />
+              </div>
+            ) : (
+              <div
+                className="today-execution__track"
+                role="progressbar"
+                aria-label={`오늘 실행률 ${executionPercentage}%`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={executionPercentage}
+              >
+                <i style={{ width: `${executionPercentage}%` }} />
+              </div>
+            )}
           </section>
         )}
       </header>
@@ -327,8 +355,34 @@ export function TodayScreen() {
         </aside>
       )}
 
-      <div className="today-workspace">
-        <div className="today-command-column">
+        <div className="today-workspace">
+          <div className="today-command-column">
+          <section className="next-block" aria-labelledby="next-block-title">
+            <header>
+              <div>
+                <p className="eyebrow">다음 일정</p>
+                <h2 id="next-block-title">바로 이어갈 시간</h2>
+              </div>
+              <a className="button button--secondary button--small" href="#today-timeline">
+                <CalendarClock size={16} aria-hidden="true" /> 시간표 보기
+              </a>
+            </header>
+            {nextBlock ? (
+              <div className={nextBlock.external ? 'next-block__body next-block__body--external' : 'next-block__body'}>
+                <time>{formatClock(nextBlock.startMinutes)}</time>
+                <div>
+                  <span>{nextBlock.external ? '외부 일정 · 읽기 전용' : nextBlock.taskId ? '할 일' : '내 일정'}</span>
+                  <strong>{nextBlock.title}</strong>
+                </div>
+                <span>{formatMinutes(nextBlock.durationMinutes)}</span>
+              </div>
+            ) : (
+              <button className="next-block__empty-button" type="button" onClick={() => openTimeBlock(18 * 60)}>
+                <CalendarPlus size={17} /> 오늘 첫 시간을 잡아보세요.
+              </button>
+            )}
+          </section>
+
           <section className="today-priorities" aria-labelledby="today-top-three-title">
             <header className="section-heading section-heading--rule">
               <div>
@@ -378,30 +432,6 @@ export function TodayScreen() {
             )}
           </section>
 
-          <section className="next-block" aria-labelledby="next-block-title">
-            <header>
-              <div>
-                <p className="eyebrow">다음 일정</p>
-                <h2 id="next-block-title">바로 이어갈 시간</h2>
-              </div>
-              <CalendarClock size={18} aria-hidden="true" />
-            </header>
-            {nextBlock ? (
-              <div className={nextBlock.external ? 'next-block__body next-block__body--external' : 'next-block__body'}>
-                <time>{formatClock(nextBlock.startMinutes)}</time>
-                <div>
-                  <span>{nextBlock.external ? '외부 일정 · 읽기 전용' : nextBlock.taskId ? '할 일' : '내 일정'}</span>
-                  <strong>{nextBlock.title}</strong>
-                </div>
-                <span>{formatMinutes(nextBlock.durationMinutes)}</span>
-              </div>
-            ) : (
-              <button className="next-block__empty-button" type="button" onClick={() => openTimeBlock(18 * 60)}>
-                <CalendarPlus size={17} /> 오늘 첫 시간을 잡아보세요.
-              </button>
-            )}
-          </section>
-
           <section className="quick-capture quick-capture--row">
             <div className="quick-capture__label">
               <Plus size={18} />
@@ -422,7 +452,7 @@ export function TodayScreen() {
           </section>
         </div>
 
-        <section className="today-timeline today-timeline--interactive" aria-labelledby="today-timeline-title">
+        <section id="today-timeline" className="today-timeline today-timeline--interactive" aria-labelledby="today-timeline-title">
           <header className="section-heading section-heading--rule">
             <div>
               <p className="eyebrow">오늘의 시간표</p>
@@ -457,7 +487,7 @@ export function TodayScreen() {
 
             <div className="day-schedule__slots">
               {daySlots.map((startMinutes) => {
-                const occupied = Boolean(findTimeBlockConflict(todayBlocks, {
+                const occupied = Boolean(findTimeBlockConflict(todayCollisionBlocks, {
                   day: today.key,
                   startMinutes,
                   durationMinutes: DAY_SLOT_MINUTES,

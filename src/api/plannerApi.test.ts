@@ -5,12 +5,14 @@ import {
   PlannerConflictError
 } from './plannerApi';
 
-const aggregateResponse = (revision: number) => new Response(JSON.stringify({
+const subjectEtag = (revision: number, subject = 'test-user') => `"planner-${subject}-${revision}"`;
+
+const aggregateResponse = (revision: number, etag = subjectEtag(revision)) => new Response(JSON.stringify({
   revision,
   snapshot: createDemoSnapshot()
 }), {
   status: 200,
-  headers: { 'Content-Type': 'application/json', ETag: `"${revision}"` }
+  headers: { 'Content-Type': 'application/json', ETag: etag }
 });
 
 describe('plannerApi', () => {
@@ -22,7 +24,7 @@ describe('plannerApi', () => {
       fetchImpl
     });
 
-    const result = await client.get('"11"');
+    const result = await client.get(subjectEtag(11));
 
     expect(result.kind).toBe('found');
     expect(fetchImpl).toHaveBeenCalledWith('http://10.0.2.2:8080/api/v1/planner', expect.objectContaining({
@@ -30,7 +32,8 @@ describe('plannerApi', () => {
     }));
     const headers = new Headers(fetchImpl.mock.calls[0][1]?.headers);
     expect(headers.get('Authorization')).toBe('Bearer test-access-token');
-    expect(headers.get('If-None-Match')).toBe('"11"');
+    expect(headers.get('If-None-Match')).toBe(subjectEtag(11));
+    expect(result).toMatchObject({ kind: 'found', etag: subjectEtag(12) });
   });
 
   it('uses create and update preconditions with caller-supplied idempotency keys', async () => {
@@ -39,7 +42,12 @@ describe('plannerApi', () => {
     const snapshot = createDemoSnapshot();
 
     await client.put(snapshot, null, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
-    await client.put(snapshot, 1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    await client.put(
+      snapshot,
+      1,
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      subjectEtag(1)
+    );
 
     const createHeaders = new Headers(fetchImpl.mock.calls[0][1]?.headers);
     expect(createHeaders.get('If-None-Match')).toBe('*');
@@ -48,7 +56,7 @@ describe('plannerApi', () => {
 
     const updateHeaders = new Headers(fetchImpl.mock.calls[1][1]?.headers);
     expect(updateHeaders.get('If-None-Match')).toBeNull();
-    expect(updateHeaders.get('If-Match')).toBe('"1"');
+    expect(updateHeaders.get('If-Match')).toBe(subjectEtag(1));
     expect(updateHeaders.get('Idempotency-Key')).toBe('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
   });
 
@@ -58,11 +66,11 @@ describe('plannerApi', () => {
     ));
     const client = createPlannerApiClient({ fetchImpl, accessTokenProvider: async () => 'test-access-token' });
 
-    await client.delete(9, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+    await client.delete(9, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', subjectEtag(9));
 
     const headers = new Headers(fetchImpl.mock.calls[0][1]?.headers);
     expect(fetchImpl.mock.calls[0][1]?.method).toBe('DELETE');
-    expect(headers.get('If-Match')).toBe('"9"');
+    expect(headers.get('If-Match')).toBe(subjectEtag(9));
     expect(headers.get('Idempotency-Key')).toBe('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
   });
 
@@ -77,7 +85,8 @@ describe('plannerApi', () => {
     const error = await client.put(
       createDemoSnapshot(),
       2,
-      'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      subjectEtag(2, 'stale-user')
     ).catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(PlannerConflictError);

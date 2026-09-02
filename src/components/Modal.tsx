@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type PropsWithChildren } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps extends PropsWithChildren {
@@ -6,9 +7,10 @@ interface ModalProps extends PropsWithChildren {
   description?: string;
   onClose: () => void;
   className?: string;
+  eyebrow?: string;
 }
 
-export function Modal({ title, description, onClose, children, className = '' }: ModalProps) {
+export function Modal({ title, description, onClose, children, className = '', eyebrow }: ModalProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   const returnFocusRef = useRef<HTMLElement | null>(
@@ -51,7 +53,7 @@ export function Modal({ title, description, onClose, children, className = '' }:
     };
   }, []);
 
-  return (
+  const content = (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
@@ -65,7 +67,7 @@ export function Modal({ title, description, onClose, children, className = '' }:
       >
         <header className="modal__header">
           <div>
-            <p className="eyebrow">빠른 설정</p>
+            {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
             <h2 id={titleId}>{title}</h2>
             {description ? <p id={descriptionId} className="modal__description">{description}</p> : null}
           </div>
@@ -77,4 +79,6 @@ export function Modal({ title, description, onClose, children, className = '' }:
       </section>
     </div>
   );
+
+  return createPortal(content, document.body);
 }

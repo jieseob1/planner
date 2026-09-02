@@ -202,7 +202,9 @@ try {
     body: JSON.stringify(snapshot)
   }), 201, 'frontend-proxied create');
   const firstEtag = createdResponse.headers.get('etag');
-  if (firstEtag !== '"1"') fail(`Expected initial ETag "1", got ${firstEtag}`);
+  if (!firstEtag || !/^"planner-[0-9a-f]{32}-1"$/.test(firstEtag)) {
+    fail(`Expected a subject-aware initial ETag, got ${firstEtag}`);
+  }
 
   for (const [index, podUrl] of podUrls.entries()) {
     const response = await expectStatus(await fetch(podUrl, { headers: headers() }), 200, `pod ${index + 1} read`);
@@ -230,7 +232,7 @@ try {
   const winnerIndex = race.findIndex((response) => response.status === 200);
   const winner = await race[winnerIndex].json();
   const secondEtag = race[winnerIndex].headers.get('etag');
-  if (winner.revision !== 2 || secondEtag !== '"2"') {
+  if (winner.revision !== 2 || !secondEtag || !/^"planner-[0-9a-f]{32}-2"$/.test(secondEtag)) {
     fail('Winning concurrent write did not produce revision 2');
   }
 

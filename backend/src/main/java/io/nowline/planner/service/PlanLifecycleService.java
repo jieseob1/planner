@@ -48,6 +48,7 @@ public class PlanLifecycleService {
     private PlanHistory.Detail createOnce(UUID userId, UUID planId, String title, PlannerSnapshot requested) {
         planner.lockUser(userId);
         PlannerSnapshot snapshot = validator.validateAndCanonicalize(requested);
+        validator.ensureInitialMetricHistory(snapshot);
         if (!plans.create(userId, planId, title, snapshot)) {
             PlanHistory.Detail existing = plans.find(userId, planId).orElseThrow(PlannerException::planConflict);
             if (!existing.plan().title().equals(title.trim()) || !existing.snapshot().equals(snapshot)) {

@@ -10,16 +10,15 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 
 const navItems = [
-  { to: '/today', label: '오늘', desktopLabel: 'Today', contextLabel: '오늘 실행', icon: CheckCircle2 },
-  { to: '/planner', label: '계획', desktopLabel: 'Planner', contextLabel: '주간 계획', icon: CalendarDays },
-  { to: '/goals', label: '목표', desktopLabel: 'Goals', contextLabel: '목표와 지표', icon: Target },
-  { to: '/review', label: '회고', desktopLabel: 'Review', contextLabel: '주간 회고', icon: Flag },
-  { to: '/plans', label: '계획함', desktopLabel: 'Plans', contextLabel: '연간·분기 계획', icon: Layers3 }
+  { to: '/today', label: '오늘', contextLabel: '오늘 실행', icon: CheckCircle2 },
+  { to: '/planner', label: '계획', contextLabel: '주간 계획', icon: CalendarDays },
+  { to: '/goals', label: '목표', contextLabel: '목표와 지표', icon: Target },
+  { to: '/review', label: '회고', contextLabel: '주간 회고', icon: Flag },
+  { to: '/plans', label: '계획함', contextLabel: '연간·분기 계획', icon: Layers3 }
 ];
 
 const journeyItems = [
-  { to: '/goals', label: '연간 방향', paths: ['/goals'] },
-  { to: '/goals', label: '분기 결과', paths: ['/goals'] },
+  { to: '/goals', label: '연간·분기 방향', paths: ['/goals'] },
   { to: '/planner', label: '주간 계획', paths: ['/planner'] },
   { to: '/today', label: '오늘 실행', paths: ['/today'] },
   { to: '/review', label: '주간 회고', paths: ['/review'] }
@@ -99,11 +98,11 @@ export function AppShell() {
         </NavLink>
 
         <nav className="sidebar__nav" aria-label="주 메뉴">
-          {navItems.map(({ to, label, desktopLabel, contextLabel, icon: Icon }) => (
+          {navItems.map(({ to, label, contextLabel, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
-              aria-label={desktopLabel}
+              aria-label={`${label} · ${contextLabel}`}
               className={({ isActive }) => clsx('nav-item', isActive && 'nav-item--active')}
             >
               <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
@@ -187,14 +186,13 @@ export function AppShell() {
         ))}
       </nav>
 
-      {!['/plans', '/settings'].includes(pathname) && (
-        <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label="빠른 수집">
-          <Plus size={25} aria-hidden="true" />
-        </button>
-      )}
+      <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label="빠른 수집">
+        <Plus size={25} aria-hidden="true" />
+      </button>
 
       {resetConfirmOpen ? (
         <Modal
+          eyebrow="계획 관리"
           title="현재 계획을 초기화할까요?"
           description="현재 활성 계획과 실행 화면의 목표, 작업, 시간 기록, 회고를 보관하고 새 계획 온보딩으로 이동합니다. 이 작업은 되돌릴 수 없습니다."
           onClose={() => {

@@ -2,6 +2,13 @@ import { getAccessToken } from '../auth/accessToken';
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
 
+export class AccountApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'AccountApiError';
+  }
+}
+
 export interface AccountPreferences {
   timezone: string;
   locale: string;
@@ -40,17 +47,21 @@ const authorizedFetch = async (path: string, init?: RequestInit) => {
   });
 };
 
+const responseError = async (response: Response, fallback: string) => {
+  let message = fallback;
+  try {
+    const body = await response.json() as { detail?: string };
+    if (body.detail) message = body.detail;
+  } catch {
+    // Keep the operation-specific fallback for empty upstream responses.
+  }
+  return new AccountApiError(`${message} (${response.status})`, response.status);
+};
+
 const json = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await authorizedFetch(path, init);
   if (!response.ok) {
-    let message = `요청에 실패했습니다. (${response.status})`;
-    try {
-      const body = await response.json() as { detail?: string };
-      if (body.detail) message = body.detail;
-    } catch {
-      // Keep the status fallback.
-    }
-    throw new Error(message);
+    throw await responseError(response, '요청에 실패했습니다.');
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -64,7 +75,7 @@ export const accountApi = {
   }),
   async downloadExport() {
     const response = await authorizedFetch('/api/v1/account/export');
-    if (!response.ok) throw new Error('계정 데이터를 내보내지 못했습니다.');
+    if (!response.ok) throw await responseError(response, '계정 데이터를 내보내지 못했습니다.');
     const blob = await response.blob();
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement('a');

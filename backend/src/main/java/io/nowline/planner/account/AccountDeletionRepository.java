@@ -19,6 +19,11 @@ public class AccountDeletionRepository {
 
     @Transactional
     public void deleteLocal(UUID userId) {
+        jdbc.update("""
+                INSERT INTO deleted_identity_tombstone (user_id, deleted_at)
+                VALUES (?, CURRENT_TIMESTAMP(6)) AS deletion
+                ON DUPLICATE KEY UPDATE deleted_at = deletion.deleted_at
+                """, id(userId));
         jdbc.update("DELETE FROM app_user WHERE user_id = ?", id(userId));
     }
 }

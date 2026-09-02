@@ -3,6 +3,13 @@ import { getAccessToken } from '../auth/accessToken';
 const API_PATH = '/api/v1/integrations/google-calendar';
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
 
+export class GoogleCalendarApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'GoogleCalendarApiError';
+  }
+}
+
 export type CalendarDirection = 'IMPORT_ONLY' | 'EXPORT_ONLY' | 'BIDIRECTIONAL';
 
 export interface GoogleCalendarStatus {
@@ -37,26 +44,28 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     }
   });
   if (!response.ok) {
-    let message = `Google Calendar 요청에 실패했습니다. (${response.status})`;
+    let message = 'Google Calendar 요청에 실패했습니다.';
     try {
       const body = await response.json() as { detail?: string };
       if (body.detail) message = body.detail;
     } catch {
       // Preserve the status-based fallback for empty upstream responses.
     }
-    throw new Error(message);
+    throw new GoogleCalendarApiError(`${message} (${response.status})`, response.status);
   }
-  if (response.status === 204 || response.headers.get('Content-Length') === '0') return undefined as T;
-  return response.json() as Promise<T>;
+  if (response.status === 204) return undefined as T;
+  const body = await response.text();
+  if (!body.trim()) return undefined as T;
+  return JSON.parse(body) as T;
 };
 
 export const googleCalendarApi = {
-  status: () => request<GoogleCalendarStatus>('/status'),
+  status: (signal?: AbortSignal) => request<GoogleCalendarStatus>('/status', { signal }),
   connect: (returnPath = '/settings') => request<{ authorizationUrl: string }>('/connect', {
     method: 'POST',
     body: JSON.stringify({ returnPath })
   }),
-  calendars: () => request<GoogleCalendarInfo[]>('/calendars'),
+  calendars: (signal?: AbortSignal) => request<GoogleCalendarInfo[]>('/calendars', { signal }),
   settings: (calendarId: string, direction: CalendarDirection) => request<GoogleCalendarStatus>('/settings', {
     method: 'PUT',
     body: JSON.stringify({ calendarId, direction })

@@ -1,9 +1,9 @@
 import type { PlanContext, PlannerSnapshot } from '../domain/types';
+import { toLocalDate } from '../lib/calendarDate';
 
-const currentPlan = (): PlanContext => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const quarter = (Math.floor(today.getMonth() / 3) + 1) as PlanContext['quarter'];
+const currentPlan = (timeZone?: string, now = new Date()): PlanContext => {
+  const [year, month] = toLocalDate(now, timeZone).split('-').map(Number);
+  const quarter = (Math.floor((month - 1) / 3) + 1) as PlanContext['quarter'];
   const quarterEnd = new Date(Date.UTC(year, quarter * 3, 0));
 
   return {
@@ -15,9 +15,9 @@ const currentPlan = (): PlanContext => {
   };
 };
 
-export const createEmptySnapshot = (): PlannerSnapshot => ({
+export const createEmptySnapshot = (timeZone?: string, now = new Date()): PlannerSnapshot => ({
   version: 1,
-  plan: currentPlan(),
+  plan: currentPlan(timeZone, now),
   plannerWeekOffset: 0,
   tasks: [],
   timeBlocks: [],

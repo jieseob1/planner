@@ -38,7 +38,7 @@ try {
   await page.getByRole('button', { name: '계속' }).click();
   await page.locator('button[role="radio"]:not([disabled])').first().click();
   await page.getByRole('button', { name: /첫 실행 만들기/ }).click();
-  await page.getByRole('heading', { name: '오늘은 하나를 끝냅니다.' }).waitFor({ timeout: 30_000 });
+  await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor({ timeout: 30_000 });
   await page.getByText('서버에 저장됨').waitFor({ timeout: 30_000 });
 
   const desktopTargets = [

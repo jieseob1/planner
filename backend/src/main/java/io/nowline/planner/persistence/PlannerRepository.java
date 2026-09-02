@@ -2,6 +2,7 @@ package io.nowline.planner.persistence;
 
 import io.nowline.planner.domain.PlannerEnvelope;
 import io.nowline.planner.domain.PlannerSnapshot;
+import io.nowline.planner.service.PlannerException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,7 +14,9 @@ import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,7 +39,7 @@ public class PlannerRepository {
                 (resultSet, rowNumber) -> resultSet.getString(1),
                 id(userId));
         if (locked.size() != 1) {
-            throw new IllegalStateException("Authenticated user row could not be locked");
+            throw PlannerException.deletedAccountSession();
         }
     }
 
@@ -70,9 +73,27 @@ public class PlannerRepository {
             return Optional.empty();
         }
 
+        Map<String, List<PlannerSnapshot.MetricHistoryEntry>> metricHistory = new LinkedHashMap<>();
+        List<OutcomeMetricRow> metricRows = jdbc.query("""
+                        SELECT outcome_id, history_id, metric_value, observed_at, evidence
+                        FROM planner_outcome_metric_history
+                        WHERE user_id = ?
+                        ORDER BY outcome_id, sort_order
+                        """, (rs, row) -> new OutcomeMetricRow(
+                                rs.getString("outcome_id"),
+                                rs.getString("history_id"),
+                                rs.getBigDecimal("metric_value"),
+                                rs.getTimestamp("observed_at").toInstant(),
+                                rs.getString("evidence")), id(userId));
+        metricRows.forEach(value -> metricHistory
+                .computeIfAbsent(value.outcomeId(), ignored -> new ArrayList<>())
+                .add(new PlannerSnapshot.MetricHistoryEntry(
+                        value.historyId(), value.value(), value.observedAt(), value.evidence())));
+
         List<PlannerSnapshot.Outcome> outcomes = jdbc.query("""
                         SELECT outcome_id, title, parent_title, current_value, target_value, unit,
-                               confidence, last_updated_days, actual_hours, needed_hours, available_hours,
+                               confidence, last_updated_days, metric_updated_at, next_check_date,
+                               actual_hours, needed_hours, available_hours,
                                evidence_label, change_label, attention, decision
                         FROM planner_outcome WHERE user_id = ? ORDER BY sort_order
                         """,
@@ -85,6 +106,9 @@ public class PlannerRepository {
                         rs.getString("unit"),
                         PlannerSnapshot.Confidence.from(rs.getString("confidence")),
                         rs.getObject("last_updated_days", Integer.class),
+                        instant(rs.getTimestamp("metric_updated_at")),
+                        rs.getObject("next_check_date", LocalDate.class),
+                        List.copyOf(metricHistory.getOrDefault(rs.getString("outcome_id"), List.of())),
                         rs.getBigDecimal("actual_hours"),
                         rs.getBigDecimal("needed_hours"),
                         rs.getBigDecimal("available_hours"),
@@ -110,7 +134,8 @@ public class PlannerRepository {
                 ), id(userId));
 
         List<PlannerSnapshot.TimeBlock> blocks = jdbc.query("""
-                        SELECT block_id, task_id, title, day_key, start_minutes, duration_minutes, external, week_offset
+                        SELECT block_id, task_id, title, day_key, start_minutes, duration_minutes,
+                               external, week_offset, block_date
                         FROM planner_time_block WHERE user_id = ? ORDER BY sort_order
                         """,
                 (rs, row) -> new PlannerSnapshot.TimeBlock(
@@ -121,7 +146,8 @@ public class PlannerRepository {
                         rs.getInt("start_minutes"),
                         rs.getInt("duration_minutes"),
                         rs.getBoolean("external"),
-                        rs.getInt("week_offset")
+                        rs.getInt("week_offset"),
+                        rs.getObject("block_date", LocalDate.class)
                 ), id(userId));
 
         List<PlannerSnapshot.TimeEntry> entries = jdbc.query("""
@@ -269,11 +295,13 @@ public class PlannerRepository {
         jdbc.update("DELETE FROM planner_time_entry WHERE user_id = ?", id(userId));
         jdbc.update("DELETE FROM planner_time_block WHERE user_id = ?", id(userId));
         jdbc.update("DELETE FROM planner_task WHERE user_id = ?", id(userId));
+        jdbc.update("DELETE FROM planner_outcome_metric_history WHERE user_id = ?", id(userId));
         jdbc.update("DELETE FROM planner_outcome WHERE user_id = ?", id(userId));
     }
 
     private void insertChildren(UUID userId, PlannerSnapshot snapshot) {
         insertOutcomes(userId, snapshot.outcomes());
+        insertOutcomeMetricHistory(userId, snapshot.outcomes());
         insertTasks(userId, snapshot.tasks());
         insertTimeBlocks(userId, snapshot.timeBlocks());
         insertTimeEntries(userId, snapshot.timeEntries());
@@ -285,9 +313,10 @@ public class PlannerRepository {
         batch("""
                         INSERT INTO planner_outcome (
                             user_id, outcome_id, sort_order, title, parent_title, current_value, target_value,
-                            unit, confidence, last_updated_days, actual_hours, needed_hours, available_hours,
+                            unit, confidence, last_updated_days, metric_updated_at, next_check_date,
+                            actual_hours, needed_hours, available_hours,
                             evidence_label, change_label, attention, decision
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, outcomes, (statement, item) -> {
             PlannerSnapshot.Outcome value = item.value();
             statement.setString(1, id(userId));
@@ -300,13 +329,39 @@ public class PlannerRepository {
             statement.setString(8, value.unit());
             statement.setString(9, value.confidence().value());
             setInteger(statement, 10, value.lastUpdatedDays());
-            statement.setBigDecimal(11, value.actualHours());
-            statement.setBigDecimal(12, value.neededHours());
-            statement.setBigDecimal(13, value.availableHours());
-            statement.setString(14, value.evidenceLabel());
-            statement.setString(15, value.changeLabel());
-            statement.setString(16, value.attention().value());
-            statement.setString(17, value.decision() == null ? null : value.decision().value());
+            statement.setTimestamp(11, timestamp(value.metricUpdatedAt()));
+            setLocalDate(statement, 12, value.nextCheckDate());
+            statement.setBigDecimal(13, value.actualHours());
+            statement.setBigDecimal(14, value.neededHours());
+            statement.setBigDecimal(15, value.availableHours());
+            statement.setString(16, value.evidenceLabel());
+            statement.setString(17, value.changeLabel());
+            statement.setString(18, value.attention().value());
+            statement.setString(19, value.decision() == null ? null : value.decision().value());
+        });
+    }
+
+    private void insertOutcomeMetricHistory(UUID userId, List<PlannerSnapshot.Outcome> outcomes) {
+        List<OutcomeMetricValue> values = new ArrayList<>();
+        for (PlannerSnapshot.Outcome outcome : outcomes) {
+            List<PlannerSnapshot.MetricHistoryEntry> history = outcome.metricHistoryOrEmpty();
+            for (int index = 0; index < history.size(); index++) {
+                values.add(new OutcomeMetricValue(outcome.id(), index, history.get(index)));
+            }
+        }
+        batch("""
+                        INSERT INTO planner_outcome_metric_history (
+                            user_id, outcome_id, history_id, sort_order, metric_value, observed_at, evidence
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, values, (statement, item) -> {
+            OutcomeMetricValue value = item.value();
+            statement.setString(1, id(userId));
+            statement.setString(2, value.outcomeId());
+            statement.setString(3, value.entry().id());
+            statement.setInt(4, value.sortOrder());
+            setBigDecimal(statement, 5, value.entry().value());
+            statement.setTimestamp(6, Timestamp.from(value.entry().observedAt()));
+            statement.setString(7, value.entry().evidence());
         });
     }
 
@@ -335,8 +390,8 @@ public class PlannerRepository {
         batch("""
                         INSERT INTO planner_time_block (
                             user_id, block_id, sort_order, task_id, title, day_key,
-                            start_minutes, duration_minutes, external, week_offset
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            start_minutes, duration_minutes, external, week_offset, block_date
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, blocks, (statement, item) -> {
             PlannerSnapshot.TimeBlock value = item.value();
             statement.setString(1, id(userId));
@@ -349,6 +404,7 @@ public class PlannerRepository {
             statement.setInt(8, value.durationMinutes());
             statement.setBoolean(9, value.externalOrFalse());
             statement.setInt(10, value.weekOffsetOrZero());
+            setLocalDate(statement, 11, value.date());
         });
     }
 
@@ -417,6 +473,14 @@ public class PlannerRepository {
         }
     }
 
+    private static void setLocalDate(PreparedStatement statement, int index, LocalDate value) throws SQLException {
+        if (value == null) {
+            statement.setNull(index, Types.DATE);
+        } else {
+            statement.setDate(index, java.sql.Date.valueOf(value));
+        }
+    }
+
     private static Timestamp timestamp(Instant instant) {
         return instant == null ? null : Timestamp.from(instant);
     }
@@ -447,6 +511,22 @@ public class PlannerRepository {
     }
 
     private record Indexed<T>(int index, T value) {
+    }
+
+    private record OutcomeMetricValue(
+            String outcomeId,
+            int sortOrder,
+            PlannerSnapshot.MetricHistoryEntry entry
+    ) {
+    }
+
+    private record OutcomeMetricRow(
+            String outcomeId,
+            String historyId,
+            BigDecimal value,
+            Instant observedAt,
+            String evidence
+    ) {
     }
 
     @FunctionalInterface
