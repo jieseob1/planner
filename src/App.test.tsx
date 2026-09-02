@@ -117,6 +117,13 @@ describe('Planner frontend core flows', () => {
     expect(within(dialog).getByLabelText(/종료/)).toHaveValue('1440');
   });
 
+  it('keeps settings accessible from the focused Today layout', () => {
+    renderRoute('/today');
+
+    expect(screen.getByRole('link', { name: '설정 · 설정과 연동' }))
+      .toHaveAttribute('href', '/settings');
+  });
+
   it('starts and completes the primary task from Today', async () => {
     const user = userEvent.setup();
     renderRoute('/today');

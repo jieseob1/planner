@@ -10343,6 +10343,16 @@ button.day-schedule__block:hover {
 }
 
 /* Final Today cascade overrides (outside the legacy layer). */
+.sidebar__today-footer {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.sidebar__today-footer .capture-button--rail {
+  margin-top: 0;
+}
+
 @media (min-width: 901px) and (max-width: 1280px) {
   .today-focus-workspace {
     grid-template-columns: minmax(470px, 1.2fr) minmax(370px, 1fr) !important;

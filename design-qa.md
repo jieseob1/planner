@@ -33,10 +33,11 @@
 - Clicked an empty time slot and confirmed that the start/end form opens with the selected interval.
 - Started the primary task, opened the stop flow, and confirmed both continuation and completion controls.
 - Confirmed quick capture input, task completion controls, scheduling controls, and persistent memo input have accessible names.
+- Confirmed the focused Today layout keeps the Settings and integrations route directly accessible from the sidebar.
 - Confirmed all 24 hourly drop/click targets are present from 00:00 through 24:00.
 - Confirmed the current-time indicator is visible and correctly positioned.
 - Browser console: no warnings or errors after the final reload.
-- Automated frontend suite: 118 tests passed.
+- Automated frontend suite: 119 tests passed.
 - Production frontend build: passed.
 
 ## Intentional differences

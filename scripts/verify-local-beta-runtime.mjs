@@ -105,7 +105,7 @@ const login = async (page, user) => {
 };
 
 const assertEntitlement = async (page) => {
-  await page.getByRole('button', { name: '설정과 연동' }).click();
+  await page.getByRole('link', { name: '설정 · 설정과 연동' }).click();
   await page.getByRole('heading', { name: '이용 플랜' }).waitFor({ timeout: 30_000 });
   await page.getByText('무료 베타', { exact: true }).waitFor();
   await page.getByText('결제 없이 제공되는 베타 권한', { exact: true }).waitFor();

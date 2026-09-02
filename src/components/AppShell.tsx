@@ -115,15 +115,28 @@ export function AppShell() {
           ))}
         </nav>
 
-        <button
-          className="capture-button capture-button--rail"
-          type="button"
-          onClick={focusQuickCapture}
-          aria-label="빠른 수집"
-        >
-          <Plus size={21} aria-hidden="true" />
-          <span>빠른 수집</span>
-        </button>
+        <div className="sidebar__today-footer">
+          <NavLink
+            to="/settings"
+            aria-label="설정 · 설정과 연동"
+            className={({ isActive }) => clsx('nav-item', isActive && 'nav-item--active')}
+          >
+            <Settings size={20} strokeWidth={1.9} aria-hidden="true" />
+            <span className="nav-item__copy">
+              <strong className="nav-item__label">설정</strong>
+              <small>설정과 연동</small>
+            </span>
+          </NavLink>
+          <button
+            className="capture-button capture-button--rail"
+            type="button"
+            onClick={focusQuickCapture}
+            aria-label="빠른 수집"
+          >
+            <Plus size={21} aria-hidden="true" />
+            <span>빠른 수집</span>
+          </button>
+        </div>
       </aside>
 
       <div className={isToday ? 'app-frame app-frame--today' : 'app-frame'}>
