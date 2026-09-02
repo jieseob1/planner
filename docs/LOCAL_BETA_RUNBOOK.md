@@ -55,6 +55,15 @@ sudo scripts/install-mac-mini-headless-services.sh
 
 상태는 `launchctl print system/com.nowline.local-beta`, `launchctl print system/com.goalstotoday.tunnel`, `curl --fail http://127.0.0.1:4189/healthz`로 확인합니다. 설치 스크립트는 실행 중인 저장소 위치와 `sudo`를 호출한 사용자의 홈 디렉터리를 plist에 렌더링합니다. 설치 후에는 `brew services start colima`를 다시 실행하지 않습니다.
 
+sudo 인증을 사용할 수 없는 원격 복구에서는 macOS가 기본 제공하는 system cron의 `@reboot` fallback을 설치할 수 있습니다. 이 방식도 GUI 로그인 전에 사용자 권한으로 실행되며, supervisor가 Colima·포트포워드·전용 tunnel을 감시하고 종료된 자식 프로세스를 재시작합니다. 기존 crontab의 다른 항목은 보존하고 Goals to Today marker 구간만 갱신합니다.
+
+```bash
+scripts/install-mac-mini-user-reboot-services.sh
+crontab -l
+```
+
+운영 우선순위는 system LaunchDaemon, cron `@reboot` fallback 순서입니다. 둘 중 하나만 사용하며 `npm run verify:goalstotoday:mac-mini`가 실제 실행 방식과 공개 사용자 흐름을 함께 확인합니다.
+
 종료 시 포트포워드와 workload만 내립니다. MySQL PVC는 유지됩니다.
 
 ```bash

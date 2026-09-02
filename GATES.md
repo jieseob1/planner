@@ -321,7 +321,7 @@ Scope: Reproduce the public `openid-configuration` 530 failure, repair the respo
   EXPECT: Goals to Today deployment revision verified
   EVIDENCE: pending
 
-- [ ] G64: The outage cause is bounded from Mac power evidence, and Colima, the local port-forward, and the dedicated Cloudflare tunnel recover before GUI login through system LaunchDaemons
+- [ ] G64: The outage cause is bounded from Mac power evidence, and Colima, the local port-forward, and the dedicated Cloudflare tunnel recover before GUI login through a headless boot service
   CHECK: rtk npm run verify:goalstotoday:contracts && rtk npm run verify:goalstotoday:mac-mini
   EXPECT: Goals to Today domain and brand contracts verified; Goals to Today Mac mini Kubernetes runtime verified
   EVIDENCE: pending

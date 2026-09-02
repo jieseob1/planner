@@ -191,7 +191,7 @@ npm run verify:goalstotoday:public    # 공개 HTTPS·OIDC·SSH·데스크톱/�
 npm run verify:goalstotoday:deployment # 로컬·GitHub·Mac mini revision 일치 검증
 ```
 
-Mac mini는 GUI 로그인 없이 복구되는 system LaunchDaemon으로 Colima·Kubernetes 포트포워드와 전용 Cloudflare Tunnel을 운영합니다. 설치·장애 판별·검증 절차는 [Local beta runbook](./docs/LOCAL_BETA_RUNBOOK.md)과 [Operations runbook](./docs/OPERATIONS_RUNBOOK.md)에 있습니다.
+Mac mini는 GUI 로그인 없이 복구되는 headless boot service로 Colima·Kubernetes 포트포워드와 전용 Cloudflare Tunnel을 운영합니다. system LaunchDaemon을 우선 사용하고 sudo 인증을 사용할 수 없는 원격 복구에서는 system cron `@reboot` fallback을 사용합니다. 설치·장애 판별·검증 절차는 [Local beta runbook](./docs/LOCAL_BETA_RUNBOOK.md)과 [Operations runbook](./docs/OPERATIONS_RUNBOOK.md)에 있습니다.
 
 `verify:k8s:runtime`은 현재 Kubernetes context를 바꾸지 않으며, local overlay와 현재 이미지를 적용합니다. 두 backend Pod에 직접 동시 요청해 하나만 ETag update에 성공하고 최종 상태가 일치하는지 확인합니다.
 

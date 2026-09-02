@@ -45,12 +45,20 @@ const envMap = (deployment) => Object.fromEntries(
 assert(envMap(byName.get('nowline-backend')).NOWLINE_OIDC_ISSUER === 'https://goalstotoday.com/idp/realms/nowline', 'Backend issuer is not the public domain');
 assert(envMap(byName.get('nowline-keycloak')).KC_HOSTNAME === 'https://goalstotoday.com/idp', 'Keycloak hostname is not the public domain');
 
-for (const label of ['com.nowline.local-beta', 'com.goalstotoday.tunnel']) {
-  const launchDaemon = run('ssh', [
-    ...sshBase,
-    `launchctl print "system/${label}"`
-  ]);
-  assert(launchDaemon.includes('state = running'), `${label} headless LaunchDaemon is not running`);
-}
+const headlessRecovery = run('ssh', [
+  ...sshBase,
+  `if launchctl print system/com.nowline.local-beta 2>/dev/null | grep -q 'state = running' \
+      && launchctl print system/com.goalstotoday.tunnel 2>/dev/null | grep -q 'state = running'; then
+     printf 'launchd\\n';
+   elif crontab -l 2>/dev/null | grep -q '^# BEGIN GOALS_TO_TODAY_HEADLESS$' \
+      && pgrep -f 'mac-mini-headless-supervisor.sh' >/dev/null \
+      && pgrep -f 'kubectl.*nowline-frontend.*4189:80' >/dev/null \
+      && pgrep -f 'cloudflared.*922b16b2-307d-45e4-acff-cf864353ba38' >/dev/null; then
+     printf 'cron-at-reboot\\n';
+   else
+     exit 1;
+   fi`
+]);
+assert(/launchd|cron-at-reboot/.test(headlessRecovery), 'Login-free Mac mini recovery service is not running');
 
 console.log('Goals to Today Mac mini Kubernetes runtime verified');

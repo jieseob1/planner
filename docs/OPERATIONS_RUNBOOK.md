@@ -24,7 +24,7 @@
 
 ## Mac mini 전원·재부팅 장애
 
-공개 OIDC가 Cloudflare 530을 반환하면 DNS부터 바꾸지 말고 `SSH → Colima → kind node → workload → 127.0.0.1:4189 → 전용 tunnel` 순서로 확인합니다. `pmset -g custom`의 `sleep 0`, `autorestart 1`은 절전 방지와 AC 복구 뒤 재기동 설정일 뿐, GUI 로그인 전 LaunchAgent 실행을 보장하지 않습니다. 무인 복구는 [Local beta runbook](./LOCAL_BETA_RUNBOOK.md)의 시스템 LaunchDaemon을 사용합니다.
+공개 OIDC가 Cloudflare 530을 반환하면 DNS부터 바꾸지 말고 `SSH → Colima → kind node → workload → 127.0.0.1:4189 → 전용 tunnel` 순서로 확인합니다. `pmset -g custom`의 `sleep 0`, `autorestart 1`은 절전 방지와 AC 복구 뒤 재기동 설정일 뿐, GUI 로그인 전 LaunchAgent 실행을 보장하지 않습니다. 무인 복구는 [Local beta runbook](./LOCAL_BETA_RUNBOOK.md)의 시스템 LaunchDaemon을 우선 사용하고, sudo 인증을 사용할 수 없는 경우 system cron `@reboot` fallback을 사용합니다.
 
 2026-09-02 장애의 확인 범위는 다음과 같습니다.
 

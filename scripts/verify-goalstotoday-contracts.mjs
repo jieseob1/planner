@@ -43,12 +43,15 @@ requireText('scripts/k8s-local.sh', '/opt/homebrew/opt/openjdk@25/bin/java');
 requireText('scripts/migrate-k8s-oidc-issuer.sh', 'mysqldump --single-transaction');
 requireText('scripts/mac-mini-goalstotoday-tunnel.sh', 'ops/cloudflared/goalstotoday.yml');
 requireText('scripts/mac-mini-nowline-headless.sh', 'colima');
+requireText('scripts/mac-mini-headless-supervisor.sh', 'mac-mini-goalstotoday-tunnel.sh');
 requireText('scripts/install-mac-mini-headless-services.sh', 'launchctl bootstrap system');
+requireText('scripts/install-mac-mini-user-reboot-services.sh', '@reboot');
 requireText('ops/cloudflared/goalstotoday.yml', 'service: http://127.0.0.1:4189');
 requireText('scripts/verify-goalstotoday-mac-mini.mjs', 'Goals to Today Mac mini Kubernetes runtime verified');
 requireText('ops/macos/com.goalstotoday.tunnel.plist', 'com.goalstotoday.tunnel');
 requireText('ops/macos/com.goalstotoday.tunnel.plist', '<key>UserName</key>');
 requireText('ops/macos/com.nowline.local-beta.plist', 'mac-mini-nowline-headless.sh');
+requireText('docs/LOCAL_BETA_RUNBOOK.md', 'system cron');
 requireText('nginx.beta.conf', '$nowline_forwarded_proto');
 requireText('nginx.beta.conf', 'return 308 https://goalstotoday.com$request_uri;');
 
