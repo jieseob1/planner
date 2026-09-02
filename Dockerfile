@@ -1,4 +1,4 @@
-FROM nginx:1.29.1-alpine3.22
+FROM nginx:1.29.3-alpine3.22
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY --chown=101:101 dist /usr/share/nginx/html
