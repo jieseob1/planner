@@ -31,7 +31,8 @@ cleanup() {
     rm -f "${PID_FILE}"
   fi
 }
-trap cleanup EXIT INT TERM HUP
+trap cleanup EXIT
+trap 'exit 0' INT TERM HUP
 
 start_local_runtime() {
   "${SCRIPT_DIR}/mac-mini-nowline-headless.sh" &
