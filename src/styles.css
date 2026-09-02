@@ -8306,6 +8306,50 @@ button.day-schedule__block:hover {
   color: var(--text-2);
 }
 
+.day-schedule__now {
+  position: absolute;
+  z-index: 5;
+  top: var(--now-top);
+  right: 14px;
+  left: 10px;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.day-schedule__now time {
+  border-radius: 999px;
+  background: #e5484d;
+  padding: 2px 6px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.day-schedule__now span {
+  position: relative;
+  height: 2px;
+  background: #e5484d;
+  box-shadow: 0 0 0 1px rgb(229 72 77 / 8%);
+}
+
+.day-schedule__now span::before {
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e5484d;
+  content: '';
+  transform: translateY(-50%);
+}
+
 .remaining-week--strip {
   margin-bottom: 16px;
 }
@@ -8473,6 +8517,13 @@ button.day-schedule__block:hover {
   .day-schedule__block {
     right: 8px;
     left: 58px;
+  }
+
+  .day-schedule__now {
+    right: 8px;
+    left: 4px;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 8px;
   }
 
   .day-schedule__slot span {

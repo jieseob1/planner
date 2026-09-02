@@ -57,6 +57,23 @@ function useTimerSeconds(startedAt: number | null, accumulatedSeconds: number, p
   return accumulatedSeconds + Math.max(0, Math.floor((now - startedAt) / 1000));
 }
 
+const minuteOfDay = () => {
+  const now = new Date();
+  return (now.getHours() * 60) + now.getMinutes();
+};
+
+function useCurrentMinute() {
+  const [currentMinute, setCurrentMinute] = useState(minuteOfDay);
+
+  useEffect(() => {
+    const update = () => setCurrentMinute(minuteOfDay());
+    const interval = window.setInterval(update, 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return currentMinute;
+}
+
 export function TodayScreen() {
   const {
     tasks,
@@ -89,6 +106,10 @@ export function TodayScreen() {
   const [timeBlockDraft, setTimeBlockDraft] = useState<TimeBlockDraft | null>(null);
   const [timeBlockError, setTimeBlockError] = useState('');
   const [timeBlockNotice, setTimeBlockNotice] = useState('');
+  const currentMinute = useCurrentMinute();
+  const currentTimeTop = Math.round(
+    (((currentMinute - DAY_START_MINUTES) / 60) * DAY_HOUR_HEIGHT) * 10
+  ) / 10;
 
   const activeTasks = tasks.filter((task) => task.status !== 'done' && task.status !== 'cancelled');
   const focusTask = timer
@@ -507,6 +528,19 @@ export function TodayScreen() {
                 );
               })}
             </div>
+
+            {currentMinute >= DAY_START_MINUTES && currentMinute <= DAY_END_MINUTES && (
+              <div
+                className="day-schedule__now"
+                aria-label={`현재 시각 ${formatClock(currentMinute)}`}
+                style={{
+                  '--now-top': `${currentTimeTop}px`
+                } as CSSProperties}
+              >
+                <time dateTime={formatClock(currentMinute)}>{formatClock(currentMinute)}</time>
+                <span />
+              </div>
+            )}
           </div>
 
           <footer className="day-close">

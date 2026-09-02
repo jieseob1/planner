@@ -411,6 +411,19 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       if (!stored) {
         setSaveStatus('storage-error');
       } else if (conflictRef.current) {
+        setSyncConflict((currentConflict) => {
+          if (!currentConflict) return currentConflict;
+          const nextConflict: SyncConflict = {
+            ...currentConflict,
+            local: structuredClone(next)
+          };
+          try {
+            window.localStorage.setItem(CONFLICT_BACKUP_KEY, JSON.stringify(nextConflict));
+          } catch {
+            // The latest local snapshot is still preserved by STORAGE_KEY.
+          }
+          return nextConflict;
+        });
         setSaveStatus('conflict');
       } else {
         setSaveStatus(onlineRef.current ? 'saving' : 'offline');

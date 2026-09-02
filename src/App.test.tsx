@@ -42,6 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -69,6 +70,16 @@ async function completeReviewChoices(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('Planner frontend core flows', () => {
+  it('shows the current time as a live line on the Today calendar', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 2, 14, 37));
+    renderRoute('/today');
+
+    const nowLine = screen.getByLabelText('현재 시각 14:37');
+    expect(nowLine).toBeInTheDocument();
+    expect(nowLine).toHaveStyle({ '--now-top': '357.3px' });
+  });
+
   it('starts and completes the primary task from Today', async () => {
     const user = userEvent.setup();
     renderRoute('/today');
@@ -502,6 +513,59 @@ describe('Planner API synchronization', () => {
     expect(window.localStorage.getItem('planner.mvp.snapshot.v1')).toContain('충돌에서도 지킬 작업');
     await openRouteFromNavigation(user, 'Planner');
     expect(screen.getByText('충돌에서도 지킬 작업')).toBeInTheDocument();
+  });
+
+  it('keeps edits made after a revision conflict when the local version is resolved', async () => {
+    const serverSnapshot = createDemoSnapshot();
+    let serverRevision = 7;
+    let putCount = 0;
+    const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (method === 'GET') return snapshotResponse(serverSnapshot, serverRevision);
+      if (method === 'PUT') {
+        putCount += 1;
+        if (putCount === 1) {
+          serverRevision = 8;
+          return new Response(JSON.stringify({
+            type: 'https://goalstotoday.com/problems/revision-conflict',
+            title: 'Revision conflict',
+            status: 412,
+            detail: 'The planner has changed on another client.'
+          }), { status: 412, headers: { 'Content-Type': 'application/problem+json' } });
+        }
+        serverRevision += 1;
+        return snapshotResponse(JSON.parse(String(init?.body)) as PlannerSnapshot, serverRevision);
+      }
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal('fetch', apiMock);
+    const user = userEvent.setup();
+    renderRoute('/today');
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('빠른 메모'), '충돌 유도 작업{Enter}');
+    expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
+
+    await openRouteFromNavigation(user, 'Planner');
+    await user.click(screen.getByRole('button', { name: '세금계산서 발행 수정' }));
+    const editDialog = screen.getByRole('dialog', { name: '할 일 수정' });
+    const title = within(editDialog).getByLabelText('할 일');
+    await user.clear(title);
+    await user.type(title, '세금계산서 발행 수정됨');
+    await user.click(within(editDialog).getByRole('button', { name: '변경 저장' }));
+
+    await user.click(screen.getByRole('button', { name: '변경 비교' }));
+    const conflictDialog = screen.getByRole('dialog', { name: '기기와 서버의 변경을 비교합니다' });
+    await user.click(within(conflictDialog).getByRole('button', { name: '이 기기 내용 전체 유지' }));
+
+    await waitFor(() => {
+      const resolvedPut = apiMock.mock.calls.find(([, requestInit]) => (
+        requestInit?.method === 'PUT'
+        && String(requestInit?.body).includes('세금계산서 발행 수정됨')
+      ));
+      expect(resolvedPut).toBeDefined();
+    });
+    expect(await screen.findByText('서버에 저장됨')).toBeInTheDocument();
   });
 
   it('resets against the latest server revision after a stale-write conflict', async () => {
