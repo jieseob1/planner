@@ -66,7 +66,8 @@ try {
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
     await page.goto(origin, { waitUntil: 'networkidle', timeout: 60_000 });
-    await page.getByText('GOALS TO TODAY', { exact: true }).first().waitFor({ timeout: 20_000 });
+    await page.getByRole('heading', { name: /오늘 하는 일이 올해의 목표와 연결되어 있나요/ })
+      .waitFor({ timeout: 20_000 });
     assert((await page.title()).startsWith('Goals to Today'), `Unexpected page title: ${await page.title()}`);
     assert(errors.length === 0, `Browser errors at ${viewport.width}px: ${errors.join('; ')}`);
     await context.close();
