@@ -7,11 +7,15 @@ export PATH="/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR="${HOME}/.local/state"
 PID_FILE="${STATE_DIR}/nowline-headless-supervisor.pid"
+MAINTENANCE_FILE="${STATE_DIR}/nowline-headless-maintenance"
 TUNNEL_ID="${GOALS_TO_TODAY_TUNNEL_ID:-922b16b2-307d-45e4-acff-cf864353ba38}"
 LOCAL_PID=""
 TUNNEL_PID=""
 
 mkdir -p "${STATE_DIR}"
+if [[ -e "${MAINTENANCE_FILE}" ]]; then
+  exit 0
+fi
 if [[ -r "${PID_FILE}" ]]; then
   EXISTING_PID="$(cat "${PID_FILE}")"
   if [[ "${EXISTING_PID}" =~ ^[0-9]+$ ]] \

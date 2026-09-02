@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 STATE_DIR="${HOME}/.local/state"
 DISABLED_DIR="${HOME}/Library/LaunchAgents.disabled"
+MAINTENANCE_FILE="${STATE_DIR}/nowline-headless-maintenance"
 CRON_BEGIN='# BEGIN GOALS_TO_TODAY_HEADLESS'
 CRON_END='# END GOALS_TO_TODAY_HEADLESS'
 
@@ -15,6 +16,11 @@ if [[ "$(id -u)" -eq 0 ]]; then
 fi
 
 mkdir -p "${STATE_DIR}" "${HOME}/.cloudflared/logs" "${DISABLED_DIR}"
+touch "${MAINTENANCE_FILE}"
+clear_maintenance() {
+  rm -f "${MAINTENANCE_FILE}"
+}
+trap clear_maintenance EXIT
 
 disable_login_agent() {
   local label="$1"
@@ -64,6 +70,8 @@ pkill -TERM -u "$(id -u)" -f 'kubectl.*nowline-frontend.*4189:80' >/dev/null 2>&
 pkill -TERM -u "$(id -u)" -f 'cloudflared.*922b16b2-307d-45e4-acff-cf864353ba38' >/dev/null 2>&1 || true
 sleep 2
 
+clear_maintenance
+trap - EXIT
 nohup "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" \
   >> "${STATE_DIR}/nowline-headless-supervisor.log" 2>&1 < /dev/null &
 
