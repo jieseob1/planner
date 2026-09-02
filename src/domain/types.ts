@@ -80,6 +80,25 @@ export interface AddTaskInput {
   estimateMinutes: number;
 }
 
+export interface UpdateTaskInput {
+  title?: string;
+  outcomeId?: string | null;
+  estimateMinutes?: number;
+  status?: TaskStatus;
+  pinned?: boolean;
+  note?: string;
+}
+
+export interface SaveTimeBlockInput {
+  id?: string;
+  taskId: string | null;
+  title: string;
+  day: DayKey;
+  startMinutes: number;
+  durationMinutes: number;
+  weekOffset?: number;
+}
+
 export interface SavePlanInput {
   plan: PlanContext;
   outcomeId: string;

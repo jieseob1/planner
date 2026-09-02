@@ -1,4 +1,4 @@
-import { AlertTriangle, Circle, CircleCheck, Clock3, GripVertical, Play } from 'lucide-react';
+import { AlertTriangle, Circle, CircleCheck, Clock3, GripVertical, Pencil, Play, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { DragEvent } from 'react';
 import type { Task } from '../domain/types';
@@ -9,6 +9,9 @@ interface TaskRowProps {
   outcomeTitle?: string;
   onStart?: () => void;
   onSelect?: () => void;
+  onToggleDone?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   draggable?: boolean;
   onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
   compact?: boolean;
@@ -19,6 +22,9 @@ export function TaskRow({
   outcomeTitle,
   onStart,
   onSelect,
+  onToggleDone,
+  onEdit,
+  onDelete,
   draggable = false,
   onDragStart,
   compact = false
@@ -42,21 +48,55 @@ export function TaskRow({
       )}
       draggable={draggable}
       onDragStart={onDragStart}
-      onClick={onSelect}
-      role={onSelect ? 'button' : undefined}
-      tabIndex={onSelect ? 0 : undefined}
-      onKeyDown={onSelect ? (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect();
-        }
-      } : undefined}
     >
       {draggable && <GripVertical className="task-row__grip" size={17} aria-hidden="true" />}
-      <span className="task-row__status" aria-hidden="true">
-        {done ? <CircleCheck size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
-      </span>
-      <div className="task-row__body">
+      {onToggleDone ? (
+        <button
+          className="task-row__status task-row__status-button"
+          type="button"
+          aria-label={`${task.title} ${done ? '미완료로 변경' : '완료'}`}
+          onClick={onToggleDone}
+        >
+          {done ? <CircleCheck size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
+        </button>
+      ) : (
+        <span className="task-row__status" aria-hidden="true">
+          {done ? <CircleCheck size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
+        </span>
+      )}
+      {onSelect ? (
+        <button
+          className="task-row__body task-row__body-button"
+          type="button"
+          aria-label={`${task.title} 일정에 배치`}
+          onClick={onSelect}
+        >
+          <span className="sr-only">상태: {statusLabel}</span>
+          <span className="task-row__title-line">
+            <strong>{task.title}</strong>
+            {running && (
+              <span className="task-row__running" aria-hidden="true">
+                <span aria-hidden="true">●</span> 기록 중
+              </span>
+            )}
+          </span>
+          <span className="task-row__meta">
+            {outcomeTitle && <span className="task-row__outcome">{outcomeTitle}</span>}
+            <span className="task-row__duration">
+              <Clock3 size={13} aria-hidden="true" />
+              {formatMinutes(task.estimateMinutes)}
+            </span>
+            {hasCarryover && (
+              <span className="task-row__warning">
+                <AlertTriangle size={13} aria-hidden="true" />
+                {task.carryCount}회 이월
+              </span>
+            )}
+            {cancelled && <span className="task-row__cancelled" aria-hidden="true">중단됨</span>}
+          </span>
+        </button>
+      ) : (
+        <div className="task-row__body">
         <span className="sr-only">상태: {statusLabel}</span>
         <div className="task-row__title-line">
           <strong>{task.title}</strong>
@@ -80,7 +120,22 @@ export function TaskRow({
           )}
           {cancelled && <span className="task-row__cancelled" aria-hidden="true">중단됨</span>}
         </div>
-      </div>
+        </div>
+      )}
+      {(onEdit || onDelete) && (
+        <div className="task-row__tools">
+          {onEdit && (
+            <button className="task-row__tool" type="button" aria-label={`${task.title} 수정`} onClick={onEdit}>
+              <Pencil size={14} />
+            </button>
+          )}
+          {onDelete && (
+            <button className="task-row__tool task-row__tool--delete" type="button" aria-label={`${task.title} 삭제`} onClick={onDelete}>
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      )}
       {onStart && !done && (
         <button
           className="button button--quiet button--small task-row__start"

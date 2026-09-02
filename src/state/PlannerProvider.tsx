@@ -22,11 +22,13 @@ import type {
   Outcome,
   PlanContext,
   PlannerSnapshot,
+  SaveTimeBlockInput,
   SavePlanInput,
   Task,
   TimeBlock,
   TimeEntry,
-  TimerSession
+  TimerSession,
+  UpdateTaskInput
 } from '../domain/types';
 import { findTimeBlockConflict, isValidTimeBlockSlot, normalizeWeekOffset } from '../lib/timeBlocks';
 
@@ -72,6 +74,8 @@ export interface PlannerContextValue extends PlannerSnapshot {
   ) => void;
   quickCapture: (title: string) => void;
   addTask: (input: AddTaskInput) => string;
+  updateTask: (taskId: string, input: UpdateTaskInput) => boolean;
+  removeTask: (taskId: string) => boolean;
   savePlan: (input: SavePlanInput) => void;
   setPlannerWeekOffset: (offset: number) => void;
   scheduleTask: (
@@ -81,6 +85,8 @@ export interface PlannerContextValue extends PlannerSnapshot {
     durationMinutes: number,
     weekOffset?: number
   ) => boolean;
+  saveTimeBlock: (input: SaveTimeBlockInput) => boolean;
+  removeTimeBlock: (blockId: string) => boolean;
   startTimer: (taskId: string) => void;
   toggleTimer: () => void;
   stopTimer: (completion: 'done' | 'continue', evidence?: string) => void;
@@ -723,6 +729,64 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     addTask({ title, outcomeId: null, estimateMinutes: 25 });
   }, [addTask]);
 
+  const updateTask = useCallback((taskId: string, input: UpdateTaskInput): boolean => {
+    let updated = false;
+    updateSnapshot((current) => {
+      const existing = current.tasks.find((task) => task.id === taskId);
+      if (!existing) return current;
+
+      const title = input.title === undefined ? existing.title : input.title.trim();
+      const estimateMinutes = input.estimateMinutes === undefined
+        ? existing.estimateMinutes
+        : Math.round(input.estimateMinutes);
+      const outcomeId = input.outcomeId === undefined ? existing.outcomeId : input.outcomeId;
+      if (
+        !title
+        || !Number.isFinite(estimateMinutes)
+        || estimateMinutes <= 0
+        || (outcomeId !== null && !current.outcomes.some((outcome) => outcome.id === outcomeId))
+      ) return current;
+
+      const nextTask: Task = {
+        ...existing,
+        ...input,
+        title,
+        estimateMinutes,
+        outcomeId,
+        note: input.note === undefined ? existing.note : input.note.trim() || undefined
+      };
+      updated = true;
+      return {
+        ...current,
+        tasks: current.tasks.map((task) => task.id === taskId ? nextTask : task),
+        timeBlocks: current.timeBlocks.map((block) => block.taskId === taskId
+          ? { ...block, title }
+          : block)
+      };
+    });
+    return updated;
+  }, [updateSnapshot]);
+
+  const removeTask = useCallback((taskId: string): boolean => {
+    let removed = false;
+    updateSnapshot((current) => {
+      if (!current.tasks.some((task) => task.id === taskId)) return current;
+      removed = true;
+      return {
+        ...current,
+        tasks: current.tasks.filter((task) => task.id !== taskId),
+        timeBlocks: current.timeBlocks.filter((block) => block.taskId !== taskId),
+        timeEntries: current.timeEntries.filter((entry) => entry.taskId !== taskId),
+        timer: current.timer?.taskId === taskId ? null : current.timer,
+        review: {
+          ...current.review,
+          selectedTopTaskIds: current.review.selectedTopTaskIds.filter((id) => id !== taskId)
+        }
+      };
+    });
+    return removed;
+  }, [updateSnapshot]);
+
   const savePlan = useCallback((input: SavePlanInput) => {
     if (!isValidPlanInput(input)) return;
     updateSnapshot((current) => {
@@ -759,6 +823,56 @@ export function PlannerProvider({ children }: PropsWithChildren) {
       : { ...current, plannerWeekOffset: normalized });
   }, [updateSnapshot]);
 
+  const saveTimeBlock = useCallback((input: SaveTimeBlockInput): boolean => {
+    let saved = false;
+    updateSnapshot((current) => {
+      const task = input.taskId === null
+        ? null
+        : current.tasks.find((item) => item.id === input.taskId);
+      const title = (task?.title ?? input.title).trim();
+      const targetWeek = normalizeWeekOffset(input.weekOffset ?? current.plannerWeekOffset);
+      const slot = {
+        day: input.day,
+        startMinutes: Math.trunc(input.startMinutes),
+        durationMinutes: Math.round(input.durationMinutes),
+        weekOffset: targetWeek
+      };
+      if (!title || (input.taskId !== null && !task) || !isValidTimeBlockSlot(slot)) return current;
+
+      const existing = input.id
+        ? current.timeBlocks.find((block) => block.id === input.id && !block.external)
+        : undefined;
+      if (input.id && !existing) return current;
+      if (findTimeBlockConflict(current.timeBlocks, slot, { ignoreBlockId: existing?.id })) return current;
+
+      const block: TimeBlock = {
+        id: existing?.id ?? safeId('block'),
+        taskId: input.taskId,
+        title,
+        ...slot
+      };
+      saved = true;
+      return {
+        ...current,
+        timeBlocks: existing
+          ? current.timeBlocks.map((item) => item.id === existing.id ? block : item)
+          : [...current.timeBlocks, block]
+      };
+    });
+    return saved;
+  }, [updateSnapshot]);
+
+  const removeTimeBlock = useCallback((blockId: string): boolean => {
+    let removed = false;
+    updateSnapshot((current) => {
+      const target = current.timeBlocks.find((block) => block.id === blockId && !block.external);
+      if (!target) return current;
+      removed = true;
+      return { ...current, timeBlocks: current.timeBlocks.filter((block) => block.id !== blockId) };
+    });
+    return removed;
+  }, [updateSnapshot]);
+
   const scheduleTask = useCallback((
     taskId: string,
     day: DayKey,
@@ -766,42 +880,24 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     durationMinutes: number,
     weekOffset?: number
   ): boolean => {
-    let scheduled = false;
-    updateSnapshot((current) => {
-      const task = current.tasks.find((item) => item.id === taskId);
-      if (!task) return current;
-      const targetWeek = weekOffset === undefined
-        ? current.plannerWeekOffset
-        : normalizeWeekOffset(weekOffset);
-      const slot = {
-        day,
-        startMinutes: Math.trunc(startMinutes),
-        durationMinutes: Math.round(durationMinutes),
-        weekOffset: targetWeek
-      };
-      if (!isValidTimeBlockSlot(slot)) return current;
-      if (findTimeBlockConflict(current.timeBlocks, slot, { ignoreTaskId: taskId })) return current;
-
-      const block: TimeBlock = {
-        id: safeId('block'),
-        taskId,
-        title: task.title,
-        ...slot
-      };
-      scheduled = true;
-      return {
-        ...current,
-        timeBlocks: [
-          ...current.timeBlocks.filter((existing) => !(
-            existing.taskId === taskId
-            && normalizeWeekOffset(existing.weekOffset) === targetWeek
-          )),
-          block
-        ]
-      };
+    const targetWeek = normalizeWeekOffset(weekOffset ?? snapshotRef.current.plannerWeekOffset);
+    const task = snapshotRef.current.tasks.find((item) => item.id === taskId);
+    if (!task) return false;
+    const existing = snapshotRef.current.timeBlocks.find((block) => (
+      block.taskId === taskId
+      && !block.external
+      && normalizeWeekOffset(block.weekOffset) === targetWeek
+    ));
+    return saveTimeBlock({
+      id: existing?.id,
+      taskId,
+      title: task.title,
+      day,
+      startMinutes,
+      durationMinutes,
+      weekOffset: targetWeek
     });
-    return scheduled;
-  }, [updateSnapshot]);
+  }, [saveTimeBlock]);
 
   const startTimer = useCallback((taskId: string) => {
     updateSnapshot((current) => {
@@ -1047,9 +1143,13 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     resolveConflict,
     quickCapture,
     addTask,
+    updateTask,
+    removeTask,
     savePlan,
     setPlannerWeekOffset,
     scheduleTask,
+    saveTimeBlock,
+    removeTimeBlock,
     startTimer,
     toggleTimer,
     stopTimer,
@@ -1074,9 +1174,13 @@ export function PlannerProvider({ children }: PropsWithChildren) {
     resolveConflict,
     quickCapture,
     addTask,
+    updateTask,
+    removeTask,
     savePlan,
     setPlannerWeekOffset,
     scheduleTask,
+    saveTimeBlock,
+    removeTimeBlock,
     startTimer,
     toggleTimer,
     stopTimer,

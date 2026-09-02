@@ -16,9 +16,9 @@ import clsx from 'clsx';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CapacityBar } from '../components/CapacityBar';
 import { Modal } from '../components/Modal';
-import { PlacementSheet } from '../components/PlacementSheet';
 import { TaskRow } from '../components/TaskRow';
-import type { DayKey, Task } from '../domain/types';
+import { TimeBlockSheet, type TimeBlockEditorValue, type TimeBlockMode } from '../components/TimeBlockSheet';
+import type { DayKey, Task, TimeBlock } from '../domain/types';
 import { formatClock, formatMinutes } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
@@ -26,6 +26,17 @@ import { getToday, getWeekDays } from '../lib/calendarDate';
 
 const defaultPlacementStart = 1020;
 const estimateOptions = [15, 25, 40, 60, 90, 120];
+
+interface PlannerBlockDraft {
+  blockId?: string;
+  taskId: string;
+  title: string;
+  day: DayKey;
+  startMinutes: number;
+  durationMinutes: number;
+  mode?: TimeBlockMode;
+}
+
 function getWeekLabel(weekOffset: number) {
   const days = getWeekDays(weekOffset);
   const first = days[0];
@@ -50,19 +61,25 @@ export function PlannerScreen() {
     review,
     plannerWeekOffset,
     addTask,
+    updateTask,
+    removeTask,
     scheduleTask,
+    saveTimeBlock,
+    removeTimeBlock,
     setPlannerWeekOffset
   } = usePlanner();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [placementTask, setPlacementTask] = useState<Task | null>(null);
-  const [placementDay, setPlacementDay] = useState<DayKey>(() => getToday().key);
-  const [placementStart, setPlacementStart] = useState(defaultPlacementStart);
+  const [placementDraft, setPlacementDraft] = useState<PlannerBlockDraft | null>(null);
   const [placementError, setPlacementError] = useState('');
   const [notice, setNotice] = useState('');
   const [addOpen, setAddOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [deleteTaskCandidate, setDeleteTaskCandidate] = useState<Task | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
   const [addTitle, setAddTitle] = useState('');
   const [addOutcomeId, setAddOutcomeId] = useState('');
   const [addEstimate, setAddEstimate] = useState('25');
+  const [addNote, setAddNote] = useState('');
   const queryAction = searchParams.get('action');
   const queryTaskId = searchParams.get('task');
 
@@ -72,20 +89,18 @@ export function PlannerScreen() {
     [plannerWeekOffset, timeBlocks]
   );
 
-  const scheduledTaskIds = useMemo(
-    () => new Set(weekBlocks.flatMap((block) => block.taskId ? [block.taskId] : [])),
-    [weekBlocks]
-  );
   const unscheduled = useMemo(() => {
     const items = tasks.filter((task) => (
-      task.status !== 'done' && task.status !== 'cancelled' && !scheduledTaskIds.has(task.id)
+      task.status !== 'done'
+      && task.status !== 'cancelled'
+      && !weekBlocks.some((block) => block.taskId === task.id)
     ));
     if (plannerWeekOffset !== 1 || review.selectedTopTaskIds.length === 0) return items;
     const priority = new Map(review.selectedTopTaskIds.map((id, index) => [id, index]));
     return [...items].sort((left, right) => (
       (priority.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (priority.get(right.id) ?? Number.MAX_SAFE_INTEGER)
     ));
-  }, [plannerWeekOffset, review.selectedTopTaskIds, scheduledTaskIds, tasks]);
+  }, [plannerWeekOffset, review.selectedTopTaskIds, tasks, weekBlocks]);
   const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
   const availableHours = outcomes.reduce((sum, outcome) => sum + outcome.availableHours, 0);
   const plannedHours = weekBlocks
@@ -97,12 +112,14 @@ export function PlannerScreen() {
 
   const byOutcome = useMemo(() => {
     const groups = new Map<string, Task[]>();
-    unscheduled.forEach((task) => {
+    tasks
+      .filter((task) => task.status !== 'cancelled' && (showCompleted || task.status !== 'done'))
+      .forEach((task) => {
       const key = task.outcomeId ?? 'inbox';
       groups.set(key, [...(groups.get(key) ?? []), task]);
     });
     return [...groups.entries()];
-  }, [unscheduled]);
+  }, [showCompleted, tasks]);
 
   const lanes = useMemo(() => {
     const rows = outcomes.map((outcome) => {
@@ -123,7 +140,7 @@ export function PlannerScreen() {
     });
 
     const inboxTasks = tasks.filter((task) => task.outcomeId === null && task.status !== 'cancelled');
-    if (inboxTasks.length > 0) {
+    if (inboxTasks.length > 0 || outcomes.length === 0) {
       const plannedMinutes = weekBlocks.reduce((sum, block) => {
         if (block.external || !block.taskId) return sum;
         return taskById.get(block.taskId)?.outcomeId === null
@@ -140,20 +157,66 @@ export function PlannerScreen() {
       });
     }
 
+    rows.push({
+      id: 'calendar',
+      title: '개인 일정',
+      parentTitle: '목표 없이',
+      neededHours: 0,
+      actualHours: 0,
+      plannedMinutes: weekBlocks
+        .filter((block) => !block.external && !block.taskId)
+        .reduce((sum, block) => sum + block.durationMinutes, 0)
+    });
+
     return rows;
   }, [outcomes, taskById, tasks, weekBlocks]);
 
-  const openPlacement = (task: Task, day: DayKey = 'mon', start = defaultPlacementStart) => {
-    setPlacementTask(task);
-    setPlacementDay(day);
-    setPlacementStart(start);
+  const openPlacement = (
+    task: Task | null = null,
+    day: DayKey = getToday().key,
+    startMinutes = defaultPlacementStart,
+    mode?: TimeBlockMode
+  ) => {
+    setPlacementDraft({
+      taskId: task?.id ?? '',
+      title: task?.title ?? '',
+      day,
+      startMinutes,
+      durationMinutes: task?.estimateMinutes ?? 30,
+      mode
+    });
+    setPlacementError('');
+  };
+
+  const openBlock = (block: TimeBlock) => {
+    if (block.external) return;
+    setPlacementDraft({
+      blockId: block.id,
+      taskId: block.taskId ?? '',
+      title: block.title,
+      day: block.day,
+      startMinutes: block.startMinutes,
+      durationMinutes: block.durationMinutes,
+      mode: block.taskId ? 'existing-task' : 'event'
+    });
     setPlacementError('');
   };
 
   const openAddTask = (sourceTask?: Task) => {
+    setEditingTask(null);
     setAddTitle(sourceTask ? `${sourceTask.title} — 1단계` : '');
     setAddOutcomeId(sourceTask?.outcomeId ?? '');
     setAddEstimate(sourceTask ? String(getSplitEstimate(sourceTask.estimateMinutes)) : '25');
+    setAddNote('');
+    setAddOpen(true);
+  };
+
+  const openEditTask = (task: Task) => {
+    setEditingTask(task);
+    setAddTitle(task.title);
+    setAddOutcomeId(task.outcomeId ?? '');
+    setAddEstimate(String(task.estimateMinutes));
+    setAddNote(task.note ?? '');
     setAddOpen(true);
   };
 
@@ -194,13 +257,74 @@ export function PlannerScreen() {
   const submitTask = (event: FormEvent) => {
     event.preventDefault();
     if (!addTitle.trim()) return;
-    addTask({
-      title: addTitle.trim(),
-      outcomeId: addOutcomeId || null,
-      estimateMinutes: Number(addEstimate)
-    });
-    showNotice(`${addTitle.trim()}을 배치 전 목록에 추가했어요.`);
+    if (editingTask) {
+      updateTask(editingTask.id, {
+        title: addTitle,
+        outcomeId: addOutcomeId || null,
+        estimateMinutes: Number(addEstimate),
+        note: addNote
+      });
+      showNotice(`${addTitle.trim()}을 수정했어요.`);
+    } else {
+      const taskId = addTask({
+        title: addTitle.trim(),
+        outcomeId: addOutcomeId || null,
+        estimateMinutes: Number(addEstimate)
+      });
+      if (taskId && addNote.trim()) updateTask(taskId, { note: addNote });
+      showNotice(`${addTitle.trim()}을 할 일에 추가했어요.`);
+    }
     setAddOpen(false);
+    setEditingTask(null);
+  };
+
+  const saveBlockDraft = (value: TimeBlockEditorValue) => {
+    const conflict = findTimeBlockConflict(weekBlocks, {
+      day: value.day,
+      startMinutes: value.startMinutes,
+      durationMinutes: value.durationMinutes,
+      weekOffset: plannerWeekOffset
+    }, { ignoreBlockId: value.blockId });
+    if (conflict) {
+      setPlacementError(`${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`);
+      return;
+    }
+
+    let taskId = value.taskId;
+    if (value.mode === 'new-task') {
+      taskId = addTask({
+        title: value.title,
+        outcomeId: value.outcomeId,
+        estimateMinutes: value.durationMinutes
+      });
+      if (!taskId) {
+        setPlacementError('새 할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요.');
+        return;
+      }
+    }
+
+    if (!saveTimeBlock({
+      id: value.blockId,
+      taskId: value.mode === 'event' ? null : taskId,
+      title: value.title,
+      day: value.day,
+      startMinutes: value.startMinutes,
+      durationMinutes: value.durationMinutes,
+      weekOffset: plannerWeekOffset
+    })) {
+      setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시간을 바꿔주세요.');
+      return;
+    }
+    setPlacementDraft(null);
+    setPlacementError('');
+    showNotice(`${value.title}을 ${formatClock(value.startMinutes)}에 추가했어요.`);
+  };
+
+  const deleteBlockDraft = () => {
+    if (!placementDraft?.blockId || !removeTimeBlock(placementDraft.blockId)) return;
+    setPlacementDraft(null);
+    setPlacementError('');
+    showNotice('일정에서 삭제했어요. 연결된 할 일은 그대로 남아 있습니다.');
   };
 
   useEffect(() => {
@@ -214,10 +338,7 @@ export function PlannerScreen() {
       setAddOpen(true);
     }
     if (queryAction === 'reschedule') {
-      setPlacementTask(task);
-      setPlacementDay('mon');
-      setPlacementStart(defaultPlacementStart);
-      setPlacementError('');
+      openPlacement(task, 'mon', defaultPlacementStart, 'existing-task');
     }
     setSearchParams({}, { replace: true });
   }, [queryAction, queryTaskId, setSearchParams, tasks]);
@@ -231,16 +352,13 @@ export function PlannerScreen() {
     if (!placed) showNotice(`${task.title}은 다른 일정과 겹쳐 배치하지 않았어요.`);
   };
 
-  const firstTaskForLane = (laneId: string) => unscheduled.find((task) => (task.outcomeId ?? 'inbox') === laneId)
-    ?? unscheduled[0];
-
   return (
     <div className="page page--planner planner-nowline">
       <header className="page-header page-header--compact planner-header">
         <div>
           <p className="eyebrow" aria-live="polite">주간 Planner · {getWeekLabel(plannerWeekOffset)}</p>
-          <h1>결과를 시간 안에 배치합니다.</h1>
-          <p className="page-header__description">필요 시간, 계획 시간, 실제 시간을 같은 주간 표에서 비교하세요.</p>
+          <h1>이번 주 할 일과 일정을 함께 봅니다.</h1>
+          <p className="page-header__description">목표 연결은 선택입니다. 할 일만 적거나 일정만 만들어도 바로 저장됩니다.</p>
         </div>
         <div className="week-switcher" aria-label="주 변경">
           <button className="icon-button" type="button" aria-label="이전 주" onClick={() => setPlannerWeekOffset(plannerWeekOffset - 1)}><ChevronLeft size={19} /></button>
@@ -270,18 +388,29 @@ export function PlannerScreen() {
           </span>
         </div>
 
-        <div className={clsx('capacity-warning', requiredHours > availableHours && 'capacity-warning--danger')}>
-          <AlertTriangle size={18} />
-          <div>
-            <strong>목표 결과에 {requiredHours.toFixed(0)}시간 필요</strong>
-            <span>
-              {requiredHours > availableHours
-                ? `${(requiredHours - availableHours).toFixed(0)}시간 초과 · 우선순위를 줄여야 합니다.`
-                : '현재 가용 시간 안에서 실행할 수 있습니다.'}
-            </span>
+        {outcomes.length > 0 ? (
+          <div className={clsx('capacity-warning', requiredHours > availableHours && 'capacity-warning--danger')}>
+            <AlertTriangle size={18} />
+            <div>
+              <strong>목표 결과에 {requiredHours.toFixed(0)}시간 필요</strong>
+              <span>
+                {requiredHours > availableHours
+                  ? `${(requiredHours - availableHours).toFixed(0)}시간 초과 · 우선순위를 줄여야 합니다.`
+                  : '현재 가용 시간 안에서 실행할 수 있습니다.'}
+              </span>
+            </div>
+            <Link to="/goals">목표 보기 <ArrowRight size={15} /></Link>
           </div>
-          <Link to="/goals">결정하기 <ArrowRight size={15} /></Link>
-        </div>
+        ) : (
+          <div className="capacity-warning capacity-warning--freeform">
+            <CalendarRange size={18} />
+            <div>
+              <strong>목표 없이 바로 시작할 수 있어요.</strong>
+              <span>일반 Todo와 개인 일정도 같은 화면에서 관리합니다.</span>
+            </div>
+            <button type="button" onClick={() => openAddTask()}>할 일 추가 <ArrowRight size={15} /></button>
+          </div>
+        )}
 
         <div className="planner-capacity-toolbar__actions">
           <button
@@ -305,17 +434,22 @@ export function PlannerScreen() {
         className="planner-workspace planner-workspace--outcomes"
         style={{ '--planner-context-width': '296px' } as CSSProperties}
       >
-        <aside className="backlog-panel backlog-panel--context" aria-label="배치 전 다음 행동">
+        <aside className="backlog-panel backlog-panel--context" aria-label="내 할 일">
           <details className="backlog-panel__disclosure" open>
             <summary>
               <span>
-                <span className="eyebrow">배치 전</span>
-                <strong>다음 행동</strong>
+                <span className="eyebrow">TODO</span>
+                <strong>내 할 일</strong>
               </span>
-              <span className="count-badge">{unscheduled.length}</span>
+              <span className="count-badge">{tasks.filter((task) => task.status !== 'cancelled').length}</span>
             </summary>
 
-            <p className="backlog-panel__guide"><GripVertical size={14} /> 끌어서 배치하거나 눌러 날짜와 시간을 정하세요.</p>
+            <div className="backlog-panel__controls">
+              <p className="backlog-panel__guide"><GripVertical size={14} /> 끌어서 배치하거나 제목을 눌러 시간을 정하세요.</p>
+              <button type="button" onClick={() => setShowCompleted((value) => !value)}>
+                {showCompleted ? '완료 숨기기' : `완료 보기 ${tasks.filter((task) => task.status === 'done').length}`}
+              </button>
+            </div>
 
             <div className="backlog-groups">
               {byOutcome.map(([outcomeId, groupTasks]) => {
@@ -333,7 +467,11 @@ export function PlannerScreen() {
                         task={task}
                         draggable
                         compact
-                        onSelect={() => openPlacement(task)}
+                        outcomeTitle={outcome?.title}
+                        onSelect={() => task.status === 'done' ? openEditTask(task) : openPlacement(task)}
+                        onToggleDone={() => updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' })}
+                        onEdit={() => openEditTask(task)}
+                        onDelete={() => setDeleteTaskCandidate(task)}
                         onDragStart={(event) => {
                           event.dataTransfer.effectAllowed = 'move';
                           event.dataTransfer.setData('text/planner-task', task.id);
@@ -343,16 +481,16 @@ export function PlannerScreen() {
                   </section>
                 );
               })}
-              {unscheduled.length === 0 && (
+              {byOutcome.length === 0 && (
                 <div className="backlog-empty">
                   <Sparkles size={21} />
-                  <strong>모든 다음 행동을 배치했어요.</strong>
-                  <span>과하게 채우지 말고 빈 시간을 남겨두세요.</span>
+                  <strong>표시할 할 일이 없습니다.</strong>
+                  <span>아래에서 새 할 일을 만들거나 완료 항목을 확인하세요.</span>
                 </div>
               )}
             </div>
             <button className="button button--ghost button--full" type="button" onClick={() => openAddTask()}>
-              <Plus size={17} /> 다음 행동 추가
+              <Plus size={17} /> 새 할 일
             </button>
           </details>
         </aside>
@@ -372,8 +510,8 @@ export function PlannerScreen() {
             <div className="outcome-grid" role="table" aria-label="목표 결과별 7일 시간표">
               <div className="outcome-grid__row outcome-grid__row--head" role="row">
                 <div className="outcome-grid__corner" role="columnheader">
-                  <span>목표 결과</span>
-                  <strong>필요 / 계획 / 실제</strong>
+                  <span>분류</span>
+                  <strong>할 일 / 일정</strong>
                 </div>
                 {weekDays.map((day) => (
                   <div
@@ -410,6 +548,7 @@ export function PlannerScreen() {
               </div>
 
               {lanes.map((lane) => {
+                const isCalendarLane = lane.id === 'calendar';
                 const requiredMinutes = lane.neededHours * 60;
                 const allocationRatio = requiredMinutes > 0 ? lane.plannedMinutes / requiredMinutes : 0;
                 const shortageMinutes = Math.max(0, requiredMinutes - lane.plannedMinutes);
@@ -418,49 +557,64 @@ export function PlannerScreen() {
                     <div className="outcome-lane-head" role="rowheader">
                       <span className="outcome-lane-head__parent">{lane.parentTitle}</span>
                       <strong>{lane.title}</strong>
-                      <dl className="outcome-lane-head__metrics">
-                        <div><dt>필요</dt><dd>{lane.neededHours.toFixed(0)}h</dd></div>
-                        <div><dt>계획</dt><dd>{formatMinutes(lane.plannedMinutes)}</dd></div>
-                        <div><dt>실제</dt><dd>{lane.actualHours.toFixed(0)}h</dd></div>
-                      </dl>
-                      <div className="outcome-lane-head__signal">
-                        <span><i style={{ width: `${Math.min(100, allocationRatio * 100)}%` }} /></span>
-                        <small className={shortageMinutes > 0 ? 'is-short' : 'is-ready'}>
-                          {shortageMinutes > 0 ? `${formatMinutes(shortageMinutes)} 부족` : '필요 시간 확보'}
-                        </small>
-                      </div>
+                      {isCalendarLane ? (
+                        <p className="outcome-lane-head__freeform">약속, 이동, 휴식처럼 할 일이 아닌 일정</p>
+                      ) : (
+                        <>
+                          <dl className="outcome-lane-head__metrics">
+                            <div><dt>필요</dt><dd>{lane.neededHours.toFixed(0)}h</dd></div>
+                            <div><dt>계획</dt><dd>{formatMinutes(lane.plannedMinutes)}</dd></div>
+                            <div><dt>실제</dt><dd>{lane.actualHours.toFixed(0)}h</dd></div>
+                          </dl>
+                          <div className="outcome-lane-head__signal">
+                            <span><i style={{ width: `${Math.min(100, allocationRatio * 100)}%` }} /></span>
+                            <small className={shortageMinutes > 0 ? 'is-short' : 'is-ready'}>
+                              {shortageMinutes > 0 ? `${formatMinutes(shortageMinutes)} 부족` : '필요 시간 확보'}
+                            </small>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {weekDays.map((day) => {
                       const blocks = weekBlocks.filter((block) => {
-                        if (block.external || block.day !== day.key || !block.taskId) return false;
+                        if (block.external || block.day !== day.key) return false;
+                        if (isCalendarLane) return block.taskId === null;
+                        if (!block.taskId) return false;
                         return (taskById.get(block.taskId)?.outcomeId ?? 'inbox') === lane.id;
                       });
-                      const placementCandidate = firstTaskForLane(lane.id);
                       return (
                         <div key={day.key} className={clsx('outcome-day-cell', plannerWeekOffset === 0 && day.key === 'mon' && 'is-today')} role="cell">
                           {blocks.map((block) => (
-                            <article key={block.id} className="outcome-time-block">
+                            <button
+                              key={block.id}
+                              type="button"
+                              className={clsx('outcome-time-block', isCalendarLane && 'outcome-time-block--event')}
+                              aria-label={`${block.title}, ${formatClock(block.startMinutes)}, 일정 수정`}
+                              onClick={() => openBlock(block)}
+                            >
                               <span><Clock3 size={11} /> {formatClock(block.startMinutes)}</span>
                               <strong>{block.title}</strong>
                               <small>{formatMinutes(block.durationMinutes)}</small>
-                            </article>
+                            </button>
                           ))}
                           <button
                             className={clsx('outcome-drop-target', blocks.length === 0 && 'outcome-drop-target--empty')}
                             type="button"
-                            aria-label={`${day.short}요일 ${formatClock(defaultPlacementStart)}에 작업 배치`}
-                            disabled={!placementCandidate}
+                            aria-label={`${day.short}요일 ${formatClock(defaultPlacementStart)}에 할 일 또는 일정 추가`}
+                            onClick={() => openPlacement(
+                              null,
+                              day.key,
+                              defaultPlacementStart,
+                              isCalendarLane ? 'event' : 'new-task'
+                            )}
                             onDragOver={(event) => {
                               event.preventDefault();
                               event.dataTransfer.dropEffect = 'move';
                             }}
                             onDrop={(event) => onDrop(event, day.key, defaultPlacementStart)}
-                            onClick={() => {
-                              if (placementCandidate) openPlacement(placementCandidate, day.key, defaultPlacementStart);
-                            }}
                           >
-                            <Plus size={13} /> {blocks.length === 0 ? '시간 배치' : '추가'}
+                            <Plus size={13} /> {blocks.length === 0 ? '추가' : '하나 더'}
                           </button>
                         </div>
                       );
@@ -479,7 +633,7 @@ export function PlannerScreen() {
           <strong>결과별 이번 주 판단</strong>
         </div>
         <div className="allocation-strip__items allocation-signals__items">
-          {lanes.slice(0, 4).map((lane) => {
+          {lanes.filter((lane) => lane.id !== 'calendar').slice(0, 4).map((lane) => {
             const neededMinutes = lane.neededHours * 60;
             const ratio = neededMinutes > 0 ? lane.plannedMinutes / neededMinutes : 0;
             const state = ratio >= 1 ? 'ready' : ratio >= 0.7 ? 'tight' : 'short';
@@ -497,35 +651,42 @@ export function PlannerScreen() {
 
       {notice && <div className="toast" role="status"><Clock3 size={17} /> {notice}</div>}
 
-      {placementTask && (
-        <PlacementSheet
-          task={placementTask}
-          initialDay={placementDay}
-          initialStart={placementStart}
+      {placementDraft && (
+        <TimeBlockSheet
+          key={`${placementDraft.blockId ?? 'new'}-${placementDraft.taskId}-${placementDraft.day}-${placementDraft.startMinutes}`}
+          tasks={tasks.filter((task) => task.status !== 'done' && task.status !== 'cancelled')}
+          outcomes={outcomes}
           days={weekDays}
+          initialBlockId={placementDraft.blockId}
+          initialTaskId={placementDraft.taskId}
+          initialTitle={placementDraft.title}
+          initialDay={placementDraft.day}
+          initialStartMinutes={placementDraft.startMinutes}
+          initialDurationMinutes={placementDraft.durationMinutes}
+          initialMode={placementDraft.mode}
           error={placementError}
           onClose={() => {
-            setPlacementTask(null);
+            setPlacementDraft(null);
             setPlacementError('');
           }}
-          onPlace={(day, startMinutes, durationMinutes) => {
-            if (placeTask(placementTask, day, startMinutes, durationMinutes)) {
-              setPlacementTask(null);
-            }
-          }}
+          onSave={saveBlockDraft}
+          onDelete={placementDraft.blockId ? deleteBlockDraft : undefined}
         />
       )}
 
       {addOpen && (
         <Modal
-          title="다음 행동 추가"
-          description="추가한 내용은 이 기기에 즉시 저장되고 연결 상태가 되면 서버에 동기화됩니다."
-          onClose={() => setAddOpen(false)}
+          title={editingTask ? '할 일 수정' : '새 할 일'}
+          description="목표 연결은 선택입니다. 일반 Todo처럼 제목만 입력해도 저장됩니다."
+          onClose={() => {
+            setAddOpen(false);
+            setEditingTask(null);
+          }}
         >
           <form onSubmit={submitTask}>
             <div className="form-grid">
               <label className="field">
-                <span className="field-label">실행할 행동</span>
+                  <span className="field-label">할 일</span>
                 <input
                   data-autofocus
                   value={addTitle}
@@ -536,7 +697,7 @@ export function PlannerScreen() {
               </label>
               <div className="form-grid form-grid--two">
                 <label className="field">
-                  <span className="field-label">연결할 목표 결과</span>
+                  <span className="field-label">목표 연결 <small>선택</small></span>
                   <select value={addOutcomeId} onChange={(event) => setAddOutcomeId(event.target.value)}>
                     <option value="">연결하지 않음 · 수집함</option>
                     {outcomes.map((outcome) => <option key={outcome.id} value={outcome.id}>{outcome.title}</option>)}
@@ -551,12 +712,44 @@ export function PlannerScreen() {
                   </select>
                 </label>
               </div>
+              <label className="field">
+                <span className="field-label">메모 <small>선택</small></span>
+                <textarea
+                  rows={3}
+                  value={addNote}
+                  onChange={(event) => setAddNote(event.target.value)}
+                  placeholder="필요한 링크나 간단한 내용을 남겨보세요."
+                />
+              </label>
             </div>
             <div className="modal__actions">
-              <button className="button button--secondary" type="button" onClick={() => setAddOpen(false)}>취소</button>
-              <button className="button button--primary" type="submit" disabled={!addTitle.trim()}>목록에 추가</button>
+              <button className="button button--secondary" type="button" onClick={() => {
+                setAddOpen(false);
+                setEditingTask(null);
+              }}>취소</button>
+              <button className="button button--primary" type="submit" disabled={!addTitle.trim()}>
+                {editingTask ? '변경 저장' : '할 일 추가'}
+              </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteTaskCandidate && (
+        <Modal
+          title="할 일을 삭제할까요?"
+          description="연결된 시간 블록과 실행 기록도 함께 삭제됩니다."
+          onClose={() => setDeleteTaskCandidate(null)}
+        >
+          <p className="delete-task-summary"><strong>{deleteTaskCandidate.title}</strong></p>
+          <div className="modal__actions">
+            <button className="button button--secondary" type="button" onClick={() => setDeleteTaskCandidate(null)}>취소</button>
+            <button className="button button--delete" type="button" onClick={() => {
+              removeTask(deleteTaskCandidate.id);
+              showNotice(`${deleteTaskCandidate.title}을 삭제했어요.`);
+              setDeleteTaskCandidate(null);
+            }}>삭제</button>
+          </div>
         </Modal>
       )}
     </div>

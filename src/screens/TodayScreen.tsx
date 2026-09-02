@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Modal } from '../components/Modal';
-import { TimeBlockSheet } from '../components/TimeBlockSheet';
+import { TimeBlockSheet, type TimeBlockEditorValue, type TimeBlockMode } from '../components/TimeBlockSheet';
 import { formatClock, formatMinutes, formatTimer } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
@@ -36,9 +36,12 @@ const daySlots = Array.from(
 );
 
 interface TimeBlockDraft {
+  blockId?: string;
   taskId: string;
+  title: string;
   startMinutes: number;
   durationMinutes: number;
+  mode?: TimeBlockMode;
 }
 
 function useTimerSeconds(startedAt: number | null, accumulatedSeconds: number, paused: boolean) {
@@ -62,12 +65,14 @@ export function TodayScreen() {
     timeEntries,
     timer,
     quickCapture,
+    addTask,
     startTimer,
     toggleTimer,
     stopTimer,
     addManualTime,
     removeTimeEntry,
-    scheduleTask
+    saveTimeBlock,
+    removeTimeBlock
   } = usePlanner();
   const [capture, setCapture] = useState('');
   const [captured, setCaptured] = useState(false);
@@ -91,7 +96,7 @@ export function TodayScreen() {
     : activeTasks.find((task) => task.pinned) ?? activeTasks[0];
   const focusOutcome = outcomes.find((outcome) => outcome.id === focusTask?.outcomeId);
   const topTasks = focusTask
-    ? [focusTask, ...activeTasks.filter((task) => task.id !== focusTask.id).slice(0, 2)]
+    ? [focusTask, ...activeTasks.filter((task) => task.id !== focusTask.id)]
     : [];
   const carryoverTask = activeTasks.find((task) => task.carryCount > 0);
   const todayBlocks = useMemo(
@@ -159,46 +164,73 @@ export function TodayScreen() {
     }, 5000);
   };
 
-  const openTimeBlock = (startMinutes: number, taskId?: string | null, durationMinutes?: number) => {
-    const task = activeTasks.find((item) => item.id === taskId)
+  const openTimeBlock = (startMinutes: number, blockId?: string) => {
+    const block = blockId ? todayBlocks.find((item) => item.id === blockId) : undefined;
+    const task = activeTasks.find((item) => item.id === block?.taskId)
       ?? focusTask
       ?? activeTasks[0];
-    if (!task) return;
     setTimeBlockError('');
     setTimeBlockDraft({
-      taskId: task.id,
+      blockId: block?.id,
+      taskId: block ? block.taskId ?? '' : task?.id ?? '',
+      title: block?.title ?? '',
       startMinutes,
-      durationMinutes: durationMinutes ?? task.estimateMinutes
+      durationMinutes: block?.durationMinutes ?? task?.estimateMinutes ?? 30,
+      mode: block ? (block.taskId ? 'existing-task' : 'event') : undefined
     });
   };
 
-  const saveTimeBlock = (taskId: string, startMinutes: number, durationMinutes: number) => {
-    const task = activeTasks.find((item) => item.id === taskId);
-    if (!task) {
-      setTimeBlockError('배치할 할 일을 다시 선택해 주세요.');
-      return;
-    }
-
+  const saveTimeBlockDraft = (value: TimeBlockEditorValue) => {
     const conflict = findTimeBlockConflict(todayBlocks, {
       day: today.key,
-      startMinutes,
-      durationMinutes,
+      startMinutes: value.startMinutes,
+      durationMinutes: value.durationMinutes,
       weekOffset: 0
-    }, { ignoreTaskId: taskId });
+    }, { ignoreBlockId: value.blockId });
     if (conflict) {
       setTimeBlockError(`${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`);
       return;
     }
 
-    if (!scheduleTask(taskId, today.key, startMinutes, durationMinutes, 0)) {
+    let taskId = value.taskId;
+    if (value.mode === 'new-task') {
+      taskId = addTask({
+        title: value.title,
+        outcomeId: value.outcomeId,
+        estimateMinutes: value.durationMinutes
+      });
+      if (!taskId) {
+        setTimeBlockError('새 할 일을 만들지 못했습니다. 제목과 목표 연결을 확인해 주세요.');
+        return;
+      }
+    }
+
+    const saved = saveTimeBlock({
+      id: value.blockId,
+      taskId: value.mode === 'event' ? null : taskId,
+      title: value.title,
+      day: today.key,
+      startMinutes: value.startMinutes,
+      durationMinutes: value.durationMinutes,
+      weekOffset: 0
+    });
+    if (!saved) {
       setTimeBlockError('다른 일정과 시간이 겹칩니다. 시작이나 종료 시간을 바꿔주세요.');
       return;
     }
 
-    const endMinutes = startMinutes + durationMinutes;
+    const endMinutes = value.startMinutes + value.durationMinutes;
     setTimeBlockDraft(null);
     setTimeBlockError('');
-    setTimeBlockNotice(`${formatClock(startMinutes)}–${formatClock(endMinutes)} · ${task.title}을 계획했어요.`);
+    setTimeBlockNotice(`${formatClock(value.startMinutes)}–${formatClock(endMinutes)} · ${value.title}을 계획했어요.`);
+    window.setTimeout(() => setTimeBlockNotice(''), 3200);
+  };
+
+  const deleteTimeBlock = () => {
+    if (!timeBlockDraft?.blockId || !removeTimeBlock(timeBlockDraft.blockId)) return;
+    setTimeBlockDraft(null);
+    setTimeBlockError('');
+    setTimeBlockNotice('일정에서 삭제했어요. 연결된 할 일은 그대로 남아 있습니다.');
     window.setTimeout(() => setTimeBlockNotice(''), 3200);
   };
 
@@ -207,8 +239,8 @@ export function TodayScreen() {
       <header className="page-header page-header--compact today-header">
         <div className="today-header__title">
           <p className="eyebrow">오늘 · {today.month}월 {today.date}일 {today.long}</p>
-          <h1>오늘은 하나를 끝냅니다.</h1>
-          <p className="page-header__description">할 일과 시간표를 함께 보고, 오른쪽 빈 시간을 눌러 오늘 계획을 바로 잡으세요.</p>
+          <h1>오늘 할 일과 일정을 정리합니다.</h1>
+          <p className="page-header__description">목표와 상관없이 할 일을 적고, 원하는 시간에 일정처럼 배치하세요.</p>
         </div>
 
         {timer && focusTask ? (
@@ -279,10 +311,10 @@ export function TodayScreen() {
           <section className="today-priorities" aria-labelledby="today-top-three-title">
             <header className="section-heading section-heading--rule">
               <div>
-                <p className="eyebrow">오늘의 Top 3</p>
-                <h2 id="today-top-three-title">끝낼 순서</h2>
+                <p className="eyebrow">오늘 할 일 · {activeTasks.length}개</p>
+                <h2 id="today-top-three-title">내가 고르는 실행 순서</h2>
               </div>
-              <span className="section-heading__hint">위에서부터 하나씩 시작하세요.</span>
+              <span className="section-heading__hint">지금 필요한 일부터 자유롭게 시작하세요.</span>
             </header>
 
             {topTasks.length > 0 ? (
@@ -337,7 +369,7 @@ export function TodayScreen() {
               <div className={nextBlock.external ? 'next-block__body next-block__body--external' : 'next-block__body'}>
                 <time>{formatClock(nextBlock.startMinutes)}</time>
                 <div>
-                  <span>{nextBlock.external ? '외부 일정 · 읽기 전용' : '집중 블록'}</span>
+                  <span>{nextBlock.external ? '외부 일정 · 읽기 전용' : nextBlock.taskId ? '할 일' : '내 일정'}</span>
                   <strong>{nextBlock.title}</strong>
                 </div>
                 <span>{formatMinutes(nextBlock.durationMinutes)}</span>
@@ -420,14 +452,14 @@ export function TodayScreen() {
                     key={startMinutes}
                     type="button"
                     className="day-schedule__slot"
-                    disabled={occupied || activeTasks.length === 0}
+                    disabled={occupied}
                     style={{
                       '--slot-top': `${((startMinutes - DAY_START_MINUTES) / 60) * DAY_HOUR_HEIGHT}px`,
                       '--slot-height': `${(DAY_SLOT_MINUTES / 60) * DAY_HOUR_HEIGHT}px`
                     } as CSSProperties}
                     aria-label={occupied
                       ? `${formatClock(startMinutes)} 이미 일정 있음`
-                      : `${formatClock(startMinutes)}부터 ${formatClock(startMinutes + DAY_SLOT_MINUTES)}까지 할 일 추가`}
+                      : `${formatClock(startMinutes)}부터 ${formatClock(startMinutes + DAY_SLOT_MINUTES)}까지 할 일 또는 일정 추가`}
                     onClick={() => openTimeBlock(startMinutes)}
                   >
                     <Plus size={14} aria-hidden="true" />
@@ -449,13 +481,13 @@ export function TodayScreen() {
                 const endMinutes = block.startMinutes + block.durationMinutes;
                 const content = (
                   <>
-                    <span>{block.external ? '외부 일정 · 읽기 전용' : '집중 블록'} · {formatClock(block.startMinutes)}–{formatClock(endMinutes)}</span>
+                    <span>{block.external ? '외부 일정 · 읽기 전용' : block.taskId ? '할 일' : '내 일정'} · {formatClock(block.startMinutes)}–{formatClock(endMinutes)}</span>
                     <strong>{block.title}</strong>
                     <small>{formatMinutes(block.durationMinutes)}</small>
                   </>
                 );
 
-                return block.external || !block.taskId ? (
+                return block.external ? (
                   <article key={block.id} className="day-schedule__block day-schedule__block--external" style={blockStyle}>
                     {content}
                   </article>
@@ -463,10 +495,12 @@ export function TodayScreen() {
                   <button
                     key={block.id}
                     type="button"
-                    className="day-schedule__block day-schedule__block--focus"
+                    className={block.taskId
+                      ? 'day-schedule__block day-schedule__block--focus'
+                      : 'day-schedule__block day-schedule__block--event'}
                     style={blockStyle}
-                    aria-label={`${block.title}, ${formatClock(block.startMinutes)}부터 ${formatClock(endMinutes)}까지, 시간 변경`}
-                    onClick={() => openTimeBlock(block.startMinutes, block.taskId, block.durationMinutes)}
+                    aria-label={`${block.title}, ${formatClock(block.startMinutes)}부터 ${formatClock(endMinutes)}까지, 일정 수정`}
+                    onClick={() => openTimeBlock(block.startMinutes, block.id)}
                   >
                     {content}
                   </button>
@@ -535,19 +569,25 @@ export function TodayScreen() {
         </details>
       )}
 
-      {timeBlockDraft && activeTasks.length > 0 && (
+      {timeBlockDraft && (
         <TimeBlockSheet
-          key={`${timeBlockDraft.taskId}-${timeBlockDraft.startMinutes}-${timeBlockDraft.durationMinutes}`}
+          key={`${timeBlockDraft.blockId ?? 'new'}-${timeBlockDraft.taskId}-${timeBlockDraft.startMinutes}`}
           tasks={activeTasks}
+          outcomes={outcomes}
+          initialBlockId={timeBlockDraft.blockId}
           initialTaskId={timeBlockDraft.taskId}
+          initialTitle={timeBlockDraft.title}
+          initialDay={today.key}
           initialStartMinutes={timeBlockDraft.startMinutes}
           initialDurationMinutes={timeBlockDraft.durationMinutes}
+          initialMode={timeBlockDraft.mode}
           error={timeBlockError}
           onClose={() => {
             setTimeBlockDraft(null);
             setTimeBlockError('');
           }}
-          onSave={saveTimeBlock}
+          onSave={saveTimeBlockDraft}
+          onDelete={timeBlockDraft.blockId ? deleteTimeBlock : undefined}
         />
       )}
 

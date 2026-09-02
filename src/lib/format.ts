@@ -1,8 +1,9 @@
 import type { Confidence, DayKey } from '../domain/types';
 
 export const formatMinutes = (minutes: number) => {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
+  const roundedMinutes = Math.round(minutes);
+  const hours = Math.floor(roundedMinutes / 60);
+  const rest = roundedMinutes % 60;
   if (hours === 0) return `${rest}분`;
   if (rest === 0) return `${hours}시간`;
   return `${hours}시간 ${rest}분`;
