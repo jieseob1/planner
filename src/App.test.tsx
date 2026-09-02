@@ -84,6 +84,10 @@ describe('Planner frontend core flows', () => {
     const user = userEvent.setup();
     renderRoute('/today');
 
+    const timeline = screen.getByRole('region', { name: '계획과 실제 흐름' });
+    expect(timeline.closest('details')).toBeNull();
+    expect(screen.queryByText('펼치기')).not.toBeInTheDocument();
+
     const midnightSlot = screen.getByRole('button', {
       name: '00:00부터 01:00까지 할 일 또는 일정 추가'
     });
