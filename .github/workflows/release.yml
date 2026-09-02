@@ -34,7 +34,7 @@ jobs:
           value="${{ inputs.version || github.ref_name }}"
           test -n "$value"
           echo "value=$value" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
