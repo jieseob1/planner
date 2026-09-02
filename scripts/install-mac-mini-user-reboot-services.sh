@@ -37,6 +37,9 @@ CRONTAB_FILE="$(mktemp "${STATE_DIR}/nowline-crontab.XXXXXX")"
   printf '@reboot %q >> %q 2>&1\n' \
     "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" \
     "${STATE_DIR}/nowline-headless-supervisor.log"
+  printf '* * * * * %q >> %q 2>&1\n' \
+    "${REPO_DIR}/scripts/mac-mini-headless-supervisor.sh" \
+    "${STATE_DIR}/nowline-headless-supervisor.log"
   printf '%s\n' "${CRON_END}"
 } >> "${CRONTAB_FILE}"
 crontab "${CRONTAB_FILE}"

@@ -306,10 +306,10 @@ Scope: Reproduce the public `openid-configuration` 530 failure, repair the respo
   EXPECT: Goals to Today repository release verification passed
   EVIDENCE: 2026-09-02 exit=0 on pulled revision `7585fa5`; 32/32 frontend tests, production build, PWA/Capacitor sync, Java 25 Spring + MySQL 8.4 integration tests, and Kubernetes manifest verification passed; output ended `Goals to Today repository release verification passed`
 
-- [ ] G61: The Mac mini Kubernetes runtime is healthy on the fixed revision and authenticated multi-user persistence still passes
+- [x] G61: The Mac mini Kubernetes runtime is healthy on the fixed revision and authenticated multi-user persistence still passes
   CHECK: rtk npm run verify:goalstotoday:mac-mini
   EXPECT: Goals to Today Mac mini Kubernetes runtime verified
-  EVIDENCE: pending
+  EVIDENCE: 2026-09-02 exit=0 after headless recovery installation; two public OIDC users completed isolated planner save and relogin persistence, backend/frontend/Keycloak readiness and public issuer settings passed, and output ended `Goals to Today Mac mini Kubernetes runtime verified`
 
 - [x] G62: The public origin returns valid OIDC discovery instead of Cloudflare 530, and HTTPS, SSH, desktop, and mobile smoke checks pass
   CHECK: rtk npm run verify:goalstotoday:public
@@ -321,7 +321,7 @@ Scope: Reproduce the public `openid-configuration` 530 failure, repair the respo
   EXPECT: Goals to Today deployment revision verified
   EVIDENCE: pending
 
-- [ ] G64: The outage cause is bounded from Mac power evidence, and Colima, the local port-forward, and the dedicated Cloudflare tunnel recover before GUI login through a headless boot service
+- [x] G64: The outage cause is bounded from Mac power evidence, and Colima, the local port-forward, and the dedicated Cloudflare tunnel recover before GUI login through a headless boot service
   CHECK: rtk npm run verify:goalstotoday:contracts && rtk npm run verify:goalstotoday:mac-mini
   EXPECT: Goals to Today domain and brand contracts verified; Goals to Today Mac mini Kubernetes runtime verified
-  EVIDENCE: pending
+  EVIDENCE: 2026-09-02 power history bounded the interruption to 09:31:45-10:16:41 with no sleep, normal shutdown, or panic evidence; the login-only agents were disabled, system cron `@reboot` plus a supervisor were installed without a GUI session, and the running supervisor, port-forward, tunnel, health endpoint, authenticated runtime, and public origin all passed
