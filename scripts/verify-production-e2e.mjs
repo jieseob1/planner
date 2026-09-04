@@ -155,7 +155,7 @@ const completeOnboarding = async (page, prefix) => {
   if (!onboardingSave.ok()) {
     fail(`Onboarding save failed with ${onboardingSave.status()}: ${await onboardingSave.text()}`);
   }
-  await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor();
+  await page.getByRole('navigation', { name: '선택한 주' }).waitFor();
   await waitForPlannerSaved(page);
 };
 
@@ -513,7 +513,7 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
   const page = await context.newPage();
   attachErrorCapture(page, errors);
   await page.goto(`${frontendUrl}/today`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('heading', { name: '오늘 할 일과 일정을 정리합니다.' }).waitFor();
+  await page.getByRole('navigation', { name: '선택한 주' }).waitFor();
 
   await page.keyboard.press('Tab');
   const skipFocused = await page.evaluate(() => document.activeElement?.textContent?.trim() === '본문으로 건너뛰기');
