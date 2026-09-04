@@ -354,6 +354,11 @@ describe('red-team planning flow remediation', () => {
     mockedUsePlanner.mockReturnValue(plannerValue(source));
     renderScreen(<PlansScreen />);
 
+    const planHeading = screen.getByRole('heading', { name: '연간·분기 계획' });
+    expect(planHeading.closest('header')).toHaveClass('page-header', 'plans-header');
+    expect(planHeading.closest('.plans-screen')).toHaveClass('page');
+    expect(planHeading.parentElement?.querySelector('.page-header__description')).toHaveTextContent('분기 실행, 종료 근거');
+
     await user.click(screen.getByRole('button', { name: '새 계획' }));
     const dialog = screen.getByRole('dialog', { name: '새 연간·분기 계획' });
     const annualDirection = within(dialog).getByLabelText('1년 방향');
@@ -374,6 +379,24 @@ describe('red-team planning flow remediation', () => {
     expect(createdSnapshot.timeBlocks).toEqual([]);
     expect(createdSnapshot.timeEntries).toEqual([]);
     expect(createdSnapshot.outcomes.every((outcome) => outcome.actualHours === 0 && outcome.current === null)).toBe(true);
+  });
+
+  it('does not describe a failed plan-list request as an empty library', async () => {
+    const user = userEvent.setup();
+    const source = createDemoSnapshot();
+    mockedUsePlanner.mockReturnValue(plannerValue(source));
+    mockedPlanHistoryApi.list.mockRejectedValueOnce(new Error('계획 목록 조회 실패'));
+
+    renderScreen(<PlansScreen />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('계획 목록 조회 실패');
+    expect(screen.queryByText('아직 저장된 계획이 없습니다')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '계획 목록 다시 불러오기' }));
+
+    expect(await screen.findByText('아직 저장된 계획이 없습니다')).toBeInTheDocument();
+    expect(mockedPlanHistoryApi.list).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('does not enter Today with a stale snapshot when activated-plan reload fails', async () => {

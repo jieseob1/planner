@@ -99,6 +99,7 @@ export function PlansScreen() {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [listLoadFailed, setListLoadFailed] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activationReloadPending, setActivationReloadPending] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -128,10 +129,12 @@ export function PlansScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setListLoadFailed(false);
     try {
       setPlans(await planHistoryApi.list());
       setError('');
     } catch (reason) {
+      setListLoadFailed(true);
       setError(reason instanceof Error ? reason.message : '계획 목록을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
@@ -215,12 +218,12 @@ export function PlansScreen() {
   };
 
   return (
-    <div className="screen plans-screen">
-      <header className="screen-header plans-header">
+    <div className="page plans-screen">
+      <header className="page-header plans-header">
         <div>
           <p className="eyebrow">PLAN LIBRARY</p>
           <h1>연간·분기 계획</h1>
-          <p>하나의 메모가 아니라 계획의 시작, 실행, 종료와 근거를 이력으로 관리합니다.</p>
+          <p className="page-header__description">연간 방향과 분기 실행, 종료 근거를 이력으로 관리합니다.</p>
         </div>
         <button className="button button--primary" type="button" onClick={() => {
           setCreateErrors({});
@@ -237,16 +240,20 @@ export function PlansScreen() {
             <button className="button button--secondary button--small" type="button" disabled={busyId === 'reload-active'} onClick={() => void retryActivatedPlanReload()}>
               활성 계획 다시 불러오기
             </button>
+          ) : listLoadFailed ? (
+            <button className="button button--secondary button--small" type="button" disabled={loading} onClick={() => void load()}>
+              계획 목록 다시 불러오기
+            </button>
           ) : null}
         </div>
       )}
       {loading ? <p role="status">계획 목록을 불러오고 있습니다…</p> : (
         <div className="plan-library" aria-label="계획 목록">
-          {plans.length === 0 && (
+          {plans.length === 0 && !error && (
             <div className="integration-empty">
               <div>
                 <strong>아직 저장된 계획이 없습니다</strong>
-                <p>새 계획을 만들어 연간 방향과 첫 분기 실행을 시작하세요.</p>
+                <p>새 계획으로 연간 방향과 분기 실행을 시작하세요.</p>
               </div>
             </div>
           )}

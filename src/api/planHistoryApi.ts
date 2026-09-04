@@ -20,7 +20,7 @@ const read = async <T>(response: Response): Promise<T> => {
     try { problem = await response.json() as ProblemDetails; } catch { /* no body */ }
     throw new PlannerApiError(
       response.status,
-      problem?.detail ?? problem?.title ?? `Plan API request failed (${response.status})`,
+      problem?.detail ?? problem?.title ?? `계획 요청 실패 (${response.status})`,
       problem
     );
   }
