@@ -6714,6 +6714,10 @@ textarea:focus-visible,
   display: none;
 }
 
+.today-direct-utility:not([open]) > :not(summary) {
+  display: none;
+}
+
 .today-direct-utility textarea {
   width: 100%;
   min-height: 92px;
@@ -7684,8 +7688,8 @@ textarea:focus-visible,
   }
 
   .today-direct-header__controls button {
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0 7px;
   }
 
@@ -8047,6 +8051,14 @@ textarea:focus-visible,
     padding: 14px 4px 16px;
   }
 
+  .today-direct-quick-add input,
+  .today-direct-quick-add button,
+  .today-direct-utility summary,
+  .today-direct-manual-time select,
+  .today-direct-manual-time button {
+    min-height: 44px;
+  }
+
   .today-direct-todos__hint,
   .today-direct-todo__grip {
     display: none;
@@ -8136,7 +8148,7 @@ textarea:focus-visible,
   }
 
   .today-direct-header__controls button:nth-child(2) {
-    min-width: 34px;
+    min-width: 44px;
     padding-inline: 4px;
   }
 
