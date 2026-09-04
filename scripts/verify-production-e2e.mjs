@@ -295,7 +295,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   );
   const runningTimer = page.getByRole('region', { name: '현재 실행 중' });
   await runningTimer.waitFor();
-  await activateByKeyboard(runningTimer.getByRole('button', { name: '종료', exact: true }));
+  await activateByKeyboard(page, runningTimer.getByRole('button', { name: '종료', exact: true }));
   await page.getByRole('dialog', { name: '이번 실행을 정리할까요?' }).waitFor();
   await page.getByPlaceholder('예: 완료한 결과나 이어서 할 일').fill('운영 E2E 실행 근거');
   await activateAndWaitForPlannerSave(
