@@ -281,10 +281,23 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '운영 E2E');
 
-  await activateByKeyboard(page, page.getByRole('button', { name: /지금 시작/ }));
-  await activateByKeyboard(page, page.getByRole('button', { name: /종료/ }));
+  const timerTaskTitle = '운영 E2E 타이머 기록';
+  await page.getByLabel('빠른 메모').fill(timerTaskTitle);
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('button', { name: '추가', exact: true }),
+    'Today timer task creation'
+  );
+  await activateAndWaitForPlannerSave(
+    page,
+    page.getByRole('button', { name: `${timerTaskTitle} 타이머 시작`, exact: true }),
+    'Today timer start'
+  );
+  const runningTimer = page.getByRole('region', { name: '현재 실행 중' });
+  await runningTimer.waitFor();
+  await activateByKeyboard(runningTimer.getByRole('button', { name: '종료', exact: true }));
   await page.getByRole('dialog', { name: '이번 실행을 정리할까요?' }).waitFor();
-  await page.getByPlaceholder('예: 다이어그램 초안 링크, 확인한 실패 케이스').fill('운영 E2E 실행 근거');
+  await page.getByPlaceholder('예: 완료한 결과나 이어서 할 일').fill('운영 E2E 실행 근거');
   await activateAndWaitForPlannerSave(
     page,
     page.getByRole('button', { name: /이 작업은 완료/ }),
@@ -465,13 +478,16 @@ const exerciseMobile = async (frontendUrl) => {
   await acceptConsent(page);
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '모바일 E2E');
-  await page.getByLabel('빠른 메모').fill('모바일에서 추가한 다음 행동');
+  await page.getByRole('button', { name: /시간 미정 할 일 \d+개 열기/ }).click();
+  const mobileTodoSheet = page.getByRole('dialog', { name: '시간 미정 할 일' });
+  await mobileTodoSheet.waitFor();
+  await mobileTodoSheet.getByLabel('빠른 메모').fill('모바일에서 추가한 다음 행동');
   await runAndWaitForPlannerSave(
     page,
-    () => page.getByRole('button', { name: '추가', exact: true }).click(),
+    () => mobileTodoSheet.getByRole('button', { name: '추가', exact: true }).click(),
     'Mobile quick capture'
   );
-  await page.getByText('수집함에 넣었어요.').waitFor();
+  await page.getByText('모바일에서 추가한 다음 행동을 시간 미정 목록에 추가했습니다.').waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Today');
   await assertVisibleTargets(page, 'Mobile Today');
 
