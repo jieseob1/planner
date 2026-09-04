@@ -22,8 +22,25 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm ci --no-audit
+      - name: Audit production dependencies
+        timeout-minutes: 3
+        env:
+          NPM_CONFIG_FETCH_TIMEOUT: "30000"
+          NPM_CONFIG_FETCH_RETRIES: "1"
+          NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "1000"
+          NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "5000"
+        run: |
+          for attempt in 1 2 3; do
+            if npm audit --omit=dev --audit-level=moderate; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            echo "npm audit attempt $attempt failed; retrying..."
+            sleep $((attempt * 5))
+          done
       - run: npm run verify:release
 
   backend:
@@ -46,7 +63,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit
       - run: npm run verify:k8s
 
   end-to-end:
@@ -63,6 +80,6 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
-      - run: npm ci
+      - run: npm ci --no-audit
       - run: npm run verify:e2e
       - run: npm run verify:production:e2e
