@@ -72,7 +72,7 @@ const waitForPlannerSaved = async (page) => {
   await page.waitForFunction(() => (
     [...document.querySelectorAll('.save-status__label')]
       .some((element) => element.textContent?.trim() === '서버에 저장됨')
-  ), { timeout: 20_000 });
+  ), undefined, { timeout: 20_000 });
 };
 
 const runAndWaitForPlannerSave = async (page, action, label) => {
@@ -379,9 +379,9 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
     body: JSON.stringify(envelope.snapshot)
   }), 200, 'conflicting server update');
 
+  captureState.allowedHttpStatusConsole.add(412);
   await context.setOffline(false);
   captureState.allowExpectedOfflineErrors = false;
-  captureState.allowedHttpStatusConsole.add(412);
   await page.getByText('서버 저장 충돌').waitFor({ timeout: 20_000 });
   await activateByKeyboard(page, page.getByRole('button', { name: '변경 비교' }));
   await page.getByRole('heading', { name: '기기와 서버의 변경을 비교합니다' }).waitFor({ timeout: 20_000 });
@@ -420,8 +420,14 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   await page.getByText('Google Calendar 연결을 완료했습니다').waitFor({ timeout: 20_000 });
   await page.locator('option').filter({ hasText: 'Nowline E2E Calendar' })
     .waitFor({ state: 'attached', timeout: 20_000 });
+  await page.getByText('동기화 정상', { exact: true }).waitFor({ timeout: 30_000 });
+  const eventListRequestsBeforeManualSync = fakeGoogle.stats.eventListRequests;
   await activateByKeyboard(page, page.getByRole('button', { name: /지금 동기화/ }));
-  await page.getByText('동기화를 요청했습니다').waitFor();
+  await page.getByText('동기화 대기 중', { exact: true }).waitFor();
+  await page.getByText('동기화 정상', { exact: true }).waitFor({ timeout: 30_000 });
+  if (fakeGoogle.stats.eventListRequests <= eventListRequestsBeforeManualSync) {
+    fail(`Calendar manual sync did not fetch events: ${JSON.stringify(fakeGoogle.stats)}`);
+  }
 
   await page.getByLabel('시간대').selectOption('Asia/Seoul');
   await page.getByLabel('오늘 계획 알림', { exact: true }).fill('09:15');
@@ -514,9 +520,12 @@ const exerciseMobile = async (frontendUrl) => {
 
   await page.goto(`${frontendUrl}/plans`);
   await page.getByRole('heading', { name: '연간·분기 계획' }).waitFor();
+  await page.locator('.plan-library[aria-label="계획 목록"]').waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Plans');
   await page.goto(`${frontendUrl}/settings`);
   await page.getByRole('heading', { name: '설정과 연동' }).waitFor();
+  await page.getByRole('button', { name: 'Google Calendar 연결', exact: true }).waitFor();
+  await page.getByRole('button', { name: '알림 시간 저장', exact: true }).waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Settings');
   await assertVisibleTargets(page, 'Mobile Settings');
   if (errors.length > 0) fail(`Mobile browser emitted errors:\n${errors.join('\n')}`);
@@ -541,8 +550,11 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
   const captureButton = page.getByRole('button', { name: '빠른 수집' }).first();
   await captureButton.focus();
   await page.keyboard.press('Enter');
-  const captureFocused = await page.evaluate(() => document.activeElement?.id === 'quick-capture');
-  if (!captureFocused) fail('Keyboard Capture action did not focus the quick-capture input');
+  await page.waitForFunction(
+    () => document.activeElement?.id === 'quick-capture',
+    undefined,
+    { timeout: 2_000 },
+  );
 
   // At 200% browser zoom a 1440x900 display exposes a 720x450 CSS viewport.
   // CSS `zoom` would scale an already-laid-out desktop page without updating
@@ -551,6 +563,13 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
   for (const route of ['/today', '/planner', '/goals', '/review', '/plans', '/settings']) {
     await page.goto(`${frontendUrl}${route}`);
     await page.locator('#main-content').waitFor();
+    if (route === '/plans') {
+      await page.locator('.plan-library[aria-label="계획 목록"]').waitFor();
+    }
+    if (route === '/settings') {
+      await page.getByRole('button', { name: 'Google Calendar 연결', exact: true }).waitFor();
+      await page.getByRole('button', { name: '알림 시간 저장', exact: true }).waitFor();
+    }
     await assertNoDocumentOverflow(page, `200% zoom ${route}`);
     await assertVisibleControlsAreLabelled(page, `Accessible labels ${route}`);
   }
@@ -584,7 +603,9 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
     colorScheme: 'dark',
     reducedMotion: 'reduce'
   });
+  const preferenceErrors = [];
   const preferencePage = await preferenceContext.newPage();
+  attachErrorCapture(preferencePage, preferenceErrors);
   await preferencePage.goto(`${frontendUrl}/today`, { waitUntil: 'domcontentloaded' });
   await preferencePage.locator('#main-content').waitFor();
   const preferenceStyles = await preferencePage.evaluate(() => {
@@ -610,6 +631,7 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
   if (!isEffectivelyDisabled(preferenceStyles.animationDuration) || !isEffectivelyDisabled(preferenceStyles.transitionDuration)) {
     fail(`Reduced-motion styles were not applied: ${JSON.stringify(preferenceStyles)}`);
   }
+  if (preferenceErrors.length > 0) fail(`Browser preference page emitted errors:\n${preferenceErrors.join('\n')}`);
   await preferenceContext.close();
 };
 
