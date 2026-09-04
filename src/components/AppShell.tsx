@@ -8,6 +8,7 @@ import { usePlanner } from '../state/PlannerProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { QUICK_CAPTURE_EVENT } from '../lib/quickCapture';
 
 const navItems = [
   { to: '/today', label: '오늘', contextLabel: '오늘 실행', icon: CheckCircle2 },
@@ -43,7 +44,7 @@ export function AppShell() {
     if (pathname !== '/today' || !pendingCaptureFocus.current) return;
     pendingCaptureFocus.current = false;
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById('quick-capture')?.focus();
+      window.dispatchEvent(new Event(QUICK_CAPTURE_EVENT));
     });
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
@@ -67,7 +68,7 @@ export function AppShell() {
 
   const focusQuickCapture = () => {
     if (pathname === '/today') {
-      document.getElementById('quick-capture')?.focus();
+      window.dispatchEvent(new Event(QUICK_CAPTURE_EVENT));
       return;
     }
     pendingCaptureFocus.current = true;

@@ -146,7 +146,7 @@ describe('red-team planning flow remediation', () => {
     );
   });
 
-  it('does not invent a 100 percent execution rate without a plan and surfaces the schedule first', () => {
+  it('does not invent a 100 percent execution rate without a plan and keeps the 24-hour schedule before the Todo panel', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 8, 2, 12, 0));
     const source = createDemoSnapshot();
@@ -163,10 +163,11 @@ describe('red-team planning flow remediation', () => {
 
     expect(screen.getByText('계획 없음')).toBeInTheDocument();
     expect(screen.queryByText('100%')).not.toBeInTheDocument();
-    const nextSchedule = screen.getByRole('heading', { name: '바로 이어갈 시간' });
-    const priorities = screen.getByRole('heading', { name: '내가 고르는 실행 순서' });
-    expect(nextSchedule.compareDocumentPosition(priorities) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('link', { name: /시간표 보기/ })).toHaveAttribute('href', '#today-timeline');
+    const schedule = screen.getByRole('region', { name: /24시간 시간표/ });
+    const todos = screen.getByRole('complementary', { name: '미배치 할 일' });
+    expect(schedule.compareDocumentPosition(todos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('00:00')).toBeInTheDocument();
+    expect(screen.getByText('24:00')).toBeInTheDocument();
   });
 
   it('uses an action that navigates to Today instead of claiming an unpersisted plan confirmation', () => {
