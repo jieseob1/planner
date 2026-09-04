@@ -42,7 +42,12 @@ import {
   isLocalDate,
   toLocalDate
 } from '../lib/calendarDate';
-import { findTimeBlockConflict, isValidTimeBlockSlot, normalizeWeekOffset } from '../lib/timeBlocks';
+import {
+  findTimeBlockConflict,
+  isValidTimeBlockSlot,
+  normalizeWeekOffset,
+  timeRangesOverlap
+} from '../lib/timeBlocks';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
 
 const LEGACY_STORAGE_KEY = 'planner.mvp.snapshot.v1';
@@ -50,6 +55,7 @@ const LEGACY_SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
 const LEGACY_CONFLICT_BACKUP_KEY = 'planner.mvp.last-conflict.v1';
 const LEGACY_ACTIVE_PLAN_ABSENT_KEY = 'nowline.active-plan.absent.v1';
 const SERVER_SYNC_DELAY_MS = 350;
+const TIME_BLOCK_UNDO_WINDOW_MS = 10_000;
 const toApiDecimal = (value: number) => Number(value.toFixed(6));
 
 export type SaveStatus =
@@ -105,6 +111,7 @@ export interface PlannerContextValue extends PlannerSnapshot {
   ) => boolean;
   saveTimeBlock: (input: SaveTimeBlockInput) => boolean;
   removeTimeBlock: (blockId: string) => boolean;
+  restoreTimeBlock: (block: TimeBlock) => boolean;
   startTimer: (taskId: string) => void;
   toggleTimer: () => void;
   stopTimer: (completion: 'done' | 'continue', evidence?: string) => void;
@@ -155,6 +162,12 @@ interface PendingWrite {
   snapshotKey: string;
   revision: number | null;
   idempotencyKey: string;
+}
+
+interface RemovedTimeBlock {
+  block: TimeBlock;
+  expiresAt: number;
+  preExistingOverlaps: Array<Pick<TimeBlock, 'id' | 'date' | 'startMinutes' | 'durationMinutes'>>;
 }
 
 const normalizePlanContext = (value: unknown, fallback: PlanContext): PlanContext => {
@@ -842,6 +855,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   const resettingRef = useRef(false);
   const conflictRef = useRef(false);
   const pendingWriteRef = useRef<PendingWrite | null>(null);
+  const removedTimeBlocksRef = useRef(new Map<string, RemovedTimeBlock>());
   const resetEpochRef = useRef(0);
 
   const markServerReady = useCallback(() => {
@@ -903,6 +917,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     conflictRef.current = false;
     setSyncConflict(null);
     pendingWriteRef.current = null;
+    removedTimeBlocksRef.current.clear();
     const localStored = writeLocalSnapshot(storageKeys, serverSnapshot);
     const metadataStored = acknowledgeSnapshot(revision, etag, acknowledgedSnapshotKey);
     setSaveStatus(localStored && metadataStored ? 'saved' : 'storage-error');
@@ -1166,6 +1181,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     etagRef.current = null;
     acknowledgedSnapshotRef.current = null;
     dirtyRef.current = false;
+    removedTimeBlocksRef.current.clear();
     setSaveStatus('saved');
   }, [storageKeys]);
 
@@ -1196,6 +1212,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         syncConflict.local,
         syncConflict.server
       ), new Date(), timeZone);
+      removedTimeBlocksRef.current.clear();
     }
 
     const serverSnapshotKey = serializeSnapshot(syncConflict.server);
@@ -1531,10 +1548,20 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         ? current.timeBlocks.find((block) => block.id === input.id && !block.external)
         : undefined;
       if (input.id && !existing) return current;
+      const preservesExistingOccupancy = Boolean(
+        existing
+        && existing.taskId === input.taskId
+        && existing.date === targetDate
+        && existing.startMinutes === slot.startMinutes
+        && existing.durationMinutes === slot.durationMinutes
+      );
       const sameDateBlocks = current.timeBlocks
         .filter((block) => block.date === targetDate)
         .map((block) => ({ ...block, day: targetDay, weekOffset: targetWeek }));
-      if (findTimeBlockConflict(sameDateBlocks, slot, { ignoreBlockId: existing?.id })) return current;
+      if (
+        !preservesExistingOccupancy
+        && findTimeBlockConflict(sameDateBlocks, slot, { ignoreBlockId: existing?.id })
+      ) return current;
 
       const block: TimeBlock = {
         id: existing?.id ?? safeId('block'),
@@ -1566,11 +1593,108 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     updateSnapshot((current) => {
       const target = current.timeBlocks.find((block) => block.id === blockId && !block.external);
       if (!target) return current;
+      const removedAt = Date.now();
+      for (const [removedId, removed] of removedTimeBlocksRef.current) {
+        if (removedAt > removed.expiresAt) removedTimeBlocksRef.current.delete(removedId);
+      }
+      removedTimeBlocksRef.current.set(blockId, {
+        block: { ...target },
+        expiresAt: removedAt + TIME_BLOCK_UNDO_WINDOW_MS,
+        preExistingOverlaps: current.timeBlocks
+          .filter((block) => (
+            block.id !== target.id
+            && block.date === target.date
+            && timeRangesOverlap(
+              block.startMinutes,
+              block.durationMinutes,
+              target.startMinutes,
+              target.durationMinutes
+            )
+          ))
+          .map((block) => ({
+            id: block.id,
+            date: block.date,
+            startMinutes: block.startMinutes,
+            durationMinutes: block.durationMinutes
+          }))
+      });
       removed = true;
       return { ...current, timeBlocks: current.timeBlocks.filter((block) => block.id !== blockId) };
     });
     return removed;
   }, [updateSnapshot]);
+
+  const restoreTimeBlock = useCallback((block: TimeBlock): boolean => {
+    let restored = false;
+    updateSnapshot((current) => {
+      const removed = removedTimeBlocksRef.current.get(block.id);
+      if (!removed) return current;
+      if (Date.now() > removed.expiresAt) {
+        removedTimeBlocksRef.current.delete(block.id);
+        return current;
+      }
+
+      const original = removed.block;
+      const matchesRemovedBlock = block.id === original.id
+        && block.taskId === original.taskId
+        && block.title === original.title
+        && block.day === original.day
+        && block.date === original.date
+        && block.startMinutes === original.startMinutes
+        && block.durationMinutes === original.durationMinutes
+        && Boolean(block.external) === Boolean(original.external)
+        && normalizeWeekOffset(block.weekOffset) === normalizeWeekOffset(original.weekOffset);
+      const task = original.taskId === null
+        ? null
+        : current.tasks.find((item) => item.id === original.taskId);
+      const title = (task?.title ?? original.title).trim();
+      if (
+        !matchesRemovedBlock
+        || original.external
+        || current.timeBlocks.some((item) => item.id === original.id)
+        || (original.taskId !== null && !task)
+        || !title
+        || !isLocalDate(original.date)
+        || !Number.isInteger(original.startMinutes)
+        || !Number.isInteger(original.durationMinutes)
+      ) return current;
+
+      const targetDay = getDayKeyForDate(original.date);
+      const targetWeek = getWeekOffsetForDate(original.date, new Date(), timeZone);
+      const slot = {
+        day: targetDay,
+        startMinutes: original.startMinutes,
+        durationMinutes: original.durationMinutes,
+        weekOffset: targetWeek
+      };
+      if (!isValidTimeBlockSlot(slot)) return current;
+      const sameDateBlocks = current.timeBlocks
+        .filter((item) => item.date === original.date)
+        .map((item) => ({ ...item, day: targetDay, weekOffset: targetWeek }));
+      const newConflictCandidates = sameDateBlocks.filter((item) => (
+        !removed.preExistingOverlaps.some((overlap) => (
+          overlap.id === item.id
+          && overlap.date === item.date
+          && overlap.startMinutes === item.startMinutes
+          && overlap.durationMinutes === item.durationMinutes
+        ))
+      ));
+      if (findTimeBlockConflict(newConflictCandidates, slot)) return current;
+
+      removedTimeBlocksRef.current.delete(block.id);
+      restored = true;
+      return {
+        ...current,
+        timeBlocks: [...current.timeBlocks, {
+          ...original,
+          title,
+          day: targetDay,
+          weekOffset: targetWeek
+        }]
+      };
+    });
+    return restored;
+  }, [timeZone, updateSnapshot]);
 
   const scheduleTask = useCallback((
     taskId: string,
@@ -1583,13 +1707,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     const targetDate = getDateForDay(day, targetWeek, new Date(), timeZone);
     const task = snapshotRef.current.tasks.find((item) => item.id === taskId);
     if (!task) return false;
-    const existing = snapshotRef.current.timeBlocks.find((block) => (
-      block.taskId === taskId
-      && !block.external
-      && block.date === targetDate
-    ));
     return saveTimeBlock({
-      id: existing?.id,
       taskId,
       title: task.title,
       day,
@@ -1768,6 +1886,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       conflictRef.current = false;
       dirtyRef.current = false;
       pendingWriteRef.current = null;
+      removedTimeBlocksRef.current.clear();
       setSyncConflict(null);
       window.localStorage.removeItem(storageKeys.snapshot);
       window.localStorage.removeItem(storageKeys.syncMetadata);
@@ -1810,6 +1929,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     scheduleTask,
     saveTimeBlock,
     removeTimeBlock,
+    restoreTimeBlock,
     startTimer,
     toggleTimer,
     stopTimer,
@@ -1846,6 +1966,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     scheduleTask,
     saveTimeBlock,
     removeTimeBlock,
+    restoreTimeBlock,
     startTimer,
     toggleTimer,
     stopTimer,

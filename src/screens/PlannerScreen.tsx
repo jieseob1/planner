@@ -241,7 +241,6 @@ export function PlannerScreen() {
   };
 
   const findConflict = (
-    taskId: string,
     day: DayKey,
     startMinutes: number,
     durationMinutes: number
@@ -250,21 +249,17 @@ export function PlannerScreen() {
     startMinutes,
     durationMinutes,
     weekOffset: plannerWeekOffset
-  }, { ignoreTaskId: taskId });
+  });
 
   const placeTask = (task: Task, day: DayKey, startMinutes: number, durationMinutes: number) => {
-    const conflict = findConflict(task.id, day, startMinutes, durationMinutes);
+    const conflict = findConflict(day, startMinutes, durationMinutes);
     if (conflict) {
       const message = `${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`;
       setPlacementError(message);
       return false;
     }
     const targetDate = weekDays.find((item) => item.key === day)?.isoDate;
-    const existing = targetDate
-      ? weekBlocks.find((block) => block.taskId === task.id && block.date === targetDate && !block.external)
-      : undefined;
     const saved = Boolean(targetDate) && saveTimeBlock({
-      id: existing?.id,
       taskId: task.id,
       title: task.title,
       day,
