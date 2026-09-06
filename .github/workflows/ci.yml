@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never interrupt a live rollout. Feature-branch checks can still be superseded.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   frontend:
@@ -73,6 +74,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit
       - run: npm run verify:k8s
+      - run: node --test scripts/lib/mac-mini-release.test.mjs
 
   end-to-end:
     runs-on: ubuntu-latest
@@ -91,3 +93,120 @@ jobs:
       - run: npm ci --no-audit
       - run: npm run verify:e2e
       - run: npm run verify:production:e2e
+
+  publish-mac-mini:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: end-to-end
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      backend: ${{ steps.backend.outputs.digest }}
+      frontend: ${{ steps.frontend.outputs.digest }}
+      keycloak: ${{ steps.keycloak.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - run: npm ci --no-audit
+      - name: Build the public beta web client
+        env:
+          VITE_AUTH_MODE: oidc
+          VITE_API_BASE_URL: ""
+          VITE_OIDC_AUTHORITY: https://goalstotoday.com/idp/realms/nowline
+          VITE_OIDC_CLIENT_ID: nowline-web
+          VITE_OIDC_SCOPE: openid profile email offline_access
+          VITE_OIDC_WEB_REDIRECT_URI: https://goalstotoday.com/auth/callback
+          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://goalstotoday.com
+          VITE_OIDC_SILENT_REDIRECT_URI: https://goalstotoday.com/auth/silent-callback
+          NOWLINE_RELEASE_SHA: ${{ github.sha }}
+        run: npm run build && node scripts/write-release-version.mjs
+      - run: ./mvnw -q -DskipTests package
+        working-directory: backend
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v4
+      - id: backend
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          push: true
+          platforms: linux/arm64
+          tags: ghcr.io/jieseob1/planner-backend:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/jieseob1/planner
+          provenance: false
+      - id: frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.beta
+          push: true
+          platforms: linux/arm64
+          tags: ghcr.io/jieseob1/planner-frontend:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/jieseob1/planner
+          provenance: false
+      - id: keycloak
+        uses: docker/build-push-action@v7
+        with:
+          context: infra/keycloak
+          file: infra/keycloak/Containerfile
+          push: true
+          platforms: linux/arm64
+          tags: ghcr.io/jieseob1/planner-keycloak:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/jieseob1/planner
+          provenance: false
+
+  deploy-mac-mini:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: publish-mac-mini
+    runs-on: [self-hosted, macOS, ARM64, goalstotoday-deploy]
+    environment:
+      name: mac-mini-production
+      url: https://goalstotoday.com
+    timeout-minutes: 30
+    concurrency:
+      group: mac-mini-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Deploy and verify the exact main images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          NOWLINE_RELEASE_SHA: ${{ github.sha }}
+          NOWLINE_BACKEND_IMAGE: ghcr.io/jieseob1/planner-backend@${{ needs.publish-mac-mini.outputs.backend }}
+          NOWLINE_FRONTEND_IMAGE: ghcr.io/jieseob1/planner-frontend@${{ needs.publish-mac-mini.outputs.frontend }}
+          NOWLINE_KEYCLOAK_IMAGE: ghcr.io/jieseob1/planner-keycloak@${{ needs.publish-mac-mini.outputs.keycloak }}
+        shell: bash
+        run: |
+          export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+          export DOCKER_HOST="$(docker context inspect colima --format '{{.Endpoints.docker.Host}}')"
+          export DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/nowline-docker.XXXXXX")"
+          trap 'docker logout ghcr.io >/dev/null 2>&1; rm -f "$DOCKER_CONFIG/config.json"; rmdir "$DOCKER_CONFIG" 2>/dev/null || true' EXIT
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          node scripts/deploy-mac-mini.mjs
+          node scripts/deploy-mac-mini.mjs --verify
+          printf '### Mac mini deployment verified\n\nCommit: `%s`\n\nPublic version: https://goalstotoday.com/version.json\n' "$NOWLINE_RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"
