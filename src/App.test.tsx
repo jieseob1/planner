@@ -347,7 +347,7 @@ describe('Planner frontend core flows', () => {
     const start = within(dialog).getByLabelText(/시작/);
     const conflictDay = createDemoSnapshot().timeBlocks.find((block) => block.id === 'block-diagram')?.day ?? 'mon';
     const dayLabel = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' }[conflictDay];
-    await user.click(within(dialog).getByRole('button', { name: new RegExp(`^${dayLabel}`) }));
+    await user.click(within(dialog).getByRole('button', { name: new RegExp(`^${dayLabel}\\s*\\d{1,2}$`) }));
 
     await user.selectOptions(start, '1170');
     await user.click(within(dialog).getByRole('button', { name: '추가' }));

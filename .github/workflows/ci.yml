@@ -74,7 +74,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit
       - run: npm run verify:k8s
-      - run: node --test scripts/lib/mac-mini-release.test.mjs
+      - run: node --test scripts/lib/mac-mini-release.check.mjs
 
   end-to-end:
     runs-on: ubuntu-latest
