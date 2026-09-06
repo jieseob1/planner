@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync, rmSync,
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { components, imageTag, validateRelease, verifyImage, verifyWorkloads } from './lib/mac-mini-release.mjs';
+import { components, imageTag, validateRelease, verifyImage, verifyImportedManifest, verifyWorkloads } from './lib/mac-mini-release.mjs';
 
 const revision = process.env.NOWLINE_RELEASE_SHA;
 const images = Object.fromEntries(components.map((name) => [name, process.env[`NOWLINE_${name.toUpperCase()}_IMAGE`]]));
@@ -57,7 +57,7 @@ if (process.argv.includes('--verify')) {
   validateRelease(revision, images);
   assert.equal(run('git', ['rev-parse', 'HEAD']).trim(), revision, 'Runner checkout differs from release');
   assert.equal(git('status', '--porcelain', '--untracked-files=no'), '', 'Server checkout contains tracked changes');
-  git('fetch', 'origin', 'main');
+  git('fetch', 'origin', 'refs/heads/main:refs/remotes/origin/main');
   assert.equal(git('rev-parse', 'origin/main'), revision, 'A newer main exists; do not deploy a stale revision');
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   // Exclusive local lock also protects manual deployments outside Actions concurrency.
@@ -80,6 +80,11 @@ if (process.argv.includes('--verify')) {
       run('docker', ['pull', '--platform', 'linux/arm64', images[component]], { stdio: 'inherit' });
       const inspected = JSON.parse(run('docker', ['image', 'inspect', images[component]]))[0];
       verifyImage(inspected, revision);
+      // Docker 29's containerd store exposes a manifest ID as .Id; the classic
+      // store exposes the config ID. Read the expected config from the registry.
+      const publishedManifest = JSON.parse(run('docker', ['manifest', 'inspect', images[component]]));
+      const configDigest = publishedManifest.config?.digest;
+      assert.match(configDigest || '', /^sha256:[a-f0-9]{64}$/, 'Expected a single-platform image manifest');
       const tag = imageTag(component, revision);
       run('docker', ['tag', images[component], tag]);
       run('kind', ['load', 'docker-image', tag, '--name', 'nowline-local'], { stdio: 'inherit' });
@@ -88,13 +93,13 @@ if (process.argv.includes('--verify')) {
         const fields = rows.find((line) => line.split(/\s+/)[0] === tag)?.split(/\s+/);
         assert.match(fields?.[2] || '', /^sha256:[a-f0-9]{64}$/, `${node}: imported image missing`);
         const manifest = JSON.parse(run('docker', ['exec', node, 'ctr', '-n', 'k8s.io', 'content', 'get', fields[2]]));
-        assert.equal(manifest.config?.digest, inspected.Id, `${node}: imported content differs from published image`);
+        verifyImportedManifest(manifest, configDigest);
         return fields[2];
       });
-      release.images[component] = { published: images[component], tag, configDigest: inspected.Id, nodeDigests };
+      release.images[component] = { published: images[component], tag, configDigest, nodeDigests };
     }
     // Recheck after image preparation, before changing live workloads.
-    git('fetch', 'origin', 'main');
+    git('fetch', 'origin', 'refs/heads/main:refs/remotes/origin/main');
     assert.equal(git('rev-parse', 'origin/main'), revision, 'A newer main arrived while preparing images');
     // Preserve both application data and login identities before any Flyway-enabled pod starts.
     const backup = path.join(stateDir, `mysql-${revision}-${Date.now()}.sql`);
@@ -127,6 +132,9 @@ if (process.argv.includes('--verify')) {
     if (git('branch', '--list', 'main')) git('switch', 'main');
     else git('switch', '-c', 'main', revision);
     git('merge', '--ff-only', revision);
+    const fetchSpecs = git('config', '--get-all', 'remote.origin.fetch');
+    if (!fetchSpecs.includes('refs/heads/*:') && !fetchSpecs.includes('refs/heads/main:')) git('remote', 'set-branches', '--add', 'origin', 'main');
+    git('branch', '--set-upstream-to=origin/main', 'main');
     assert.equal(git('rev-parse', 'HEAD'), revision);
     if (existsSync(statePath)) writeFileSync(path.join(stateDir, 'previous-release.json'), readFileSync(statePath), { mode: 0o600 });
     const pending = `${statePath}.pending`;

@@ -18,6 +18,11 @@ export function verifyImage(image, revision) {
   assert.match(image.Id, /^sha256:[a-f0-9]{64}$/);
 }
 
+export function verifyImportedManifest(manifest, configDigest) {
+  assert.match(configDigest || '', /^sha256:[a-f0-9]{64}$/);
+  assert.equal(manifest.config?.digest, configDigest, 'Imported image config differs from the published manifest');
+}
+
 export function verifyWorkloads(deployments, pods, release) {
   for (const component of components) {
     const name = `nowline-${component}`;

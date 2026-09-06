@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { spawnSync } from 'node:child_process';
-import { components, imageRepository, imageTag, validateRelease, verifyImage, verifyWorkloads } from './mac-mini-release.mjs';
+import { components, imageRepository, imageTag, validateRelease, verifyImage, verifyImportedManifest, verifyWorkloads } from './mac-mini-release.mjs';
 
 const revision = 'a'.repeat(40);
 const digest = `sha256:${'b'.repeat(64)}`;
@@ -39,6 +39,12 @@ test('image platform and embedded revision must match the release', () => {
 test('ready replicas running the imported image pass', () => {
   const { deployments, pods, release } = fixture();
   verifyWorkloads(deployments, pods, release);
+});
+test('compare image config digests independently of Docker classic/containerd image IDs', () => {
+  verifyImportedManifest({ config: { digest } }, digest);
+  assert.throws(() => verifyImportedManifest({ config: { digest: otherDigest } }, digest));
+  assert.throws(() => verifyImportedManifest({ manifests: [{ digest }] }, digest));
+  assert.throws(() => verifyImportedManifest({}, undefined));
 });
 for (const [label, mutate] of [
   ['wrong runtime digest despite matching tag', (f) => { f.pods.items[0].status.containerStatuses[0].imageID = `sha256:${'d'.repeat(64)}`; }],

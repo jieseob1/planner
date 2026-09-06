@@ -7,7 +7,7 @@
 1. GitHub hosted runner에서 프론트, Java 25 백엔드, Kustomize, API/production E2E를 검증합니다.
 2. ARM64 runner에서 공개 OIDC 설정으로 웹을 빌드하고 frontend/backend/Keycloak 이미지를 GHCR에 게시합니다. 이미지 태그와 OCI revision label은 모두 `sha-<전체 Git SHA>`에 대응합니다.
 3. `goalstotoday-mac-mini` 실행기가 게시 단계가 반환한 **digest**로 이미지를 내려받습니다. 임시 `GITHUB_TOKEN`은 임시 Docker 설정에서만 사용합니다.
-4. Docker 이미지의 OS·ARM64·revision label을 검사하고 kind의 모든 기존 노드에 import합니다. import한 manifest의 config digest도 원본 Docker 이미지 ID와 비교합니다.
+4. Docker 이미지의 OS·ARM64·revision label을 검사하고 kind의 모든 기존 노드에 import합니다. import한 manifest의 config digest도 GHCR 원본 manifest와 비교하므로 Docker classic/containerd 저장 방식의 ID 차이에 영향을 받지 않습니다.
 5. `nowline`과 `keycloak` MySQL 데이터를 함께 dump/gzip하고 SHA-256을 기록합니다. 현재 `main`과 배포 SHA가 다르면 교체 전에 중단합니다.
 6. 기존 배포의 환경변수·Secret 참조·복제본 수를 유지하면서 backend/frontend/Keycloak 이미지를 커밋 태그로 교체합니다. MySQL/PVC/Tunnel은 재생성하지 않습니다.
 7. 세 Deployment의 모든 Ready Pod, 실행 중 imageID, `https://goalstotoday.com/version.json`, health, OIDC issuer, 미인증 API 401을 검사합니다. 서비스가 검증된 뒤 서버 checkout도 해당 `main` 커밋으로 fast-forward합니다.
