@@ -14,6 +14,8 @@ import { PrivacyScreen, TermsScreen } from './screens/LegalScreen';
 import { LandingScreen } from './screens/LandingScreen';
 import { usePlanner } from './state/PlannerProvider';
 import { TimeZoneProvider } from './timezone/TimeZoneProvider';
+import { AdminScreen } from './admin/AdminScreen';
+import { Capacitor } from '@capacitor/core';
 
 function RequireActivePlan({ children }: { children: ReactNode }) {
   const { hasActivePlan, plannerReady } = usePlanner();
@@ -39,6 +41,7 @@ export function AppRoutes() {
         <Route path="/review" element={<RequireActivePlan><ReviewScreen /></RequireActivePlan>} />
         <Route path="/plans" element={<PlansScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
+        <Route path="/admin" element={<AdminScreen />} />
       </Route>
       <Route path="*" element={<Navigate to="/today" replace />} />
     </Routes>
@@ -49,7 +52,7 @@ export function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingScreen />} />
+        <Route path="/" element={Capacitor.isNativePlatform() ? <Navigate to="/today" replace /> : <LandingScreen />} />
         <Route path="/privacy" element={<PrivacyScreen />} />
         <Route path="/terms" element={<TermsScreen />} />
         <Route path="/*" element={(

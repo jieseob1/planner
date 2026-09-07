@@ -1,0 +1,96 @@
+name: Mobile build CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VITE_AUTH_MODE: oidc
+  VITE_API_BASE_URL: https://goalstotoday.com
+  VITE_OIDC_AUTHORITY: https://goalstotoday.com/idp/realms/nowline
+  VITE_OIDC_CLIENT_ID: nowline-mobile
+  VITE_OIDC_SCOPE: openid profile email offline_access
+  VITE_OIDC_WEB_REDIRECT_URI: https://goalstotoday.com/auth/callback
+  VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://goalstotoday.com
+  VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
+  VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
+  VITE_NATIVE_PUSH_ENABLED: "false"
+
+jobs:
+  android:
+    name: Android debug APK (no store credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Ensure Android compile SDK and build tools
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"'
+      - run: npm ci
+      - name: Verify mobile configuration and negative controls
+        run: node scripts/verify-mobile-readiness.mjs
+      - name: Build and sync production web assets
+        run: npm run build && npx cap sync android
+      - name: Compile installable debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goals-to-today-android-debug-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: iOS simulator app (no Apple account)
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Select installed Xcode 26 or newer
+        run: node scripts/verify-mobile-readiness.mjs --select-xcode
+      - run: npm ci
+      - name: Verify mobile configuration and negative controls
+        run: node scripts/verify-mobile-readiness.mjs
+      - name: Build and sync production web assets
+        run: npm run build && npx cap sync ios
+      - name: Compile unsigned iOS simulator app
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/mobile-simulator" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          test -f "$RUNNER_TEMP/mobile-simulator/Build/Products/Debug-iphonesimulator/App.app/App"
+          ditto -c -k --keepParent "$RUNNER_TEMP/mobile-simulator/Build/Products/Debug-iphonesimulator/App.app" \
+            "$RUNNER_TEMP/GoalsToToday-simulator.app.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goals-to-today-ios-simulator-${{ github.sha }}
+          path: ${{ runner.temp }}/GoalsToToday-simulator.app.zip
+          if-no-files-found: error
+          retention-days: 14

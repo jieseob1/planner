@@ -1,0 +1,59 @@
+auth_enabled: false
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 1
+limits_config:
+  retention_period: 72h
+  # 10 KiB/s sustained limits 72h intake to about 2.5 GiB before compression.
+  ingestion_rate_mb: 0.01
+  ingestion_burst_size_mb: 2
+  max_global_streams_per_user: 1000
+  max_query_length: 73h
+  max_query_parallelism: 2
+  split_queries_by_interval: 1h
+  max_entries_limit_per_query: 1000
+  max_line_size: 4096
+  max_line_size_truncate: true
+  reject_old_samples: true
+  reject_old_samples_max_age: 72h
+querier:
+  max_concurrent: 2
+query_range:
+  cache_results: false
+ingester:
+  chunk_idle_period: 5m
+  max_chunk_age: 1h
+  chunk_target_size: 262144
+  wal:
+    enabled: true
+    dir: /loki/wal
+    replay_memory_ceiling: 64MB
+analytics:
+  reporting_enabled: false

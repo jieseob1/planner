@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, CheckCircle2, Compass, Flag, Layers3, LogOut, Plus, RotateCcw, Settings, Target } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Compass, Flag, Layers3, LogOut, Plus, RotateCcw, Settings, ShieldCheck, Target } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Modal } from './Modal';
@@ -9,6 +9,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { QUICK_CAPTURE_EVENT } from '../lib/quickCapture';
+import { useAdminAccess } from '../admin/useAdminAccess';
+import { nativePushEnabled } from '../auth/nativePush';
 
 const navItems = [
   { to: '/today', label: '오늘', contextLabel: '오늘 실행', icon: CheckCircle2 },
@@ -28,6 +30,7 @@ const journeyItems = [
 export function AppShell() {
   const { hasActivePlan, isOnline, resetPlanner } = usePlanner();
   const { logout } = useAuth();
+  const adminAccess = useAdminAccess();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const pendingCaptureFocus = useRef(false);
@@ -36,7 +39,7 @@ export function AppShell() {
   const [resetError, setResetError] = useState('');
   const isToday = pathname === '/today';
   const currentNavItem = navItems.find((item) => item.to === pathname)
-    ?? (pathname === '/settings' ? { contextLabel: '설정과 연동' } : navItems[0]);
+    ?? (pathname === '/admin' ? { contextLabel: '운영 관리' } : pathname === '/settings' ? { contextLabel: '설정과 연동' } : navItems[0]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -50,7 +53,7 @@ export function AppShell() {
   }, [pathname]);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform() || !nativePushEnabled()) return;
     let active = true;
     let removeListener: (() => Promise<void>) | undefined;
     void PushNotifications.addListener('pushNotificationActionPerformed', (event) => {
@@ -59,7 +62,7 @@ export function AppShell() {
     }).then((handle) => {
       if (!active) void handle.remove();
       else removeListener = handle.remove;
-    });
+    }).catch(() => { /* Optional push must not prevent using the planner. */ });
     return () => {
       active = false;
       if (removeListener) void removeListener();
@@ -148,11 +151,12 @@ export function AppShell() {
             <strong>{currentNavItem.contextLabel}</strong>
           </div>
           <div className="top-bar__actions">
-            {!isToday && <SaveStatus />}
+            {adminAccess.status === 'allowed' && <NavLink className="icon-button" to="/admin" aria-label="운영 관리"><ShieldCheck size={16} aria-hidden="true" /></NavLink>}
+            {!isToday && pathname !== '/admin' && <SaveStatus />}
             <button className="icon-button" type="button" onClick={() => navigate('/settings')} aria-label="설정과 연동">
               <Settings size={16} aria-hidden="true" />
             </button>
-            {hasActivePlan ? (
+            {hasActivePlan && pathname !== '/admin' ? (
               <button
                 className="icon-button shell-reset"
                 type="button"
@@ -172,7 +176,7 @@ export function AppShell() {
             </button>
           </div>
         </header>
-        {hasActivePlan && !['/plans', '/settings'].includes(pathname) ? (
+        {hasActivePlan && !['/plans', '/settings', '/admin'].includes(pathname) ? (
           <nav className="plan-journey" aria-label="연간 목표에서 주간 회고까지의 계획 흐름">
             {journeyItems.map((item, index) => (
               <NavLink
@@ -201,9 +205,9 @@ export function AppShell() {
         ))}
       </nav>
 
-      <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label="빠른 수집">
+      {pathname !== '/admin' && <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label="빠른 수집">
         <Plus size={25} aria-hidden="true" />
-      </button>
+      </button>}
 
       {resetConfirmOpen ? (
         <Modal

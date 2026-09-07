@@ -12,6 +12,9 @@ import {
 } from './state/PlannerProvider';
 import { AuthProvider } from './auth/AuthProvider';
 
+// This suite models only planner persistence; admin discovery has its own HTTP/hook tests.
+vi.mock('./admin/useAdminAccess', () => ({ useAdminAccess: () => ({ status: 'forbidden', refresh: vi.fn() }) }));
+
 const TEST_STORAGE_SUBJECT = 'test:test-user';
 const TEST_STORAGE_KEYS = getPlannerStorageKeys(TEST_STORAGE_SUBJECT);
 const subjectEtag = (revision: number) => `"planner-test-user-${revision}"`;

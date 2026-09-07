@@ -176,7 +176,7 @@ describe('red-team authentication recovery', () => {
 
     await user.click(screen.getByRole('button', { name: '로그아웃' }));
 
-    expect(await screen.findByRole('button', { name: /기존 계정으로 로그인/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '로그인하고 시작하기' })).toBeInTheDocument();
     expect(events).toEqual(['remote', 'local']);
     expect(disableAuthorization).toBe(`Bearer ${accessToken}`);
     expect(window.sessionStorage.getItem('nowline.local-access-token')).toBeNull();

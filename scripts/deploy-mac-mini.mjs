@@ -129,6 +129,7 @@ if (process.argv.includes('--verify')) {
     }
     await waitFor('ready image IDs', () => verifyWorkloads(kubeJson('get', 'deployments'), kubeJson('get', 'pods'), release));
     console.log('All Ready Pods match the verified release image IDs');
+    run(process.execPath, ['scripts/configure-product-identity.mjs', '--apply', '--activate-theme'], { stdio: 'inherit' });
     await verifyPublic(revision);
     // Keep the operator checkout and boot scripts on the release that actually passed health checks.
     if (git('branch', '--list', 'main')) git('switch', 'main');

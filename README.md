@@ -6,6 +6,20 @@
 
 ## 현재 구현 상태
 
+### 운영 화면과 모바일 빌드
+
+- **운영 관리**: 관리자 계정으로 로그인하면 상단 방패 아이콘 또는 `/admin`에서 계정 수·최근 활동·캘린더 연결 문제·실패 작업·감사 기록을 조회합니다. 일반 계정은 서버에서 차단되며, 이메일은 마스킹하고 개인 계획 내용은 표시하지 않습니다. [백오피스 안내](docs/BACKOFFICE.md)
+- **로그·CPU·메모리**: `/ops/grafana/`에 같은 관리자 계정으로 로그인합니다. Prometheus는 JVM·컨테이너 지표, Loki는 민감 정보 필터를 거친 중앙 로그를 수집합니다. 표시되는 CPU·메모리는 **kind Linux VM/컨테이너 기준**이며 Mac 하드웨어 전체 수치가 아닙니다. 로그 72시간, 메트릭 5일을 기본 보관합니다. [모니터링 운영 안내](docs/OBSERVABILITY.md)
+- **로그인**: 앱 진입 화면과 실제 Keycloak 로그인·가입·비밀번호 찾기에 반응형 디자인을 적용했습니다. 인증 검증·PKCE·암호 입력은 Keycloak의 기본 보안 흐름을 유지합니다.
+- **Android·iOS**: `Mobile build CI`가 main/PR에서 테스트용 APK와 iOS 시뮬레이터 앱을 빌드해 Actions artifact로 제공합니다. 스토어 제출은 별개이며 Apple Developer·Google Play Console 가입과 서명 자료가 필요합니다. [앱 출시 절차](docs/MOBILE_RELEASE.md)
+
+모니터링은 별도 네임스페이스에서 약 688MiB 메모리를 요청하고 최대 2GiB로 제한합니다. Grafana 외 서비스는 인터넷에 노출하지 않습니다. 장비 한 대이므로 외부 백업·장애 알림 수신처·디스크 여유 감시는 운영자가 추가로 준비해야 합니다. 설치/빌드 성공과 실제 데이터 수집/스토어 심사 성공을 구분해 검증합니다.
+
+<p>
+  <img src="docs/screenshots/login/entry-mobile.png" width="260" alt="반응형 앱 로그인 진입 화면" />
+  <img src="docs/screenshots/login/keycloak-mobile.png" width="260" alt="실제 Keycloak 로그인 양식의 모바일 디자인" />
+</p>
+
 저장소 안의 제품·운영 코드와 로컬 다중 사용자 베타는 구현되어 있습니다. 공개 웹 주소는 [https://goalstotoday.com](https://goalstotoday.com)이며, Mac mini의 Kubernetes 서비스는 Cloudflare Tunnel을 통해서만 노출합니다. 자체 Keycloak 회원가입·OIDC, 무료 베타 권한, MySQL 영속 저장을 사용하며 공용 개발 토큰을 쓰지 않습니다. Google OAuth 게시·검증, 관리형 MySQL HA/PITR, Apple·Google 서명 계정은 각 공급자의 외부 자산이 준비되는 순서대로 연결해야 합니다.
 
 | 영역 | 구현 내용 |
@@ -146,12 +160,14 @@ npm run dev
 ```dotenv
 VITE_AUTH_MODE=oidc
 VITE_OIDC_AUTHORITY=https://goalstotoday.com/idp/realms/nowline
-VITE_OIDC_CLIENT_ID=nowline-public-client
+VITE_OIDC_CLIENT_ID=nowline-web
 VITE_OIDC_WEB_REDIRECT_URI=https://goalstotoday.com/auth/callback
 VITE_OIDC_NATIVE_REDIRECT_URI=com.jieseob.planner://auth/callback
 ```
 
 네이티브 빌드는 Vite proxy를 쓸 수 없으므로 `VITE_API_BASE_URL`에 기기에서 접근 가능한 HTTPS origin을 넣습니다. localhost 자동 local-auth는 웹 개발에서만 동작하며, 네이티브는 명시적으로 local mode를 빌드하지 않는 한 OIDC를 사용합니다.
+
+네이티브 전용 클라이언트는 `nowline-mobile`입니다. `mobile-ci.yml`의 production 환경 설정을 기준으로 사용하세요. `VITE_NATIVE_PUSH_ENABLED=false` 빌드는 APNs/FCM 없이 로그인·계획 기능을 사용할 수 있으며 푸시 등록을 시도하지 않습니다.
 
 ```bash
 npm run cap:sync
@@ -201,7 +217,7 @@ Mac mini는 GUI 로그인 없이 복구되는 headless boot service로 Colima·K
 
 이전 로컬 PostgreSQL 데이터는 삭제하지 않습니다. Compose volume과 Kubernetes PVC를 각각 custom-format dump로 보존한 뒤, 비어 있는 MySQL에 [one-time migration tool](./scripts/legacy-data-migration/README.md)로 이관하고 테이블별 건수와 planner 지문을 대조합니다. 검증 후에는 PostgreSQL workload만 내리고 원본 volume/PVC와 dump는 복구용으로 유지합니다.
 
-Android debug APK는 JDK 21과 Gradle 8.13으로 `assembleDebug`까지 확인했습니다. iOS 프로젝트와 자산은 Capacitor sync 및 CI release workflow에 포함되며, 로컬 서명 없는 simulator/archive 검증에는 전체 Xcode 설치가 필요합니다.
+네이티브 CI는 Android JDK 21·Gradle wrapper 8.14.3과 iOS Xcode 26 이상을 사용합니다. `Mobile build CI`의 해당 커밋 실행 결과와 실제 artifact를 확인해야 빌드 성공을 판단할 수 있습니다. 시뮬레이터 빌드는 iPhone에 배포할 IPA가 아니며, 실기기 인증·알림·백그라운드·계정 삭제 QA와 스토어 제출은 별도로 필요합니다.
 
 CI는 PR마다 프론트/백엔드/E2E/CodeQL을 수행합니다. release workflow는 두 이미지를 SBOM·provenance와 함께 빌드하고, HIGH/CRITICAL scan, keyless cosign 서명, migration Job, digest 고정 rollout을 수행합니다.
 
@@ -252,6 +268,8 @@ planner/
 - [Local beta runbook](./docs/LOCAL_BETA_RUNBOOK.md)
 - [Operations runbook](./docs/OPERATIONS_RUNBOOK.md)
 - [Mobile release checklist](./docs/MOBILE_RELEASE.md)
+- [백오피스 운영](./docs/BACKOFFICE.md)
+- [Grafana·Prometheus·Loki 운영](./docs/OBSERVABILITY.md)
 - [Backend architecture](./docs/BACKEND_ARCHITECTURE.md)
 - [Backend API](./backend/README.md)
 - [Compose/Kubernetes](./infra/README.md)

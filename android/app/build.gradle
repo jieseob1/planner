@@ -1,5 +1,19 @@
 apply plugin: 'com.android.application'
 
+def mobileVersionName = project.findProperty("versionName") ?: "1.0.0"
+def mobileVersionCode = project.findProperty("versionCode")?.toString() ?: "1"
+if (!(mobileVersionName ==~ /(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,1})\.(?:0|[1-9][0-9]{0,1})/)) {
+    throw new GradleException("versionName must be MAJOR.MINOR.PATCH (major 0-9999, minor/patch 0-99; no leading zeros)")
+}
+if (!(mobileVersionCode ==~ /[1-9][0-9]{0,3}/)) {
+    throw new GradleException("versionCode must be an integer from 1 to 9999 shared with the iOS build number")
+}
+def signingVariables = ["NOWLINE_ANDROID_KEYSTORE_PATH", "NOWLINE_ANDROID_KEYSTORE_PASSWORD", "NOWLINE_ANDROID_KEY_ALIAS", "NOWLINE_ANDROID_KEY_PASSWORD"]
+def missingSigningVariables = signingVariables.findAll { !System.getenv(it)?.trim() }
+if ((project.findProperty("nowlineRequireSigning") == "true" || System.getenv("NOWLINE_ANDROID_KEYSTORE_PATH")) && !missingSigningVariables.empty) {
+    throw new GradleException("Missing Android signing environment variables: " + missingSigningVariables.join(", "))
+}
+
 android {
     namespace = "com.jieseob.planner"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +21,8 @@ android {
         applicationId "com.jieseob.planner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode project.hasProperty("versionCode") ? project.property("versionCode").toInteger() : 1
-        versionName project.hasProperty("versionName") ? project.property("versionName") : "1.0"
+        versionCode mobileVersionCode.toInteger()
+        versionName mobileVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

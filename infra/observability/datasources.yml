@@ -1,0 +1,19 @@
+apiVersion: 1
+datasources:
+  - name: Nowline Prometheus
+    uid: nowline-prometheus
+    type: prometheus
+    access: proxy
+    url: http://nowline-prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 30s
+  - name: Nowline Logs
+    uid: nowline-loki
+    type: loki
+    access: proxy
+    url: http://nowline-loki:3100
+    editable: false
+    jsonData:
+      maxLines: 500

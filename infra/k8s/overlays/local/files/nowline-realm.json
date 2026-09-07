@@ -1,6 +1,7 @@
 {
   "realm": "nowline",
   "displayName": "Goals to Today",
+  "loginTheme": "goalstotoday",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": true,

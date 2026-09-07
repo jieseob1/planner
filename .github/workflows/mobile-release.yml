@@ -3,111 +3,229 @@ name: Mobile store artifacts
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Store version such as 1.0.0
+      platform:
+        description: Platforms with signing credentials configured
+        type: choice
+        options: [android, ios, both]
+        default: android
         required: true
+      version:
+        description: MAJOR.MINOR.PATCH (for example 1.0.0)
+        type: string
+        required: true
+      build_number:
+        description: Unused increasing build number 1-9999 (shared by both stores)
+        type: string
+        required: true
+      native_push:
+        description: Enable only after FCM/APNs delivery has been configured and tested
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+concurrency:
+  group: mobile-store-artifacts
+  cancel-in-progress: false
+
+env:
+  MOBILE_VERSION: ${{ inputs.version }}
+  MOBILE_BUILD_NUMBER: ${{ inputs.build_number }}
+  MOBILE_PLATFORM: ${{ inputs.platform }}
+  VITE_AUTH_MODE: oidc
+  VITE_API_BASE_URL: https://goalstotoday.com
+  VITE_OIDC_AUTHORITY: https://goalstotoday.com/idp/realms/nowline
+  VITE_OIDC_CLIENT_ID: nowline-mobile
+  VITE_OIDC_SCOPE: openid profile email offline_access
+  VITE_OIDC_WEB_REDIRECT_URI: https://goalstotoday.com/auth/callback
+  VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://goalstotoday.com
+  VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
+  VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
+  VITE_NATIVE_PUSH_ENABLED: ${{ inputs.native_push && 'true' || 'false' }}
+
 jobs:
-  android:
+  validate:
     runs-on: ubuntu-latest
-    environment: mobile-production
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Require main and validate release inputs before reading credentials
+        run: |
+          test "$GITHUB_REF" = refs/heads/main || { echo 'Store artifacts must be built from main'; exit 1; }
+          node scripts/verify-mobile-readiness.mjs --validate-release
+
+  android:
+    needs: validate
+    if: inputs.platform == 'android' || inputs.platform == 'both'
+    runs-on: ubuntu-latest
+    environment: mobile-production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
+      - name: Check required signing secrets (values never logged)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: node scripts/verify-mobile-readiness.mjs --preflight android
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "25"
+          java-version: "21"
           cache: gradle
+      - name: Ensure Android compile SDK and build tools
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"'
       - run: npm ci
+      - run: node scripts/verify-mobile-readiness.mjs
       - name: Build and sync production web assets
         run: npm run build && npx cap sync android
+      - name: Install signing files
         env:
-          VITE_AUTH_MODE: oidc
-          VITE_API_BASE_URL: https://goalstotoday.com
-          VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
-          VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
-          VITE_OIDC_SCOPE: openid profile email offline_access
-          VITE_OIDC_WEB_REDIRECT_URI: https://goalstotoday.com/auth/callback
-          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://goalstotoday.com
-          VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
-          VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
-      - name: Install signing and Firebase configuration
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
-          test -n "$KEYSTORE_BASE64" && test -n "$GOOGLE_SERVICES_JSON_BASE64"
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/nowline-release.jks
-          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          writeFileSync(process.env.RUNNER_TEMP + '/goals-to-today-upload.jks', Buffer.from(process.env.ANDROID_KEYSTORE_BASE64, 'base64'), { mode: 0o600 });
+          if (process.env.VITE_NATIVE_PUSH_ENABLED === 'true') {
+            writeFileSync('android/app/google-services.json', Buffer.from(process.env.GOOGLE_SERVICES_JSON_BASE64, 'base64'), { mode: 0o600 });
+          }
+          NODE
       - name: Build signed Android App Bundle
         working-directory: android
         env:
-          NOWLINE_ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/nowline-release.jks
+          NOWLINE_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/goals-to-today-upload.jks
           NOWLINE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           NOWLINE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           NOWLINE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew bundleRelease -PversionCode=${{ github.run_number }} -PversionName=${{ inputs.version }}
+        run: |
+          ./gradlew --no-daemon bundleRelease -PnowlineRequireSigning=true \
+            "-PversionCode=$MOBILE_BUILD_NUMBER" "-PversionName=$MOBILE_VERSION"
+          test -s app/build/outputs/bundle/release/app-release.aab
+          test -s app/build/outputs/mapping/release/mapping.txt
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab | tee "$RUNNER_TEMP/android-signature.txt"
+          grep -q 'jar verified' "$RUNNER_TEMP/android-signature.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: nowline-android-${{ inputs.version }}
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          name: goals-to-today-android-${{ inputs.version }}-${{ inputs.build_number }}
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
+          retention-days: 14
+      - name: Remove Android signing files
+        if: always()
+        run: rm -f "$RUNNER_TEMP/goals-to-today-upload.jks" android/app/google-services.json "$RUNNER_TEMP/android-signature.txt"
 
   ios:
-    runs-on: macos-latest
+    needs: validate
+    if: inputs.platform == 'ios' || inputs.platform == 'both'
+    runs-on: macos-15
     environment: mobile-production
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
+      - name: Check required signing secrets (values never logged)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        run: node scripts/verify-mobile-readiness.mjs --preflight ios
+      - name: Select installed Xcode 26 or newer
+        run: node scripts/verify-mobile-readiness.mjs --select-xcode
       - run: npm ci
+      - run: node scripts/verify-mobile-readiness.mjs
       - name: Build and sync production web assets
         run: npm run build && npx cap sync ios
+      - name: Import distribution certificate and validate App Store profile
         env:
-          VITE_AUTH_MODE: oidc
-          VITE_API_BASE_URL: https://goalstotoday.com
-          VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
-          VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
-          VITE_OIDC_SCOPE: openid profile email offline_access
-          VITE_OIDC_WEB_REDIRECT_URI: https://goalstotoday.com/auth/callback
-          VITE_OIDC_WEB_POST_LOGOUT_REDIRECT_URI: https://goalstotoday.com
-          VITE_OIDC_NATIVE_REDIRECT_URI: com.jieseob.planner://auth/callback
-          VITE_OIDC_NATIVE_POST_LOGOUT_REDIRECT_URI: com.jieseob.planner://auth/logout
-      - name: Configure App Store Connect API key
-        env:
-          APP_STORE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         run: |
-          test -n "$APP_STORE_KEY_BASE64" && test -n "$TEAM_ID"
-          printf '%s' "$APP_STORE_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
-          sed -i '' "s/TEAM_ID_PLACEHOLDER/${TEAM_ID}/" ios/AppStoreExportOptions.plist
-      - name: Archive signed iOS app
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          for (const [name, key] of [['distribution.p12', 'APPLE_DISTRIBUTION_P12_BASE64'], ['app.mobileprovision', 'APPLE_PROVISIONING_PROFILE_BASE64']]) {
+            writeFileSync(process.env.RUNNER_TEMP + '/' + name, Buffer.from(process.env[key], 'base64'), { mode: 0o600 });
+          }
+          NODE
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/mobile-signing.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/mobile-signing.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/mobile-signing.keychain-db"
+          security import "$RUNNER_TEMP/distribution.p12" -P "$APPLE_DISTRIBUTION_P12_PASSWORD" -t cert -f pkcs12 \
+            -k "$RUNNER_TEMP/mobile-signing.keychain-db" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/mobile-signing.keychain-db" >/dev/null
+          security list-keychains -d user -s "$RUNNER_TEMP/mobile-signing.keychain-db" "$HOME/Library/Keychains/login.keychain-db"
+          security cms -D -i "$RUNNER_TEMP/app.mobileprovision" -o "$RUNNER_TEMP/profile.plist"
+          node scripts/verify-mobile-readiness.mjs --validate-profile "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          echo "MOBILE_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          cp "$RUNNER_TEMP/app.mobileprovision" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          cp ios/AppStoreExportOptions.plist "$RUNNER_TEMP/MobileExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Set :teamID $APPLE_TEAM_ID" "$RUNNER_TEMP/MobileExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Set :provisioningProfiles:com.jieseob.planner $PROFILE_UUID" "$RUNNER_TEMP/MobileExportOptions.plist"
+      - name: Archive and export signed iOS app without store upload
         env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
-            -archivePath "$RUNNER_TEMP/Nowline.xcarchive" archive \
-            DEVELOPMENT_TEAM="$TEAM_ID" MARKETING_VERSION="${{ inputs.version }}" \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID"
-          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Nowline.xcarchive" \
-            -exportPath "$RUNNER_TEMP/NowlineExport" -exportOptionsPlist ios/AppStoreExportOptions.plist \
-            -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID"
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/GoalsToToday.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" MOBILE_CODE_SIGN_STYLE=Manual MOBILE_CODE_SIGN_IDENTITY='Apple Distribution' \
+            MOBILE_PROFILE_SPECIFIER="$MOBILE_PROFILE_UUID" \
+            MARKETING_VERSION="$MOBILE_VERSION" CURRENT_PROJECT_VERSION="$MOBILE_BUILD_NUMBER" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/mobile-signing.keychain-db" archive
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/GoalsToToday.xcarchive" \
+            -exportPath "$RUNNER_TEMP/GoalsToTodayExport" -exportOptionsPlist "$RUNNER_TEMP/MobileExportOptions.plist"
+          codesign --verify --deep --strict "$RUNNER_TEMP/GoalsToToday.xcarchive/Products/Applications/App.app"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readdirSync, statSync } from 'node:fs';
+          const folder = process.env.RUNNER_TEMP + '/GoalsToTodayExport';
+          const packages = readdirSync(folder).filter(name => name.endsWith('.ipa'));
+          assert.equal(packages.length, 1, 'Export must produce exactly one IPA');
+          assert.ok(statSync(folder + '/' + packages[0]).size > 0, 'IPA must not be empty');
+          NODE
       - uses: actions/upload-artifact@v4
         with:
-          name: nowline-ios-${{ inputs.version }}
-          path: ${{ runner.temp }}/NowlineExport/*.ipa
+          name: goals-to-today-ios-${{ inputs.version }}-${{ inputs.build_number }}
+          path: |
+            ${{ runner.temp }}/GoalsToTodayExport/*.ipa
+            ${{ runner.temp }}/GoalsToToday.xcarchive/dSYMs
           if-no-files-found: error
+          retention-days: 14
+      - name: Remove iOS signing files and temporary keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/mobile-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/app.mobileprovision" \
+            "$RUNNER_TEMP/profile.plist" "$RUNNER_TEMP/profile.json" "$RUNNER_TEMP/MobileExportOptions.plist"
+          if [ -n "${MOBILE_PROFILE_UUID:-}" ]; then
+            rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$MOBILE_PROFILE_UUID.mobileprovision"
+          fi

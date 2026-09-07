@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { accountApi } from '../api/accountApi';
+import { nativePushEnabled } from './nativePush';
 
 export const LEGACY_NOTIFICATION_DEVICE_KEY = 'nowline.notification-device-id.v1';
 const SUBJECT_DEVICE_KEY_PREFIX = `${LEGACY_NOTIFICATION_DEVICE_KEY}:subject:`;
@@ -69,6 +70,7 @@ const settleWithin = async <T,>(operation: Promise<T>, timeoutMs: number, label:
 
 const revokeLocalSubscription = async (): Promise<'revoked' | 'not-registered'> => {
   if (Capacitor.isNativePlatform()) {
+    if (!nativePushEnabled()) return 'not-registered';
     await PushNotifications.unregister();
     return 'revoked';
   }

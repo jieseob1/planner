@@ -22,3 +22,5 @@ android/app/src/main/assets/public
 .tools/
 .local-backups/
 .local-beta/
+/artifacts/login-qa/
+/artifacts/operations-qa/

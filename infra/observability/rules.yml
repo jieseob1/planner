@@ -1,0 +1,27 @@
+groups:
+  - name: nowline-local
+    rules:
+      - alert: NowlineBackendMetricsMissing
+        expr: absent(up{job="nowline-backend"}) or min(up{job="nowline-backend"}) < 1
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: Backend metrics are missing; check backend readiness and metrics OAuth client.
+      - alert: NowlineContainerMemoryHigh
+        expr: container_memory_working_set_bytes{namespace="nowline-local",container!=""} / on(namespace,pod,container,instance) container_spec_memory_limit_bytes{namespace="nowline-local",container!=""} > 0.9
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: A Nowline container uses over 90 percent of its memory limit.
+      - alert: NowlineApiErrors
+        expr: sum(rate(http_server_requests_seconds_count{job="nowline-backend",status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job="nowline-backend"}[5m])), 0.001) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: API error rate exceeds five percent.
+      - alert: NowlineObservabilityDiskHigh
+        expr: kubelet_volume_stats_available_bytes{namespace="nowline-observability"} / kubelet_volume_stats_capacity_bytes{namespace="nowline-observability"} < 0.15
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Observability PVC has less than 15 percent free space.

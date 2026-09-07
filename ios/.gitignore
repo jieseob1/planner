@@ -4,6 +4,12 @@ App/output
 App/App/public
 DerivedData
 xcuserdata
+*.p12
+*.p8
+*.mobileprovision
+*.keychain-db
+*.xcarchive
+*.ipa
 
 # Cordova plugins for Capacitor
 capacitor-cordova-ios-plugins

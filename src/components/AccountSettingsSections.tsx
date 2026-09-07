@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { Modal } from './Modal';
 import { FocusAlert } from './FocusAlert';
 import { Capacitor } from '@capacitor/core';
-import { PushNotifications } from '@capacitor/push-notifications';
+import { nativePushEnabled, registerNativePushToken } from '../auth/nativePush';
 import { Link } from 'react-router-dom';
 import { getPlannerStorageKeys } from '../state/PlannerProvider';
 import {
@@ -233,25 +233,12 @@ export function AccountSettingsSections() {
   };
 
   const enableNativePush = async () => {
-    if (!configuration?.nativeConfigured || !isNative) return;
+    if (!configuration?.nativeConfigured || !isNative || !nativePushEnabled()) return;
     setNotificationBusy(true);
     setNotificationNotice('');
     setNotificationError('');
     try {
-      const permissionResult = await PushNotifications.requestPermissions();
-      if (permissionResult.receive !== 'granted') throw new Error('앱 알림 권한이 허용되지 않았습니다.');
-      const token = await new Promise<string>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error('푸시 토큰 등록 시간이 초과되었습니다.')), 15000);
-        void PushNotifications.addListener('registration', (registration) => {
-          window.clearTimeout(timeout);
-          resolve(registration.value);
-        });
-        void PushNotifications.addListener('registrationError', (reason) => {
-          window.clearTimeout(timeout);
-          reject(new Error(reason.error));
-        });
-        void PushNotifications.register();
-      });
+      const token = await registerNativePushToken();
       await accountApi.registerNativeDevice(
         getOrCreateNotificationDeviceId(subject),
         nativePlatform === 'ios' ? 'IOS' : 'ANDROID',
@@ -263,7 +250,6 @@ export function AccountSettingsSections() {
     } catch (reason) {
       setNotificationError(errorMessage(reason, '앱 알림을 켜지 못했습니다.'));
     } finally {
-      await PushNotifications.removeAllListeners();
       setNotificationBusy(false);
     }
   };
@@ -372,11 +358,11 @@ export function AccountSettingsSections() {
             </div>
             <div className="settings-card__actions">
               <button className="button button--primary" type="button" disabled={notificationBusy} onClick={() => void savePreferences()}>알림 시간 저장</button>
-              {isNative && configuration?.nativeConfigured ? (
+              {isNative && nativePushEnabled() && configuration?.nativeConfigured ? (
                 notificationRegistered
                   ? <button className="button button--ghost" type="button" disabled={notificationBusy} onClick={() => void disableNativePush()}><BellOff size={16} /> 앱 알림 끄기</button>
                   : <button className="button button--secondary" type="button" disabled={notificationBusy} onClick={() => void enableNativePush()}><Bell size={16} /> 앱 알림 켜기</button>
-              ) : configuration?.webConfigured ? (
+              ) : !isNative && configuration?.webConfigured ? (
                 notificationRegistered
                   ? <button className="button button--secondary" type="button" disabled={notificationBusy} onClick={() => void disableWebPush()}><BellOff size={16} /> 이 기기 알림 끄기</button>
                   : <button className="button button--secondary" type="button" disabled={notificationBusy} onClick={() => void enableWebPush()}><Bell size={16} /> 이 기기 알림 켜기</button>

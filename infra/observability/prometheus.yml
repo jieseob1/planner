@@ -1,0 +1,90 @@
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+  external_labels:
+    cluster: nowline-local-kind
+rule_files:
+  - /etc/prometheus/rules.yml
+scrape_configs:
+  - job_name: nowline-backend
+    metrics_path: /actuator/prometheus
+    sample_limit: 12000
+    oauth2:
+      client_id: nowline-prometheus
+      client_secret_file: /etc/metrics-secret/client-secret
+      scopes: [metrics.read]
+      token_url: https://goalstotoday.com/idp/realms/nowline/protocol/openid-connect/token
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [nowline-local]
+        selectors:
+          - role: pod
+            label: app.kubernetes.io/component=backend
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_container_port_name]
+        regex: http
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_phase]
+        regex: Running
+        action: keep
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: (jvm_.*|process_.*|system_.*|http_server_requests_seconds_.*|hikaricp_.*|nowline_.*|application_.*)
+        action: keep
+      - source_labels: [uri]
+        regex: .*\?.*
+        action: drop
+      - action: labeldrop
+        regex: (email|user|user_id|token|authorization|cookie|url|query)
+  - job_name: kind-kubelet
+    scheme: https
+    metrics_path: /metrics/cadvisor
+    authorization:
+      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /etc/kubelet-ca/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+      - target_label: metric_scope
+        replacement: linux-kind-node
+    sample_limit: 20000
+    metric_relabel_configs:
+      - source_labels: [namespace]
+        regex: nowline-(local|observability)
+        action: keep
+      - source_labels: [__name__]
+        regex: container_(cpu_usage_seconds_total|memory_working_set_bytes|memory_rss|spec_cpu_quota|spec_cpu_period|spec_memory_limit_bytes|start_time_seconds|fs_usage_bytes|fs_limit_bytes)
+        action: keep
+  - job_name: kind-node
+    scheme: https
+    metrics_path: /metrics
+    authorization:
+      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /etc/kubelet-ca/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+      - target_label: metric_scope
+        replacement: linux-kind-node
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: (kubelet_running_pods|kubelet_running_containers|kubelet_volume_stats_available_bytes|kubelet_volume_stats_capacity_bytes|kubelet_volume_stats_used_bytes)
+        action: keep
+  - job_name: prometheus
+    static_configs:
+      - targets: [127.0.0.1:9090]
+  - job_name: loki
+    static_configs:
+      - targets: [nowline-loki:3100]
