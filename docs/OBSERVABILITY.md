@@ -1,5 +1,24 @@
 # Nowline observability
 
+## 접속과 대시보드 사용법
+
+1. [백오피스](https://goalstotoday.com/admin)는 서비스 관리자 계정으로 로그인합니다. 계정·활동·캘린더 연결 오류·실패 작업·감사 기록을 읽는 화면입니다. 사용자 데이터 변경/작업 재시도 기능은 없습니다.
+2. [Grafana](https://goalstotoday.com/ops/grafana/)에서 **Goals to Today** 로그인을 선택하고 같은 관리자 계정으로 로그인합니다. `nowline-admin` 역할이 필요하며 일반 사용자는 차단됩니다. 역할 부여 이후 접근이 거절되면 새로 로그인하여 권한을 갱신합니다.
+3. **Dashboards → Nowline** 폴더에서 아래 대시보드를 선택합니다. 우측 상단에서 시간 범위를 바꾸고, 장애 시각을 드래그해 확대합니다. 기본 30초마다 갱신합니다.
+
+| 대시보드 | 확인할 것 |
+| --- | --- |
+| [운영 요약](https://goalstotoday.com/ops/grafana/d/nowline-operations) | 전체 상태·자원·경보·오류 로그 |
+| [API와 저장 오류](https://goalstotoday.com/ops/grafana/d/nowline-api) | 요청량, 평균/P95 응답 시간, 400/401/403/409/412/429, 5xx, Pod별 수집 상태 |
+| [서버 JVM DB](https://goalstotoday.com/ops/grafana/d/nowline-resources) | 컨테이너 CPU·메모리, Heap·GC, DB 연결 사용률·대기·타임아웃, JVM 실행 시간 |
+| [중앙 로그](https://goalstotoday.com/ops/grafana/d/nowline-logs) | 레벨별 로그량, 수집 상태, 경고·오류 및 전체 서버 로그 |
+
+대시보드는 저장소의 `infra/observability/operator-dashboards.mjs`와 기존 `dashboard.json`에서 자동 등록됩니다. main 자동 배포 때 반영되므로 재시작 후에도 남습니다. 코드 관리 대시보드는 UI 직접 저장을 막았으며, 개인 변형은 별도 복사본으로 만드세요. 기존 사용자 생성 대시보드는 덮어쓰지 않습니다.
+
+**해석 주의:** `No data`는 0이 아닙니다. 아직 발생하지 않은 오류·GC 카운터는 없을 수 있고 요청이 없으면 응답 시간도 계산할 수 없습니다. CPU·메모리는 Linux kind VM의 컨테이너 기준이며 Mac 전체가 아닙니다. DB 패널은 애플리케이션 연결 풀이고 MySQL slow query/내부 엔진 지표는 아닙니다. local-path PVC 디스크 지표는 제공되지 않을 수 있습니다. 로그 72시간, 메트릭 5일/2GB 한도입니다. 경보는 현재 대시보드 표시까지이며 외부 알림 수신처는 별도 설정이 필요합니다.
+
+저장 오류 조사 순서: 발생 시각·HTTP 코드 확인 → API 대시보드에서 같은 시각/경로 확인 → 중앙 로그 확인 → 필요 시 백오피스 실패 작업·감사 기록 확인. 집계 지표만으로 과거 `invalid-precondition` 원인을 단정하지 않습니다.
+
 The deployment is a small, single-node ARM64 stack for `kind-nowline-local` on the Mac mini's 4 CPU / 8 GiB Linux VM. It monitors application namespace `nowline-local`, stores observability data in `nowline-observability`, and serves Grafana at [goalstotoday.com/ops/grafana/](https://goalstotoday.com/ops/grafana/). Repository validation alone does not establish that the server stack is installed or ingesting data.
 
 ## Components and budget

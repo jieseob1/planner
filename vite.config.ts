@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { navigationFallbackDenylist } from './src/pwaNavigation.ts';
 
 export default defineConfig({
   plugins: [
@@ -29,7 +30,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/idp\//],
+        navigateFallbackDenylist: navigationFallbackDenylist,
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         importScripts: ['/push-handler.js']
       }

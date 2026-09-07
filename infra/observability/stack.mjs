@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { operatorDashboardFiles } from './operator-dashboards.mjs';
 
 export const namespace = 'nowline-observability';
 export const context = 'kind-nowline-local';
@@ -24,7 +25,7 @@ const probe = (port, path) => ({ httpGet: {port, path}, periodSeconds: 10, timeo
 function workload(component, {uid, port, args, mounts, volumes, resource, probePath, env = [], serviceAccountName, daemon = false}) {
   const name = `nowline-${component}`;
   const files = component === 'prometheus' ? ['prometheus.yml', 'rules.yml'] : component === 'grafana' ? ['grafana.ini', 'dashboard.json', 'datasources.yml', 'dashboards.yml'] : component === 'loki' ? ['loki.yml'] : ['fluent-bit.conf', 'parsers.conf', 'sanitize.lua'];
-  const checksum = createHash('sha256').update(files.map(read).join('\n')).digest('hex');
+  const checksum = createHash('sha256').update(files.map(read).join('\n') + (component === 'grafana' ? JSON.stringify(operatorDashboardFiles) : '')).digest('hex');
   const container = {name: component, image: images[component], imagePullPolicy: 'IfNotPresent', ...(args ? {args} : {}),
     resources: resource, securityContext: containerSecurity,
     volumeMounts: [...mounts, mount('tmp', '/tmp')], ...(env.length ? {env} : {}),
@@ -55,7 +56,7 @@ export function buildStack() {
     configMap('nowline-loki', {'loki.yml': read('loki.yml')}),
     configMap('nowline-grafana', {'grafana.ini': read('grafana.ini')}),
     configMap('nowline-grafana-provisioning', {'datasources.yml': read('datasources.yml'), 'dashboards.yml': read('dashboards.yml')}),
-    configMap('nowline-grafana-dashboard', {'dashboard.json': read('dashboard.json')}),
+    configMap('nowline-grafana-dashboard', {'dashboard.json': read('dashboard.json'), ...operatorDashboardFiles}),
     configMap('nowline-fluent-bit', {'fluent-bit.conf': read('fluent-bit.conf'), 'parsers.conf': read('parsers.conf'), 'sanitize.lua': read('sanitize.lua')})];
   items.push(workload('prometheus', {uid: 65534, port: 9090, probePath: '/-/ready', serviceAccountName: 'nowline-prometheus',
     // Admin/lifecycle APIs are disabled by default; do not pass a boolean value

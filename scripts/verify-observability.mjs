@@ -6,6 +6,7 @@ import { parse } from 'yaml';
 import { buildStack, renderStack, images, namespace, context } from '../infra/observability/stack.mjs';
 import { waitReady, verifyWaitReady } from '../infra/observability/wait-ready.mjs';
 import { verifyManifestStartup } from '../infra/observability/startup-check.mjs';
+import { operatorDashboards, operatorDashboardFiles } from '../infra/observability/operator-dashboards.mjs';
 
 const directory = fileURLToPath(new URL('../infra/observability/', import.meta.url));
 const read = (name) => readFileSync(new URL(name, `file://${directory}`), 'utf8');
@@ -23,6 +24,18 @@ const ini = Object.fromEntries(read('grafana.ini').split(/\n(?=\[)/).map(section
 const prom = parse(read('prometheus.yml'));
 const loki = parse(read('loki.yml'));
 const dashboard = JSON.parse(read('dashboard.json'));
+assert.equal(new Set([dashboard, ...operatorDashboards].map(item => item.uid)).size, 4);
+const provisioned = pick('ConfigMap', 'nowline-grafana-dashboard').data;
+for (const [name, content] of Object.entries(operatorDashboardFiles)) {
+  assert.equal(provisioned[name], content);
+  const item = JSON.parse(content);
+  assert.equal(item.editable, false);
+  assert.equal(new Set(item.panels.map(panel => panel.id)).size, item.panels.length);
+  for (const panel of item.panels) {
+    assert(['nowline-prometheus', 'nowline-loki'].includes(panel.datasource.uid));
+    assert(panel.targets.every(target => typeof target.expr === 'string' && target.expr.length > 0));
+  }
+}
 function checkContract(objects, prometheus, grafana) {
   for (const service of objects.filter(object => object.kind === 'Service')) assert.equal(service.spec.type, 'ClusterIP', 'Only private ClusterIP services');
   assert(!objects.some(object => ['Ingress', 'Secret'].includes(object.kind)), 'No public ingress or plaintext secrets in stack');
@@ -224,6 +237,19 @@ if (args.includes('--runtime')) {
     assert(backendPods.length > 0 && backendTargets.length === backendPods.length, 'Every Ready backend pod must have one target');
     assert(backendTargets.every(target => target.health === 'up' && backendPods.some(pod => pod.metadata.name === target.labels.pod)), 'Authenticated metrics target is not up=1');
     assert(targets.some(target => target.labels.job === 'kind-kubelet' && target.health === 'up'), 'cAdvisor scrape missing');
+    const liveDashboards = json('-n', namespace, 'get', 'configmap', 'nowline-grafana-dashboard').data;
+    for (const [name, content] of Object.entries(operatorDashboardFiles)) assert.equal(liveDashboards[name], content, `Dashboard ${name} not deployed`);
+    let nonEmptyPanels = 0;
+    for (const board of operatorDashboards) for (const panel of board.panels) {
+      const isLoki = panel.datasource.uid === 'nowline-loki';
+      const service = isLoki ? 'nowline-loki' : 'nowline-prometheus';
+      const port = isLoki ? 3100 : 9090;
+      const path = isLoki ? '/loki/api/v1/query_range' : '/api/v1/query';
+      const result = JSON.parse(proxy(service, port, `${path}?query=${encodeURIComponent(panel.targets[0].expr)}${isLoki ? '&limit=20&since=1h' : ''}`));
+      assert.equal(result.status, 'success', `Dashboard query failed: ${board.uid}/${panel.id}`);
+      if (result.data.result.length) nonEmptyPanels++;
+    }
+    assert(nonEmptyPanels >= 12, 'Too few populated operator panels');
     for (const query of ['jvm_memory_used_bytes{job="nowline-backend"}', 'container_cpu_usage_seconds_total{namespace="nowline-local",container!=""}', 'container_memory_working_set_bytes{namespace="nowline-local",container!=""}']) {
       const result = JSON.parse(proxy('nowline-prometheus', 9090, `/api/v1/query?query=${encodeURIComponent(query)}`));
       assert(result.status === 'success' && result.data.result.length > 0, `Missing actual metric ${query}`);

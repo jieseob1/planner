@@ -51,6 +51,7 @@ main의 [CI](https://github.com/jieseob1/planner/actions/workflows/ci.yml)는 �
 
 - **운영 관리**: 관리자 계정으로 로그인하면 상단 방패 아이콘 또는 `/admin`에서 계정 수·최근 활동·캘린더 연결 문제·실패 작업·감사 기록을 조회합니다. 일반 계정은 서버에서 차단되며, 이메일은 마스킹하고 개인 계획 내용은 표시하지 않습니다. [백오피스 안내](docs/BACKOFFICE.md)
 - **로그·CPU·메모리**: `/ops/grafana/`에 같은 관리자 계정으로 로그인합니다. Prometheus는 JVM·컨테이너 지표, Loki는 민감 정보 필터를 거친 중앙 로그를 수집합니다. 표시되는 CPU·메모리는 **kind Linux VM/컨테이너 기준**이며 Mac 하드웨어 전체 수치가 아닙니다. 로그 72시간, 메트릭 5일을 기본 보관합니다. [모니터링 운영 안내](docs/OBSERVABILITY.md)
+- **저장된 Grafana 대시보드**: `Dashboards → Nowline`에서 운영 요약, API와 저장 오류, 서버 JVM DB, 중앙 로그를 확인합니다. 코드로 자동 등록되며 main 배포·재시작 후에도 유지됩니다. [바로가기와 해석 방법](docs/OBSERVABILITY.md#접속과-대시보드-사용법)
 - **로그인**: 앱 진입 화면과 실제 Keycloak 로그인·가입·비밀번호 찾기에 반응형 디자인을 적용했습니다. 인증 검증·PKCE·암호 입력은 Keycloak의 기본 보안 흐름을 유지합니다.
 - **Android·iOS**: `Mobile build CI`가 main/PR에서 테스트용 APK와 iOS 시뮬레이터 앱을 빌드해 Actions artifact로 제공합니다. 스토어 제출은 별개이며 Apple Developer·Google Play Console 가입과 서명 자료가 필요합니다. [앱 출시 절차](docs/MOBILE_RELEASE.md)
 
