@@ -142,6 +142,27 @@ const giveTimelineBounds = (element: HTMLElement) => {
 };
 
 describe('Today direct calendar integration', () => {
+  it('opens an unscheduled Todo editor and saves its title without adding a goal', () => {
+    const value = plannerValue(snapshotWith([task()]));
+    mockedUsePlanner.mockReturnValue(value);
+    renderToday();
+    fireEvent.click(screen.getByRole('button', { name: '집중 작업 수정' }));
+    fireEvent.change(screen.getByLabelText('할 일 제목'), { target: { value: '수정한 작업' } });
+    fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
+    expect(value.updateTask).toHaveBeenCalledWith('task-one', expect.objectContaining({ title: '수정한 작업', outcomeId: null }));
+  });
+
+  it('allows reopening and deleting completed Todos from the folded list', () => {
+    const value = plannerValue(snapshotWith([task({ status: 'done' })]));
+    mockedUsePlanner.mockReturnValue(value);
+    renderToday();
+    fireEvent.click(screen.getByText('완료·취소한 할 일 (1)'));
+    fireEvent.click(screen.getByRole('button', { name: '집중 작업 수정' }));
+    fireEvent.change(screen.getByLabelText('상태'), { target: { value: 'todo' } });
+    fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
+    expect(value.updateTask).toHaveBeenCalledWith('task-one', expect.objectContaining({ status: 'todo' }));
+  });
+
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-02T12:00:00.000Z'));

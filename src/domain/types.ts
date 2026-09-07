@@ -128,6 +128,8 @@ export interface SaveTimeBlockInput {
   weekOffset?: number;
   /** Set only by the explicit Review -> next-week carryover flow. */
   incrementCarryCount?: boolean;
+  /** Explicit linked-Todo changes, committed atomically with the block after validation. */
+  taskPatch?: Pick<UpdateTaskInput, 'title' | 'outcomeId'>;
 }
 
 export interface SavePlanInput {

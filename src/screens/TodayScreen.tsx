@@ -26,6 +26,7 @@ import {
 import { DayTimeline, DAY_TIMELINE_HOUR_HEIGHT, type TimelineCreateInput } from '../components/DayTimeline';
 import { Modal } from '../components/Modal';
 import { SaveStatus } from '../components/SaveStatus';
+import { TaskEditorSheet } from '../components/TaskEditorSheet';
 import type { Task, TimeBlock, TimeEntry } from '../domain/types';
 import {
   addLocalDateDays,
@@ -135,6 +136,7 @@ const formatDateLabel = (date: string) => {
 
 interface TodoPanelProps {
   activeTasks: Task[];
+  completedTasks: Task[];
   canRecordManualTime: boolean;
   draggingTaskId: string | null;
   mobile?: boolean;
@@ -146,6 +148,7 @@ interface TodoPanelProps {
   unscheduledTasks: Task[];
   onAddTask: (title: string) => void;
   onComplete: (taskId: string) => void;
+  onEdit: (task: Task) => void;
   onDragEnd: () => void;
   onDragStart: (event: DragEvent<HTMLLIElement>, task: Task) => void;
   onMemoChange: (memo: string) => void;
@@ -158,6 +161,7 @@ interface TodoPanelProps {
 
 function TodoPanel({
   activeTasks,
+  completedTasks,
   canRecordManualTime,
   draggingTaskId,
   mobile = false,
@@ -169,6 +173,7 @@ function TodoPanel({
   unscheduledTasks,
   onAddTask,
   onComplete,
+  onEdit,
   onDragEnd,
   onDragStart,
   onMemoChange,
@@ -221,6 +226,7 @@ function TodoPanel({
           onCompositionEnd={() => { composingRef.current = false; }}
           onKeyDown={handleKeyDown}
           placeholder="할 일 추가"
+          maxLength={500}
           autoComplete="off"
         />
         <button type="submit" disabled={!title.trim()}>추가</button>
@@ -247,10 +253,10 @@ function TodoPanel({
                   <Check size={14} aria-hidden="true" />
                 </button>
                 <div className="today-direct-todo__copy">
-                  <strong title={task.title}>
+                  <button className="today-direct-todo__edit" type="button" title="할 일 수정" aria-label={`${task.title} 수정`} onClick={() => onEdit(task)}>
                     {task.pinned && <Star size={13} fill="currentColor" aria-label="Top 3" />}
                     <span>{task.title}</span>
-                  </strong>
+                  </button>
                   <small>
                     <Clock3 size={13} aria-hidden="true" /> {formatMinutes(task.estimateMinutes)}
                     {task.carryCount > 0 && <span> · 이월 {task.carryCount}회</span>}
@@ -280,6 +286,16 @@ function TodoPanel({
 
       <p className="today-direct-todos__hint">데스크톱에서는 할 일을 시간표로 끌어 원하는 시각에 바로 놓을 수 있습니다.</p>
 
+      {completedTasks.length > 0 && (
+        <details className="today-direct-utility">
+          <summary>완료·취소한 할 일 ({completedTasks.length})</summary>
+          <p className="field-help">전체 기간의 할 일입니다. 눌러서 수정하거나 다시 열 수 있습니다.</p>
+          <ul className="today-direct-completed-list">{completedTasks.map((task) => (
+            <li key={task.id}><button type="button" onClick={() => onEdit(task)} aria-label={`${task.title} 수정`}><span>{task.title}</span><small>{task.status === 'done' ? '완료' : '취소'} · 수정</small></button></li>
+          ))}</ul>
+        </details>
+      )}
+
       <details className="today-direct-utility">
         <summary><StickyNote size={15} /> 오늘 메모</summary>
         <textarea value={memo} onChange={(event) => onMemoChange(event.target.value)} placeholder="실행 중 참고할 내용을 적어두세요." aria-label="오늘 메모" />
@@ -307,6 +323,7 @@ export function TodayScreen() {
   const { timeZone } = useTimeZone();
   const {
     tasks,
+    outcomes,
     timeBlocks,
     timeEntries,
     timer,
@@ -334,6 +351,13 @@ export function TodayScreen() {
   const [removedBlock, setRemovedBlock] = useState<TimeBlock | null>(null);
   const [mobileTodosOpen, setMobileTodosOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const editingTask = tasks.find((task) => task.id === editingTaskId);
+  const editTask = (task: Task) => {
+    setNotice('');
+    setMobileTodosOpen(false);
+    setEditingTaskId(task.id);
+  };
   const [evidence, setEvidence] = useState('');
   const isCompact = useCompactLayout();
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -518,6 +542,7 @@ export function TodayScreen() {
       id: block.id,
       taskId: block.taskId,
       title: nextTitle,
+      ...(block.taskId && nextTitle !== block.title ? { taskPatch: { title: nextTitle } } : {}),
       day: getDayKeyForDate(date),
       startMinutes: range.startMinutes,
       durationMinutes: range.endMinutes - range.startMinutes,
@@ -625,6 +650,7 @@ export function TodayScreen() {
   const todoPanel = (
     <TodoPanel
       activeTasks={activeTasks}
+      completedTasks={tasks.filter((task) => task.status === 'done' || task.status === 'cancelled')}
       canRecordManualTime={selectedDate === todayDate}
       draggingTaskId={draggingTask?.id ?? null}
       mobile={isCompact}
@@ -636,6 +662,7 @@ export function TodayScreen() {
       unscheduledTasks={unscheduledTasks}
       onAddTask={addUnscheduledTask}
       onComplete={(taskId) => updateTask(taskId, { status: 'done' })}
+      onEdit={editTask}
       onDragEnd={() => setDraggingTask(null)}
       onDragStart={beginTaskDrag}
       onMemoChange={setMemo}
@@ -719,7 +746,8 @@ export function TodayScreen() {
             timerPaused={timer?.paused ?? false}
             scrollRef={timelineScrollRef}
             tasks={tasks}
-            onCompleteTask={(taskId) => updateTask(taskId, { status: 'done' })}
+            onCompleteTask={(taskId) => updateTask(taskId, { status: tasks.find((task) => task.id === taskId)?.status === 'done' ? 'todo' : 'done' })}
+            onEditTask={editTask}
             onCreate={createTimelineItem}
             onDragTaskEnd={() => setDraggingTask(null)}
             onRemoveBlock={removeBlockFromSchedule}
@@ -759,6 +787,23 @@ export function TodayScreen() {
       {notice && <div className="toast" role="status"><Check size={15} /> {notice}</div>}
       {manualNotice && (
         <div className="toast toast--action" role="status"><span><TimerReset size={16} /> {manualNotice.label}</span><button type="button" onClick={() => { removeTimeEntry(manualNotice.entryId); setManualNotice(null); }}>실행 취소</button></div>
+      )}
+
+      {editingTask && (
+        <TaskEditorSheet key={editingTask.id} task={editingTask} outcomes={outcomes}
+          blockCount={timeBlocks.filter((block) => block.taskId === editingTask.id).length}
+          entryCount={timeEntries.filter((entry) => entry.taskId === editingTask.id).length}
+          onSave={(input) => {
+            const saved = updateTask(editingTask.id, input);
+            if (saved) showNotice('할 일을 수정했습니다.');
+            return saved;
+          }}
+          onDelete={() => {
+            const removed = removeTask(editingTask.id);
+            if (removed) showNotice('할 일과 연결 기록을 삭제했습니다.');
+            return removed;
+          }}
+          onClose={() => setEditingTaskId(null)} />
       )}
 
       {finishOpen && timer && runningTask && (

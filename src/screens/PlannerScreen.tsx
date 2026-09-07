@@ -281,12 +281,13 @@ export function PlannerScreen() {
     event.preventDefault();
     if (!addTitle.trim()) return;
     if (editingTask) {
-      updateTask(editingTask.id, {
+      const saved = updateTask(editingTask.id, {
         title: addTitle,
         outcomeId: addOutcomeId || null,
         estimateMinutes: Number(addEstimate),
         note: addNote
       });
+      if (!saved) { showNotice('수정하지 못했습니다. 입력 내용과 동기화 상태를 확인해 주세요.'); return; }
       showNotice(`${addTitle.trim()}을 수정했어요.`);
     } else {
       const taskId = addTask({
@@ -294,6 +295,7 @@ export function PlannerScreen() {
         outcomeId: addOutcomeId || null,
         estimateMinutes: Number(addEstimate)
       });
+      if (!taskId) { showNotice('할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요.'); return; }
       if (taskId && addNote.trim()) updateTask(taskId, { note: addNote });
       showNotice(`${addTitle.trim()}을 할 일에 추가했어요.`);
     }
@@ -302,13 +304,16 @@ export function PlannerScreen() {
   };
 
   const saveBlockDraft = (value: TimeBlockEditorValue) => {
+    const currentBlock = comparableWeekBlocks.find((block) => block.id === value.blockId);
+    const sameSlot = currentBlock && currentBlock.taskId === value.taskId && currentBlock.day === value.day
+      && currentBlock.startMinutes === value.startMinutes && currentBlock.durationMinutes === value.durationMinutes;
     const conflict = findTimeBlockConflict(comparableWeekBlocks, {
       day: value.day,
       startMinutes: value.startMinutes,
       durationMinutes: value.durationMinutes,
       weekOffset: plannerWeekOffset
     }, { ignoreBlockId: value.blockId });
-    if (conflict) {
+    if (conflict && !sameSlot) {
       setPlacementError(`${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`);
       return;
     }
@@ -335,14 +340,16 @@ export function PlannerScreen() {
       durationMinutes: value.durationMinutes,
       date: weekDays.find((day) => day.key === value.day)?.isoDate,
       weekOffset: plannerWeekOffset,
-      incrementCarryCount: placementDraft?.explicitCarryover === true
+      incrementCarryCount: placementDraft?.explicitCarryover === true,
+      ...(value.mode === 'existing-task' ? { taskPatch: { title: value.title, outcomeId: value.outcomeId } } : {})
     })) {
+      if (value.mode === 'new-task' && taskId) removeTask(taskId);
       setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시간을 바꿔주세요.');
       return;
     }
     setPlacementDraft(null);
     setPlacementError('');
-    showNotice(`${value.title}을 ${formatClock(value.startMinutes)}에 추가했어요.`);
+    showNotice(`${value.title}을 ${formatClock(value.startMinutes)}에 ${value.blockId ? '수정' : '추가'}했어요.`);
   };
 
   const deleteBlockDraft = () => {
@@ -678,7 +685,7 @@ export function PlannerScreen() {
       {placementDraft && (
         <TimeBlockSheet
           key={`${placementDraft.blockId ?? 'new'}-${placementDraft.taskId}-${placementDraft.day}-${placementDraft.startMinutes}`}
-          tasks={tasks.filter((task) => task.status !== 'done' && task.status !== 'cancelled')}
+          tasks={tasks.filter((task) => task.id === placementDraft.taskId || (task.status !== 'done' && task.status !== 'cancelled'))}
           outcomes={outcomes}
           days={weekDays}
           initialBlockId={placementDraft.blockId}
@@ -714,6 +721,7 @@ export function PlannerScreen() {
                 <input
                   data-autofocus
                   value={addTitle}
+                  maxLength={500}
                   onChange={(event) => setAddTitle(event.target.value)}
                   placeholder="예: 실패 흐름을 세 단계로 나누기"
                   required
@@ -730,7 +738,7 @@ export function PlannerScreen() {
                 <label className="field">
                   <span className="field-label">예상 시간</span>
                   <select value={addEstimate} onChange={(event) => setAddEstimate(event.target.value)}>
-                    {estimateOptions.map((minutes) => (
+                    {[...new Set([...estimateOptions, Number(addEstimate)])].sort((a, b) => a - b).map((minutes) => (
                       <option key={minutes} value={minutes}>{formatMinutes(minutes)}</option>
                     ))}
                   </select>
@@ -741,6 +749,7 @@ export function PlannerScreen() {
                 <textarea
                   rows={3}
                   value={addNote}
+                  maxLength={4000}
                   onChange={(event) => setAddNote(event.target.value)}
                   placeholder="필요한 링크나 간단한 내용을 남겨보세요."
                 />
@@ -769,7 +778,7 @@ export function PlannerScreen() {
           <div className="modal__actions">
             <button className="button button--secondary" type="button" onClick={() => setDeleteTaskCandidate(null)}>취소</button>
             <button className="button button--delete" type="button" onClick={() => {
-              removeTask(deleteTaskCandidate.id);
+              if (!removeTask(deleteTaskCandidate.id)) { showNotice('삭제하지 못했습니다. 동기화 상태를 확인해 주세요.'); return; }
               showNotice(`${deleteTaskCandidate.title}을 삭제했어요.`);
               setDeleteTaskCandidate(null);
             }}>삭제</button>

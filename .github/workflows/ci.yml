@@ -77,6 +77,8 @@ jobs:
       - run: node --test scripts/lib/mac-mini-release.check.mjs
       - run: npm run verify:observability
       - run: npm run verify:mobile-readiness
+      - name: Preserve strong ETags through the production beta proxy
+        run: node scripts/verify-beta-etag.mjs
 
   end-to-end:
     runs-on: ubuntu-latest

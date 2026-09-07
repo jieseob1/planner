@@ -289,6 +289,25 @@ describe('DayTimeline task placement', () => {
 });
 
 describe('DayTimeline block actions', () => {
+  it('edits a linked Todo title without changing the selected time range', () => {
+    const { props } = renderTimeline({ blocks: [block] });
+    fireEvent.keyDown(screen.getByRole('button', { name: /기획서 정리.*할 일 시간 블록/ }), { key: 'Enter' });
+    fireEvent.change(screen.getByLabelText('할 일 제목'), { target: { value: '수정된 기획서' } });
+    fireEvent.submit(screen.getByLabelText('할 일 제목').closest('form')!);
+    expect(props.onUpdateBlock).toHaveBeenCalledWith(block, { startMinutes: 600, endMinutes: 660 }, block.date, '수정된 기획서');
+  });
+
+  it('opens linked Todo details and exposes undo completion for a done task', () => {
+    const completed = { ...task, status: 'done' as const };
+    const onEditTask = vi.fn();
+    renderTimeline({ blocks: [block], tasks: [completed], onEditTask });
+    fireEvent.keyDown(screen.getByRole('button', { name: /기획서 정리.*할 일 시간 블록/ }), { key: 'Enter' });
+    expect(screen.getByRole('button', { name: '완료 취소' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '할 일 상세 수정·삭제' }));
+    expect(onEditTask).toHaveBeenCalledWith(completed);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('rejects a missing local date before invoking the update callback', () => {
     const { props } = renderTimeline({ blocks: [block] });
     fireEvent.keyDown(

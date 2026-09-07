@@ -3,6 +3,7 @@ import type { PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { plannerApi } from '../api/plannerApi';
 import { createEmptySnapshot } from '../data/empty';
+import { createDemoSnapshot } from '../data/demo';
 import type { PlannerSnapshot, Task, TimeBlock } from '../domain/types';
 import {
   getPlannerStorageKeys,
@@ -126,6 +127,73 @@ describe('PlannerProvider time-block identity semantics', () => {
       durationMinutes: 45
     });
     expect(result.current.timeBlocks.find((block) => block.id === second.id)).toEqual(second);
+  });
+
+  it('atomically renames a linked Todo and its internal blocks while moving only the selected block', () => {
+    const first = timeBlock('first', 540, { durationMinutes: 25 });
+    const second = timeBlock('second', 660);
+    const external = timeBlock('google', 720, { external: true });
+    const { result } = mountProvider(snapshotWith([first, second, external]));
+    act(() => {
+      expect(result.current.saveTimeBlock({ ...first, startMinutes: 570, taskPatch: { title: '수정된 할 일', outcomeId: null } })).toBe(true);
+    });
+    expect(result.current.tasks[0]).toEqual({ ...TASK, title: '수정된 할 일' });
+    expect(result.current.timeBlocks).toEqual([
+      { ...first, title: '수정된 할 일', startMinutes: 570 },
+      { ...second, title: '수정된 할 일' }, external
+    ]);
+  });
+
+  it('does not partially rename a Todo when its simultaneous schedule change conflicts', () => {
+    const first = timeBlock('first', 540);
+    const second = timeBlock('second', 660);
+    const { result } = mountProvider(snapshotWith([first, second]));
+    act(() => {
+      expect(result.current.saveTimeBlock({ ...first, startMinutes: 660, taskPatch: { title: '저장되면 안됨' } })).toBe(false);
+    });
+    expect(result.current.tasks).toEqual([TASK]);
+    expect(result.current.timeBlocks).toEqual([first, second]);
+  });
+
+  it('links and unlinks an existing Todo goal without moving or losing its schedule', () => {
+    const first = timeBlock('first', 540);
+    const outcome = createDemoSnapshot().outcomes[0];
+    const { result } = mountProvider({ ...snapshotWith([first]), outcomes: [outcome] });
+    act(() => {
+      expect(result.current.saveTimeBlock({ ...first, taskPatch: { outcomeId: outcome.id } })).toBe(true);
+    });
+    expect(result.current.tasks[0].outcomeId).toBe(outcome.id);
+    act(() => {
+      expect(result.current.saveTimeBlock({ ...first, taskPatch: { outcomeId: null } })).toBe(true);
+    });
+    expect(result.current.tasks[0].outcomeId).toBeNull();
+    expect(result.current.timeBlocks).toEqual([first]);
+  });
+
+  it('rejects missing goal links and oversized edits without changing either entity', () => {
+    const first = timeBlock('first', 540);
+    const { result } = mountProvider(snapshotWith([first]));
+    act(() => {
+      expect(result.current.saveTimeBlock({ ...first, taskPatch: { title: '새 제목', outcomeId: 'missing' } })).toBe(false);
+      expect(result.current.updateTask(TASK.id, { title: 'x'.repeat(501) })).toBe(false);
+      expect(result.current.updateTask(TASK.id, { estimateMinutes: 10081 })).toBe(false);
+      expect(result.current.updateTask(TASK.id, { note: 'x'.repeat(4001) })).toBe(false);
+    });
+    expect(result.current.tasks).toEqual([TASK]);
+    expect(result.current.timeBlocks).toEqual([first]);
+  });
+
+  it('persists edits across a provider remount and reopens completed tasks', () => {
+    const first = timeBlock('first', 540);
+    const mounted = mountProvider(snapshotWith([first], [{ ...TASK, status: 'done' }]));
+    act(() => {
+      expect(mounted.result.current.updateTask(TASK.id, { title: '다시 할 일', status: 'todo', estimateMinutes: 37, note: '수정 메모' })).toBe(true);
+    });
+    const stored = JSON.parse(window.localStorage.getItem(getPlannerStorageKeys(SUBJECT).snapshot)!);
+    mounted.unmount();
+    const { result } = mountProvider(stored);
+    expect(result.current.tasks[0]).toMatchObject({ title: '다시 할 일', status: 'todo', estimateMinutes: 37, note: '수정 메모' });
+    expect(result.current.timeBlocks[0]).toMatchObject({ title: '다시 할 일', durationMinutes: 30 });
   });
 
   it('deletes by TimeBlock ID without deleting its Todo or sibling blocks', () => {

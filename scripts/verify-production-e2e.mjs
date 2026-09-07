@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -267,6 +267,85 @@ const assertDialogFitsViewport = async (dialog, label) => {
   }
 };
 
+const exerciseTodoCrud = async (page, frontendUrl, mobile) => {
+  const prefix = mobile ? 'mobile' : 'desktop';
+  const title = `CRUD ${prefix} ${randomUUID().slice(0, 8)}`;
+  let edited = `${title} 수정됨`;
+  const openTodos = async () => {
+    if (mobile) await page.getByRole('button', { name: /시간 미정 할 일 \d+개 열기/ }).click();
+  };
+  await page.goto(`${frontendUrl}/today`);
+  await waitForPlannerSaved(page);
+  await openTodos();
+  await page.getByLabel('빠른 메모').fill(title);
+  await activateAndWaitForPlannerSave(page, page.getByRole('button', { name: '추가', exact: true }), `${prefix} CRUD create`);
+  await page.getByRole('button', { name: `${title} 수정`, exact: true }).click();
+  let editor = page.getByRole('dialog', { name: '할 일 수정', exact: true });
+  await editor.getByLabel('할 일 제목').fill(edited);
+  await editor.getByLabel('예상 시간 (분)').fill('37');
+  await editor.getByLabel('메모', { exact: true }).fill('저장 후 다시 확인할 메모');
+  await assertDialogFitsViewport(editor, `${prefix} Todo editor`);
+  await assertNoDocumentOverflow(page, `${prefix} Todo editor`);
+  if (mobile) await assertVisibleTargets(page, 'Mobile Todo editor');
+  const artifacts = join(repositoryRoot, 'artifacts/operations-qa/crud-editability');
+  mkdirSync(artifacts, { recursive: true });
+  await page.screenshot({ path: join(artifacts, `${prefix}-edit.png`) });
+  await activateAndWaitForPlannerSave(page, editor.getByRole('button', { name: '변경 저장' }), `${prefix} CRUD edit`);
+  await page.reload();
+  await waitForPlannerSaved(page);
+  await openTodos();
+  await page.getByRole('button', { name: `${edited} 수정`, exact: true }).click();
+  editor = page.getByRole('dialog', { name: '할 일 수정', exact: true });
+  if (await editor.getByLabel('예상 시간 (분)').inputValue() !== '37') fail('Todo estimate was not persisted');
+  if (await editor.getByLabel('메모', { exact: true }).inputValue() !== '저장 후 다시 확인할 메모') fail('Todo memo was not persisted');
+  await editor.getByLabel('할 일 제목').fill('취소되어야 할 초안');
+  await editor.getByRole('button', { name: '취소', exact: true }).click();
+  await openTodos();
+  await page.getByRole('button', { name: `${edited} 수정`, exact: true }).click();
+  editor = page.getByRole('dialog', { name: '할 일 수정', exact: true });
+  if (await editor.getByLabel('할 일 제목').inputValue() !== edited) fail('Cancel leaked an unsaved title');
+  await editor.getByLabel('상태', { exact: true }).selectOption('done');
+  await activateAndWaitForPlannerSave(page, editor.getByRole('button', { name: '변경 저장' }), `${prefix} CRUD complete`);
+  await openTodos();
+  await page.getByText(/완료·취소한 할 일 \(/).click();
+  await page.getByRole('button', { name: `${edited} 수정`, exact: true }).click();
+  editor = page.getByRole('dialog', { name: '할 일 수정', exact: true });
+  await editor.getByLabel('상태', { exact: true }).selectOption('todo');
+  await activateAndWaitForPlannerSave(page, editor.getByRole('button', { name: '변경 저장' }), `${prefix} CRUD reopen`);
+
+  // Exercise the exact existing-Todo selector reported by the user.
+  await page.goto(`${frontendUrl}/planner`);
+  await page.getByRole('button', { name: `${edited} 일정에 배치`, exact: true }).click();
+  let placement = page.getByRole('dialog', { name: '할 일 또는 일정 추가' });
+  await placement.getByLabel('시작', { exact: true }).selectOption('1260');
+  const linkedTitle = `${edited} 연결 수정`;
+  await placement.getByLabel('할 일 제목', { exact: true }).fill(linkedTitle);
+  await assertDialogFitsViewport(placement, `${prefix} existing Todo schedule editor`);
+  await page.screenshot({ path: join(artifacts, `${prefix}-schedule-edit.png`) });
+  await activateAndWaitForPlannerSave(page, placement.getByRole('button', { name: '추가', exact: true }), `${prefix} linked Todo schedule edit`);
+  edited = linkedTitle;
+  await page.reload();
+  await waitForPlannerSaved(page);
+  await page.getByRole('button', { name: `${edited}, 21:00, 일정 수정`, exact: true }).click();
+  placement = page.getByRole('dialog');
+  if (await placement.getByLabel('할 일 제목', { exact: true }).inputValue() !== edited) fail('Linked Todo rename was not persisted');
+  if (await placement.getByLabel('종료', { exact: true }).inputValue() !== '1297') fail('Existing 37-minute schedule was silently rounded');
+  await activateAndWaitForPlannerSave(page, placement.getByRole('button', { name: '일정에서 삭제' }), `${prefix} remove schedule only`);
+  await page.goto(`${frontendUrl}/today`);
+  await waitForPlannerSaved(page);
+  await openTodos();
+  await page.getByRole('button', { name: `${edited} 수정`, exact: true }).click();
+  await page.getByRole('button', { name: '할 일 삭제', exact: true }).click();
+  await assertDialogFitsViewport(page.getByRole('dialog', { name: '할 일을 삭제할까요?' }), `${prefix} delete confirmation`);
+  await activateAndWaitForPlannerSave(page, page.getByRole('button', { name: '할 일과 연결 기록 삭제', exact: true }), `${prefix} CRUD delete`);
+  await page.reload();
+  await waitForPlannerSaved(page);
+  await openTodos();
+  if (await page.getByRole('button', { name: `${edited} 수정`, exact: true }).count() !== 0) fail('Deleted Todo returned after reload');
+  if (mobile) await page.getByRole('button', { name: '할 일 목록 닫기' }).last().click();
+  console.log(`${prefix} server-backed Todo create/edit/reload/cancel/complete/reopen/delete passed`);
+};
+
 const exerciseDesktop = async (frontendUrl, backendUrl) => {
   const errors = [];
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
@@ -280,6 +359,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   await acceptConsent(page);
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '운영 E2E');
+  await exerciseTodoCrud(page, frontendUrl, false);
 
   const timerTaskTitle = '운영 E2E 타이머 기록';
   await page.getByLabel('빠른 메모').fill(timerTaskTitle);
@@ -484,6 +564,7 @@ const exerciseMobile = async (frontendUrl) => {
   await acceptConsent(page);
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '모바일 E2E');
+  await exerciseTodoCrud(page, frontendUrl, true);
   await page.getByRole('button', { name: /시간 미정 할 일 \d+개 열기/ }).click();
   const mobileTodoSheet = page.getByRole('dialog', { name: '시간 미정 할 일' });
   await mobileTodoSheet.waitFor();
@@ -671,6 +752,17 @@ try {
   console.log('production authenticated browser end-to-end verification passed');
   console.log('production end-to-end verification passed');
 } catch (error) {
+  if (browser) {
+    const artifacts = join(repositoryRoot, 'artifacts/operations-qa/crud-editability');
+    mkdirSync(artifacts, { recursive: true });
+    for (const [index, context] of browser.contexts().entries()) {
+      const page = context.pages().at(-1);
+      if (page) {
+        await page.screenshot({ path: join(artifacts, `failure-${index}.png`) }).catch(() => {});
+        console.error('E2E last visible state:', (await page.locator('body').innerText().catch(() => '')).slice(-4000));
+      }
+    }
+  }
   const logs = runCompose(['logs', '--no-color', '--tail', '200', 'backend', 'frontend', 'mysql'], environment, true);
   if (logs.stdout) process.stderr.write(logs.stdout);
   if (logs.stderr) process.stderr.write(logs.stderr);

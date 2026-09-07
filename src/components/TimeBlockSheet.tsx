@@ -36,7 +36,7 @@ interface TimeBlockSheetProps {
 
 const DAY_START_MINUTES = 0;
 const DAY_END_MINUTES = 24 * 60;
-const SLOT_MINUTES = 30;
+const SLOT_MINUTES = 15;
 
 const buildTimes = (start: number, end: number) => Array.from(
   { length: Math.floor((end - start) / SLOT_MINUTES) + 1 },
@@ -45,9 +45,8 @@ const buildTimes = (start: number, end: number) => Array.from(
 
 const startOptions = buildTimes(DAY_START_MINUTES, DAY_END_MINUTES - SLOT_MINUTES);
 
-const roundDuration = (minutes: number) => (
-  Math.max(SLOT_MINUTES, Math.ceil(minutes / SLOT_MINUTES) * SLOT_MINUTES)
-);
+const minimumDuration = (minutes: number) => Math.max(SLOT_MINUTES, minutes);
+const includeExactTime = (options: number[], value: number) => [...new Set([...options, value])].sort((a, b) => a - b);
 
 export function TimeBlockSheet({
   tasks,
@@ -74,27 +73,30 @@ export function TimeBlockSheet({
         : 'new-task';
   const [mode, setMode] = useState<TimeBlockMode>(initialMode ?? fallbackMode);
   const [taskId, setTaskId] = useState(initialTaskId || tasks[0]?.id || '');
-  const [title, setTitle] = useState(initialTitle);
-  const [outcomeId, setOutcomeId] = useState('');
+  const firstTask = tasks.find((task) => task.id === (initialTaskId || tasks[0]?.id));
+  const [title, setTitle] = useState((initialMode ?? fallbackMode) === 'existing-task' ? firstTask?.title ?? '' : initialTitle);
+  const [outcomeId, setOutcomeId] = useState((initialMode ?? fallbackMode) === 'existing-task' ? firstTask?.outcomeId ?? '' : '');
   const [day, setDay] = useState<DayKey>(initialDay);
   const [startMinutes, setStartMinutes] = useState(initialStartMinutes);
   const [endMinutes, setEndMinutes] = useState(() => Math.min(
     DAY_END_MINUTES,
-    initialStartMinutes + roundDuration(initialDurationMinutes)
+    initialStartMinutes + minimumDuration(initialDurationMinutes)
   ));
 
   const selectedTask = tasks.find((task) => task.id === taskId);
-  const selectedTitle = mode === 'existing-task' ? selectedTask?.title ?? '' : title.trim();
+  const selectedTitle = title.trim();
   const endOptions = useMemo(
-    () => buildTimes(startMinutes + SLOT_MINUTES, DAY_END_MINUTES),
-    [startMinutes]
+    () => includeExactTime(buildTimes(startMinutes + SLOT_MINUTES, DAY_END_MINUTES), endMinutes),
+    [startMinutes, endMinutes]
   );
 
   const updateTask = (nextTaskId: string) => {
     setTaskId(nextTaskId);
     const nextTask = tasks.find((task) => task.id === nextTaskId);
     if (!nextTask) return;
-    setEndMinutes(Math.min(DAY_END_MINUTES, startMinutes + roundDuration(nextTask.estimateMinutes)));
+    setTitle(nextTask.title);
+    setOutcomeId(nextTask.outcomeId ?? '');
+    setEndMinutes(Math.min(DAY_END_MINUTES, startMinutes + minimumDuration(nextTask.estimateMinutes)));
   };
 
   const updateStart = (nextStart: number) => {
@@ -110,21 +112,21 @@ export function TimeBlockSheet({
   const chooseMode = (nextMode: TimeBlockMode) => {
     if (nextMode === 'existing-task' && tasks.length === 0) return;
     setMode(nextMode);
-    if (nextMode !== 'existing-task') {
-      if (mode === 'existing-task') setTitle('');
-      if (mode === 'existing-task') setEndMinutes(Math.min(DAY_END_MINUTES, startMinutes + 60));
+    if (nextMode === 'existing-task') {
+      setTitle(selectedTask?.title ?? '');
+      setOutcomeId(selectedTask?.outcomeId ?? '');
     }
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedTitle || endMinutes <= startMinutes) return;
+    if (!selectedTitle || endMinutes <= startMinutes || (mode === 'existing-task' && !selectedTask)) return;
     onSave({
       blockId: initialBlockId,
       mode,
       taskId: mode === 'existing-task' ? taskId : null,
       title: selectedTitle,
-      outcomeId: mode === 'new-task' ? outcomeId || null : null,
+      outcomeId: mode !== 'event' ? outcomeId || null : null,
       day,
       startMinutes,
       durationMinutes: endMinutes - startMinutes
@@ -172,6 +174,7 @@ export function TimeBlockSheet({
             <span className="field-label"><ListChecks size={16} /> 할 일 선택</span>
             <select
               data-autofocus
+              aria-label="할 일 선택"
               value={taskId}
               onChange={(event) => updateTask(event.target.value)}
             >
@@ -182,22 +185,23 @@ export function TimeBlockSheet({
               ))}
             </select>
           </label>
-        ) : (
+        ) : null}
           <div className="time-block-form__details">
             <label className="field">
-              <span className="field-label">{mode === 'new-task' ? '새 할 일' : '일정 제목'}</span>
+              <span className="field-label">{mode === 'existing-task' ? '할 일 제목' : mode === 'new-task' ? '새 할 일' : '일정 제목'}</span>
               <input
-                data-autofocus
+                data-autofocus={mode !== 'existing-task' || undefined}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder={mode === 'new-task' ? '예: 병원 예약 전화하기' : '예: 치과 진료'}
+                maxLength={500}
                 required
               />
             </label>
-            {mode === 'new-task' && (
+            {mode !== 'event' && (
               <label className="field">
                 <span className="field-label">목표 연결 <small>선택</small></span>
-                <select value={outcomeId} onChange={(event) => setOutcomeId(event.target.value)}>
+                <select aria-label="목표 연결" value={outcomeId} onChange={(event) => setOutcomeId(event.target.value)}>
                   <option value="">연결하지 않음</option>
                   {outcomes.map((outcome) => (
                     <option key={outcome.id} value={outcome.id}>{outcome.title}</option>
@@ -205,8 +209,8 @@ export function TimeBlockSheet({
                 </select>
               </label>
             )}
+            {mode === 'existing-task' && <p className="field-help">제목과 목표 연결은 원래 할 일에도 반영됩니다. 시간 변경은 이 일정에만 적용됩니다.</p>}
           </div>
-        )}
 
         {days && days.length > 1 && (
           <div className="field-group">
@@ -231,14 +235,14 @@ export function TimeBlockSheet({
         <div className="time-block-form__times" aria-label="시간 범위">
           <label className="field">
             <span className="field-label"><Clock3 size={16} /> 시작</span>
-            <select value={startMinutes} onChange={(event) => updateStart(Number(event.target.value))}>
-              {startOptions.map((time) => <option key={time} value={time}>{formatClock(time)}</option>)}
+            <select aria-label="시작" value={startMinutes} onChange={(event) => updateStart(Number(event.target.value))}>
+              {includeExactTime(startOptions, startMinutes).map((time) => <option key={time} value={time}>{formatClock(time)}</option>)}
             </select>
           </label>
           <ArrowRight size={18} aria-hidden="true" />
           <label className="field">
             <span className="field-label"><Clock3 size={16} /> 종료</span>
-            <select value={endMinutes} onChange={(event) => setEndMinutes(Number(event.target.value))}>
+            <select aria-label="종료" value={endMinutes} onChange={(event) => setEndMinutes(Number(event.target.value))}>
               {endOptions.map((time) => <option key={time} value={time}>{formatClock(time)}</option>)}
             </select>
           </label>

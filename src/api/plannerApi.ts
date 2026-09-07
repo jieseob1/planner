@@ -130,6 +130,22 @@ export const createPlannerApiClient = ({
     };
   };
 
+  // Old beta proxies cached weak ETags. Never strip W/ or retry a write against
+  // a newer revision: recover a real validator only for the caller's revision.
+  const writeEtag = async (revision: number, etag?: string | null) => {
+    if (etag && /^"planner-[^"\s]+-\d+"$/.test(etag)) return etag;
+    const response = await fetchImpl(url, { method: 'GET', cache: 'no-store', headers: await commonHeaders() });
+    if (response.status === 404) throw new PlannerConflictError(412, null);
+    if (!response.ok) return throwForResponse(response);
+    const current = await readAggregate(response);
+    if (current.revision !== revision) throw new PlannerConflictError(412, null);
+    const refreshed = response.headers.get('ETag');
+    if (!refreshed || !/^"planner-[^"\s]+-\d+"$/.test(refreshed)) {
+      throw new PlannerApiError(502, '서버의 저장 검증 정보를 확인할 수 없습니다. 로컬 변경은 유지됩니다.');
+    }
+    return refreshed;
+  };
+
   return {
     async get(etag) {
       const response = await fetchImpl(url, {
@@ -154,6 +170,7 @@ export const createPlannerApiClient = ({
     },
 
     async put(snapshot, revision, idempotencyKey, etag) {
+      const validator = revision === null ? null : await writeEtag(revision, etag);
       const response = await fetchImpl(url, {
         method: 'PUT',
         headers: {
@@ -162,7 +179,7 @@ export const createPlannerApiClient = ({
           'Idempotency-Key': idempotencyKey,
           ...(revision === null
             ? { 'If-None-Match': '*' }
-            : { 'If-Match': etag ?? revisionEtag(revision) })
+            : { 'If-Match': validator! })
         },
         body: JSON.stringify(snapshot)
       });
@@ -176,12 +193,13 @@ export const createPlannerApiClient = ({
     },
 
     async delete(revision, idempotencyKey, etag) {
+      const validator = await writeEtag(revision, etag);
       const response = await fetchImpl(url, {
         method: 'DELETE',
         headers: {
           ...await commonHeaders(),
           'Idempotency-Key': idempotencyKey,
-          'If-Match': etag ?? revisionEtag(revision)
+          'If-Match': validator
         }
       });
       if (response.status === 404 || response.status === 204) return;

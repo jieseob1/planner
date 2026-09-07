@@ -78,6 +78,7 @@ interface DayTimelineProps {
   scrollRef: RefObject<HTMLDivElement | null>;
   tasks: Task[];
   onCompleteTask: (taskId: string) => void;
+  onEditTask?: (task: Task) => void;
   onCreate: (input: TimelineCreateInput) => boolean;
   onDragTaskEnd: () => void;
   onRemoveBlock: (block: TimeBlock) => void;
@@ -140,6 +141,7 @@ interface BlockActionPanelProps {
   onClose: () => void;
   onCommit: (range: DayMinuteRange, date?: string, title?: string) => boolean;
   onCompleteTask: (taskId: string) => void;
+  onEditTask?: (task: Task) => void;
   onRemove: () => void;
   onScheduleTaskAgain: (task: Task) => void;
   onStartTask: (taskId: string) => void;
@@ -233,6 +235,7 @@ function BlockActionPanel({
   onClose,
   onCommit,
   onCompleteTask,
+  onEditTask,
   onRemove,
   onScheduleTaskAgain,
   onStartTask
@@ -260,7 +263,7 @@ function BlockActionPanel({
     }
     const titleChanged = normalizedTitle !== undefined && normalizedTitle !== block.title;
     if (rangesEqual(range, originalRange) && (!date || date === block.date) && !titleChanged) {
-      setError('변경할 시간이나 날짜를 선택하세요.');
+      setError('변경할 제목, 시간이나 날짜를 입력하세요.');
       return;
     }
     if (!onCommit(range, date, normalizedTitle)) {
@@ -296,7 +299,7 @@ function BlockActionPanel({
     commit(
       { startMinutes, endMinutes },
       dateValue,
-      block.taskId === null ? titleValue : undefined
+      block.taskId && titleValue === block.title ? undefined : titleValue
     );
   };
 
@@ -345,9 +348,8 @@ function BlockActionPanel({
             </div>
 
             <form className="today-direct-time-form" onSubmit={submitDirectTime}>
-              {block.taskId === null && (
                 <label className="today-direct-time-form__date">
-                  <span>일정 제목</span>
+                  <span>{task ? '할 일 제목' : '일정 제목'}</span>
                   <input
                     value={titleValue}
                     onChange={(event) => setTitleValue(event.target.value)}
@@ -358,11 +360,12 @@ function BlockActionPanel({
                         event.preventDefault();
                       }
                     }}
-                    aria-label="일정 제목"
+                    aria-label={task ? '할 일 제목' : '일정 제목'}
+                    maxLength={500}
                     required
                   />
                 </label>
-              )}
+              {task && <p className="today-direct-time-form__date field-help">제목은 같은 할 일의 모든 일정에 반영됩니다. 시간·날짜는 이 일정만 바뀝니다.</p>}
               <label><span>시작</span><input value={startValue} inputMode="numeric" onChange={(event) => setStartValue(event.target.value)} aria-label="시작 시간" /></label>
               <span aria-hidden="true">→</span>
               <label><span>종료</span><input value={endValue} inputMode="numeric" onChange={(event) => setEndValue(event.target.value)} aria-label="종료 시간" /></label>
@@ -378,7 +381,8 @@ function BlockActionPanel({
                     ? timerPaused ? '다른 할 일 일시정지 중' : '다른 할 일 실행 중'
                     : ownsTimer ? timerPaused ? '타이머 계속' : '타이머 멈춤' : '타이머 시작'}
                 </button>
-                <button type="button" onClick={() => { onCompleteTask(task.id); onClose(); }}><CircleCheck />할 일 완료</button>
+                <button type="button" onClick={() => { onCompleteTask(task.id); onClose(); }}><CircleCheck />{task.status === 'done' ? '완료 취소' : '할 일 완료'}</button>
+                {onEditTask && <button type="button" onClick={() => { onClose(); onEditTask(task); }}>할 일 상세 수정·삭제</button>}
                 <button type="button" onClick={() => { onScheduleTaskAgain(task); onClose(); }}><Calendar />같은 할 일 다시 배치</button>
               </div>
             )}
@@ -404,6 +408,7 @@ export function DayTimeline({
   scrollRef,
   tasks,
   onCompleteTask,
+  onEditTask,
   onCreate,
   onDragTaskEnd,
   onRemoveBlock,
@@ -1162,6 +1167,7 @@ export function DayTimeline({
           onClose={() => setActiveBlockId(null)}
           onCommit={(range, targetDate, title) => commitBlockAction(activeBlock, range, targetDate, title)}
           onCompleteTask={onCompleteTask}
+          onEditTask={onEditTask}
           onRemove={() => { onRemoveBlock(activeBlock); setActiveBlockId(null); }}
           onScheduleTaskAgain={onScheduleTaskAgain}
           onStartTask={onStartTask}

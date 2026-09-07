@@ -16,6 +16,35 @@ const aggregateResponse = (revision: number, etag = subjectEtag(revision)) => ne
 });
 
 describe('plannerApi', () => {
+  it('recovers a cached weak ETag at the same revision without changing the local payload', async () => {
+    const fetchImpl = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValueOnce(aggregateResponse(12))
+      .mockResolvedValueOnce(aggregateResponse(13));
+    const client = createPlannerApiClient({ fetchImpl, accessTokenProvider: async () => null });
+    const snapshot = createDemoSnapshot();
+    await client.put(snapshot, 12, 'retry-key', `W/${subjectEtag(12)}`);
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ method: 'GET', cache: 'no-store' });
+    expect(fetchImpl.mock.calls[1][1]).toMatchObject({ method: 'PUT', body: JSON.stringify(snapshot) });
+    expect(new Headers(fetchImpl.mock.calls[1][1]?.headers).get('If-Match')).toBe(subjectEtag(12));
+  });
+
+  it.each(['put', 'delete'] as const)('never overwrites a newer revision while recovering a weak ETag for %s', async (operation) => {
+    const fetchImpl = vi.fn(async () => aggregateResponse(13));
+    const client = createPlannerApiClient({ fetchImpl, accessTokenProvider: async () => null });
+    const result = operation === 'put'
+      ? client.put(createDemoSnapshot(), 12, 'retry-key', `W/${subjectEtag(12)}`)
+      : client.delete(12, 'retry-key', `W/${subjectEtag(12)}`);
+    await expect(result).rejects.toBeInstanceOf(PlannerConflictError);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('does not promote a still-weak validator or send a mutation', async () => {
+    const fetchImpl = vi.fn(async () => aggregateResponse(12, `W/${subjectEtag(12)}`));
+    const client = createPlannerApiClient({ fetchImpl, accessTokenProvider: async () => null });
+    await expect(client.put(createDemoSnapshot(), 12, 'retry-key', `W/${subjectEtag(12)}`)).rejects.toMatchObject({ status: 502 });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it('uses an absolute native API base and conditional GET headers', async () => {
     const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => aggregateResponse(12));
     const client = createPlannerApiClient({

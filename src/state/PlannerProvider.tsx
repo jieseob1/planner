@@ -1297,7 +1297,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   const addTask = useCallback((input: AddTaskInput): string => {
     const title = input.title.trim();
     const estimateMinutes = Math.round(input.estimateMinutes);
-    if (!title || !Number.isFinite(estimateMinutes) || estimateMinutes <= 0) return '';
+    if (!title || title.length > 500 || !Number.isFinite(estimateMinutes) || estimateMinutes <= 0 || estimateMinutes > 10_080) return '';
 
     const taskId = safeId('task');
     let added = false;
@@ -1337,8 +1337,11 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       const outcomeId = input.outcomeId === undefined ? existing.outcomeId : input.outcomeId;
       if (
         !title
+        || title.length > 500
         || !Number.isFinite(estimateMinutes)
         || estimateMinutes <= 0
+        || estimateMinutes > 10_080
+        || (input.note?.trim().length ?? 0) > 4_000
         || (outcomeId !== null && !current.outcomes.some((outcome) => outcome.id === outcomeId))
       ) return current;
 
@@ -1354,7 +1357,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       return {
         ...current,
         tasks: current.tasks.map((task) => task.id === taskId ? nextTask : task),
-        timeBlocks: current.timeBlocks.map((block) => block.taskId === taskId
+        timeBlocks: current.timeBlocks.map((block) => block.taskId === taskId && !block.external
           ? { ...block, title }
           : block)
       };
@@ -1542,7 +1545,9 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       const task = input.taskId === null
         ? null
         : current.tasks.find((item) => item.id === input.taskId);
-      const title = (task?.title ?? input.title).trim();
+      const title = (task ? input.taskPatch?.title ?? task.title : input.title).trim();
+      const outcomeId = input.taskPatch?.outcomeId === undefined ? task?.outcomeId ?? null : input.taskPatch.outcomeId;
+      if (input.taskPatch && (!task || (outcomeId !== null && !current.outcomes.some((outcome) => outcome.id === outcomeId)))) return current;
       const requestedWeek = normalizeWeekOffset(input.weekOffset ?? current.plannerWeekOffset);
       const targetDate = isLocalDate(input.date)
         ? input.date
@@ -1555,7 +1560,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         durationMinutes: Math.round(input.durationMinutes),
         weekOffset: targetWeek
       };
-      if (!title || (input.taskId !== null && !task) || !isValidTimeBlockSlot(slot)) return current;
+      if (!title || title.length > 500 || (input.taskId !== null && !task) || !isValidTimeBlockSlot(slot)) return current;
 
       const existing = input.id
         ? current.timeBlocks.find((block) => block.id === input.id && !block.external)
@@ -1590,12 +1595,18 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         && task
         && targetWeek === 1
       );
+      const updatedTasks = task && input.taskPatch
+        ? current.tasks.map((item) => item.id === task.id ? { ...item, title, outcomeId } : item)
+        : current.tasks;
+      const updatedBlocks = task && input.taskPatch
+        ? current.timeBlocks.map((item) => item.taskId === task.id && !item.external ? { ...item, title } : item)
+        : current.timeBlocks;
       return {
         ...current,
-        tasks: incrementExplicitCarryCount(current.tasks, input.taskId, shouldIncrementCarry),
+        tasks: incrementExplicitCarryCount(updatedTasks, input.taskId, shouldIncrementCarry),
         timeBlocks: existing
-          ? current.timeBlocks.map((item) => item.id === existing.id ? block : item)
-          : [...current.timeBlocks, block]
+          ? updatedBlocks.map((item) => item.id === existing.id ? block : item)
+          : [...updatedBlocks, block]
       };
     });
     return saved;
