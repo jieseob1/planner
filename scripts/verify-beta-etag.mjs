@@ -49,6 +49,8 @@ async function exercise(label, configuration) {
       console.log('negative control reproduced: gzip weak ETag -> conditional PUT 400');
     } else {
       assert.equal(get.headers.get('content-encoding'), null);
+      assert.match(get.headers.get('cache-control') ?? '', /(?:^|,\s*)no-transform(?:,|$)/, 'Cloudflare must not transform the API response');
+      assert.match(get.headers.get('cache-control') ?? '', /(?:^|,\s*)no-store(?:,|$)/, 'Private API responses must not be cached');
       assert.equal(received, etag);
       assert.equal(put.status, 200);
       console.log('beta proxy strong ETag GET -> conditional PUT passed');
