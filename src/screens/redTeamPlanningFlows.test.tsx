@@ -271,7 +271,8 @@ describe('red-team planning flow remediation', () => {
     expect(setPlannerWeekOffset).toHaveBeenLastCalledWith(1);
     carryoverView.unmount();
 
-    const completed = { ...source, review: { ...source.review, completedAt: '2026-09-02T12:00:00.000Z' } };
+    // A just-completed review belongs to the actual test week, not a historical one.
+    const completed = { ...source, review: { ...source.review, completedAt: new Date().toISOString() } };
     mockedUsePlanner.mockReturnValue(plannerValue(completed, { setPlannerWeekOffset }));
     renderScreen(<ReviewScreen />);
     await user.click(screen.getByRole('link', { name: /다음 주 시간 배치/ }));

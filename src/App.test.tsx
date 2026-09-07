@@ -361,6 +361,9 @@ describe('Planner frontend core flows', () => {
   });
 
   it('changes the visible week with the previous and next controls', async () => {
+    // The assertions below deliberately cover a week spanning two months.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 2, 12, 0));
     const user = userEvent.setup();
     renderRoute('/planner');
 
@@ -398,6 +401,8 @@ describe('Planner frontend core flows', () => {
   });
 
   it('opens next-week Planner with the review Top 3 prioritized after completion', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 2, 12, 0));
     const user = userEvent.setup();
     renderRoute('/review');
 
