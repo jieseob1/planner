@@ -21,6 +21,21 @@ beforeEach(() => {
 });
 
 describe('SaveStatus validation guidance', () => {
+  it('does not ask the user to change valid task text for invalid-precondition', async () => {
+    mock.planner.saveProblem = plannerSaveProblem(new PlannerApiError(400, 'PRIVATE', {
+      code: 'invalid-precondition'
+    }), true);
+    render(<SaveStatus />);
+    expect(screen.getByRole('status')).toHaveTextContent('저장 버전 확인 필요');
+    await userEvent.setup().click(screen.getByRole('button', { name: '오류 확인' }));
+    const dialog = screen.getByRole('dialog', { name: '저장 버전 정보를 확인해 주세요' });
+    expect(dialog).toHaveTextContent('입력값의 문제가 아닙니다');
+    expect(dialog).not.toHaveTextContent('입력값을 수정해 주세요');
+    expect(within(dialog).queryByRole('button', { name: '입력값 확인하기' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '다시 저장' })).toBeInTheDocument();
+    expect(mock.retry).not.toHaveBeenCalled();
+  });
+
   it('shows400 and the actionable field, opens safe details and retries only on explicit action', async () => {
     render(<SaveStatus />);
     const notice = screen.getByRole('status');

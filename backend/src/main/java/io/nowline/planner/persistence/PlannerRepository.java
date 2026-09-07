@@ -118,8 +118,12 @@ public class PlannerRepository {
                         rs.getString("decision") == null ? null : PlannerSnapshot.Decision.from(rs.getString("decision"))
                 ), id(userId));
 
+        Map<String, List<PlannerSnapshot.Subtask>> subtasks = new LinkedHashMap<>();
+        jdbc.query("SELECT task_id, subtask_id, title, done FROM planner_subtask WHERE user_id = ? ORDER BY task_id, sort_order",
+                (org.springframework.jdbc.core.RowCallbackHandler) rs -> subtasks.computeIfAbsent(rs.getString("task_id"), ignored -> new ArrayList<>())
+                        .add(new PlannerSnapshot.Subtask(rs.getString("subtask_id"), rs.getString("title"), rs.getBoolean("done"))), id(userId));
         List<PlannerSnapshot.Task> tasks = jdbc.query("""
-                        SELECT task_id, title, outcome_id, estimate_minutes, status, pinned, carry_count, note
+                        SELECT task_id, title, outcome_id, estimate_minutes, status, pinned, carry_count, note, completed_at
                         FROM planner_task WHERE user_id = ? ORDER BY sort_order
                         """,
                 (rs, row) -> new PlannerSnapshot.Task(
@@ -130,7 +134,9 @@ public class PlannerRepository {
                         PlannerSnapshot.TaskStatus.from(rs.getString("status")),
                         rs.getBoolean("pinned"),
                         rs.getInt("carry_count"),
-                        rs.getString("note")
+                        rs.getString("note"),
+                        instant(rs.getTimestamp("completed_at")),
+                        subtasks.containsKey(rs.getString("task_id")) ? List.copyOf(subtasks.get(rs.getString("task_id"))) : null
                 ), id(userId));
 
         List<PlannerSnapshot.TimeBlock> blocks = jdbc.query("""
@@ -369,8 +375,8 @@ public class PlannerRepository {
         batch("""
                         INSERT INTO planner_task (
                             user_id, task_id, sort_order, title, outcome_id, estimate_minutes,
-                            status, pinned, carry_count, note
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            status, pinned, carry_count, note, completed_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, tasks, (statement, item) -> {
             PlannerSnapshot.Task value = item.value();
             statement.setString(1, id(userId));
@@ -383,6 +389,21 @@ public class PlannerRepository {
             statement.setBoolean(8, value.pinned());
             statement.setInt(9, value.carryCount());
             statement.setString(10, value.note());
+            statement.setTimestamp(11, timestamp(value.completedAt()));
+        });
+        record Child(String taskId, int position, PlannerSnapshot.Subtask item) {}
+        List<Child> children = new ArrayList<>();
+        for (var task : tasks) {
+            for (int index = 0; index < task.subtasksOrEmpty().size(); index++) children.add(new Child(task.id(), index, task.subtasksOrEmpty().get(index)));
+        }
+        batch("INSERT INTO planner_subtask (user_id, task_id, subtask_id, title, done, sort_order) VALUES (?, ?, ?, ?, ?, ?)", children, (statement, item) -> {
+            Child child = item.value();
+            statement.setString(1, id(userId));
+            statement.setString(2, child.taskId());
+            statement.setString(3, child.item().id());
+            statement.setString(4, child.item().title().trim());
+            statement.setBoolean(5, child.item().done());
+            statement.setInt(6, child.position());
         });
     }
 

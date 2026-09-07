@@ -2,6 +2,9 @@ export type TaskStatus = 'todo' | 'in-progress' | 'done' | 'cancelled';
 export type Confidence = 'high' | 'medium' | 'low' | 'unknown';
 export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
+/** One-level checklist; does not create an additional timer, calendar block or completed-task count. */
+export interface Subtask { id: string; title: string; done: boolean }
+
 export interface Task {
   id: string;
   title: string;
@@ -11,6 +14,9 @@ export interface Task {
   pinned: boolean;
   carryCount: number;
   note?: string;
+  /** Actual check-off instant; absent on legacy tasks and cleared on reopening. */
+  completedAt?: string;
+  subtasks?: Subtask[];
 }
 
 export interface TimeBlock {
@@ -105,6 +111,7 @@ export interface AddTaskInput {
   title: string;
   outcomeId: string | null;
   estimateMinutes: number;
+  subtasks?: Subtask[];
 }
 
 export interface UpdateTaskInput {
@@ -114,6 +121,7 @@ export interface UpdateTaskInput {
   status?: TaskStatus;
   pinned?: boolean;
   note?: string;
+  subtasks?: Subtask[];
 }
 
 export interface SaveTimeBlockInput {
@@ -129,7 +137,7 @@ export interface SaveTimeBlockInput {
   /** Set only by the explicit Review -> next-week carryover flow. */
   incrementCarryCount?: boolean;
   /** Explicit linked-Todo changes, committed atomically with the block after validation. */
-  taskPatch?: Pick<UpdateTaskInput, 'title' | 'outcomeId'>;
+  taskPatch?: Pick<UpdateTaskInput, 'title' | 'outcomeId' | 'subtasks'>;
 }
 
 export interface SavePlanInput {

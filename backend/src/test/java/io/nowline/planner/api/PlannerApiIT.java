@@ -109,6 +109,154 @@ class PlannerApiIT {
             .build();
 
     @Test
+    void subtaskCrudSurvivesRoundTripsRejectsInvalidOrLegacyLossAndRemainsAccountScoped() throws Exception {
+        String subject = "subtasks-" + UUID.randomUUID();
+        String access = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        var first = new PlannerSnapshot.Subtask("s1", "원인 확인", false);
+        var second = new PlannerSnapshot.Subtask("s2", "회귀 테스트", true);
+        var source = PlannerFixtures.snapshot();
+        var snapshot = withSubtasks(source, List.of(first, second));
+        var created = put(access, "subtasks-create", null, "*", snapshot);
+        assertThat(created.statusCode()).as(created.body()).isEqualTo(201);
+        String etag = created.headers().firstValue("ETag").orElseThrow();
+        var read = objectMapper.readValue(authenticatedGet("/api/v1/planner", access).body(), PlannerEnvelope.class);
+        assertThat(read.snapshot().tasks().getFirst().subtasks()).containsExactly(first, second);
+        assertThat(read.snapshot().tasks().getFirst().status()).isEqualTo(source.tasks().getFirst().status());
+        assertThat(read.snapshot().tasks()).hasSize(source.tasks().size());
+        assertThat(put(access, "subtasks-create", null, "*", snapshot).body()).isEqualTo(created.body());
+        assertThat(put(access, "subtasks-legacy", etag, null, withSubtasks(source, null)).statusCode()).isEqualTo(400);
+        assertThat(put(access, "subtasks-duplicate", etag, null, withSubtasks(source, List.of(first, first))).statusCode()).isEqualTo(400);
+        assertThat(put(access, "subtasks-empty", etag, null, withSubtasks(source, List.of(new PlannerSnapshot.Subtask("s", " ", false)))).statusCode()).isEqualTo(400);
+        assertThat(put(access, "subtasks-missing-state", etag, null, withSubtasks(source, List.of(new PlannerSnapshot.Subtask("s", "상태 없음", null)))).statusCode()).isEqualTo(400);
+        var tooMany = java.util.stream.IntStream.range(0, 101).mapToObj(i -> new PlannerSnapshot.Subtask("s" + i, "단계", false)).toList();
+        assertThat(put(access, "subtasks-limit", etag, null, withSubtasks(source, tooMany)).statusCode()).isEqualTo(400);
+        String other = token("other-subtasks-" + UUID.randomUUID(), TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        assertThat(authenticatedGet("/api/v1/planner", other).statusCode()).isEqualTo(404);
+
+        var edited = put(access, "subtasks-edit", etag, null, withSubtasks(source, List.of(second, new PlannerSnapshot.Subtask("s1", "원인 확인 완료", true))));
+        assertThat(edited.statusCode()).as(edited.body()).isEqualTo(200);
+        var updated = objectMapper.readValue(edited.body(), PlannerEnvelope.class);
+        assertThat(updated.snapshot().tasks().getFirst().subtasks().getFirst()).isEqualTo(second);
+        assertThat(updated.snapshot().tasks().getFirst().subtasks().getLast().title()).isEqualTo("원인 확인 완료");
+        assertThat(put(access, "subtasks-stale", etag, null, snapshot).statusCode()).isEqualTo(412);
+        assertThat(authenticatedGet("/api/v1/account/export", access).body()).contains("원인 확인 완료", "s2");
+        var cleared = put(access, "subtasks-clear", edited.headers().firstValue("ETag").orElseThrow(), null, withSubtasks(source, List.of()));
+        assertThat(cleared.statusCode()).isEqualTo(200);
+        assertThat(objectMapper.readValue(cleared.body(), PlannerEnvelope.class).snapshot().tasks().getFirst().subtasksOrEmpty()).isEmpty();
+        var restored = put(access, "subtasks-restore", cleared.headers().firstValue("ETag").orElseThrow(), null, snapshot);
+        assertThat(restored.statusCode()).isEqualTo(200);
+        String userId = jdbc.queryForObject("SELECT user_id FROM app_user WHERE oidc_subject = ?", String.class, subject);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM planner_subtask WHERE user_id = ?", Integer.class, userId)).isEqualTo(2);
+        assertThat(jsonRequest("DELETE", "/api/v1/account", access, "{\"confirmation\":\"DELETE\"}").statusCode()).isEqualTo(204);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM planner_subtask WHERE user_id = ?", Integer.class, userId)).isZero();
+    }
+
+    private static PlannerSnapshot withSubtasks(PlannerSnapshot source, List<PlannerSnapshot.Subtask> subtasks) {
+        var tasks = new ArrayList<>(source.tasks());
+        var task = tasks.getFirst();
+        tasks.set(0, new PlannerSnapshot.Task(task.id(), task.title(), task.outcomeId(), task.estimateMinutes(), task.status(), task.pinned(), task.carryCount(), task.note(), task.completedAt(), subtasks));
+        return new PlannerSnapshot(source.version(), source.plan(), source.plannerWeekOffset(), tasks, source.timeBlocks(), source.timeEntries(), source.outcomes(), source.timer(), source.review());
+    }
+
+    @Test
+    void periodDocumentsAreIndependentVersionedIdempotentAndAccountScoped() throws Exception {
+        String subject = "period-" + UUID.randomUUID();
+        String access = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        String other = token("period-other-" + UUID.randomUUID(), TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        String path = "/api/v1/period-documents";
+        assertThat(rawGet(path).statusCode()).isEqualTo(401);
+        assertThat(authenticatedGet(path, access).body()).isEqualTo("[]");
+        String goal = """
+                {"id":"goal-a","title":"주간 목표","period":"week","startDate":"2026-09-07","endDate":"2026-09-13",
+                 "parentId":null,"measurement":"number","baseline":0,"current":1,"target":2,"unit":"편","done":false,"note":"","taskIds":[]}
+                """;
+        String create = "{\"expectedRevision\":0,\"mutationId\":\"period-create\",\"goal\":" + goal + ",\"review\":null,\"deleted\":false}";
+        var created = jsonRequest("PUT", path, access, create);
+        assertThat(created.statusCode()).as(created.body()).isEqualTo(200);
+        assertThat(objectMapper.readTree(created.body()).get("revision").asLong()).isEqualTo(1);
+        assertThat(jsonRequest("PUT", path, access, create).body()).isEqualTo(created.body());
+        assertThat(jsonRequest("PUT", path, access, create.replace("주간 목표", "다른 요청")).statusCode()).isEqualTo(409);
+        assertThat(authenticatedGet(path, other).body()).isEqualTo("[]");
+
+        String badParent = create.replace("period-create", "other-parent").replace("\"parentId\":null", "\"parentId\":\"goal-a\"").replace("\"id\":\"goal-a\"", "\"id\":\"goal-b\"");
+        assertThat(jsonRequest("PUT", path, other, badParent).statusCode()).isEqualTo(400);
+        assertThat(jsonRequest("PUT", path, access, badParent).statusCode()).isEqualTo(200);
+        String cycle = create.replace("\"expectedRevision\":0", "\"expectedRevision\":1").replace("period-create", "cycle").replace("\"parentId\":null", "\"parentId\":\"goal-b\"");
+        assertThat(jsonRequest("PUT", path, access, cycle).statusCode()).isEqualTo(400);
+        assertThat(jsonRequest("PUT", path, access, create.replace("period-create", "stale")).statusCode()).isEqualTo(412);
+
+        String review = """
+                {"expectedRevision":0,"mutationId":"review-create","goal":null,"deleted":false,
+                 "review":{"id":"review-week-2026-09-07","period":"week","startDate":"2026-09-07","endDate":"2026-09-13",
+                 "well":"","blocked":"","change":"","note":"목표 점검 없이 기록","completed":false}}
+                """;
+        var savedReview = jsonRequest("PUT", path, access, review);
+        assertThat(savedReview.statusCode()).as(savedReview.body()).isEqualTo(200);
+        assertThat(objectMapper.readTree(savedReview.body()).get("goalCheckpoints").size()).isEqualTo(2);
+        String update = create.replace("\"expectedRevision\":0", "\"expectedRevision\":1").replace("period-create", "goal-update").replace("\"current\":1", "\"current\":2");
+        assertThat(jsonRequest("PUT", path, access, update).statusCode()).isEqualTo(200);
+        var editedReview = jsonRequest("PUT", path, access, review.replace("\"expectedRevision\":0", "\"expectedRevision\":1").replace("review-create", "review-edit").replace("목표 점검 없이 기록", "지난 기록 수정"));
+        assertThat(editedReview.statusCode()).isEqualTo(200);
+        assertThat(editedReview.body()).contains("지난 기록 수정");
+        assertThat(objectMapper.readTree(editedReview.body()).get("goalCheckpoints").get(0).get("current").asInt()).isEqualTo(1);
+        assertThat(jsonRequest("PUT", path, access, review.replace("review-create", "bad-date").replace("2026-09-13", "2026-09-14")).statusCode()).isEqualTo(400);
+        assertThat(jsonRequest("PUT", path, access, create.replace("period-create", "out-of-range-year")
+                .replace("2026-09-07", "+999999999-12-31")).statusCode()).isEqualTo(400);
+
+        // Clearing/closing the active planner cannot cascade into account-level goals or reviews.
+        var active = put(access, "active-plan", null, "*", PlannerFixtures.snapshot());
+        assertThat(active.statusCode()).isEqualTo(201);
+        assertThat(delete(access, "clear-plan", active.headers().firstValue("ETag").orElseThrow()).statusCode()).isEqualTo(204);
+        assertThat(authenticatedGet(path, access).body()).contains("주간 목표", "지난 기록 수정");
+        var exported = authenticatedGet("/api/v1/account/export", access);
+        assertThat(exported.statusCode()).isEqualTo(200);
+        assertThat(exported.body()).contains("periodDocuments", "periodDocumentHistory", "지난 기록 수정");
+
+        // One new document, two concurrent replacements: exactly one wins.
+        String childUpdate = badParent.replace("\"expectedRevision\":0", "\"expectedRevision\":1");
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var a = executor.submit(() -> jsonRequest("PUT", path, access, childUpdate.replace("other-parent", "race-a")));
+            var b = executor.submit(() -> jsonRequest("PUT", path, access, childUpdate.replace("other-parent", "race-b")));
+            assertThat(List.of(a.get().statusCode(), b.get().statusCode())).containsExactlyInAnyOrder(200, 412);
+        }
+        String databaseUserId = jdbc.queryForObject("SELECT user_id FROM app_user WHERE oidc_subject = ?", String.class, subject);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM period_document_history WHERE user_id = ?", Integer.class, databaseUserId)).isPositive();
+        assertThat(jsonRequest("DELETE", "/api/v1/account", access, "{\"confirmation\":\"DELETE\"}").statusCode()).isEqualTo(204);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM period_document WHERE user_id = ?", Integer.class, databaseUserId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM period_document_history WHERE user_id = ?", Integer.class, databaseUserId)).isZero();
+    }
+
+    @Test
+    void savesAllFivePeriodsAndPersistsExplicitTaskCompletionTime() throws Exception {
+        String access = token("all-periods-" + UUID.randomUUID(), TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        String[][] cases = {
+                {"day", "2024-02-29", "2024-02-29"}, {"week", "2026-12-28", "2027-01-03"},
+                {"month", "2024-02-01", "2024-02-29"}, {"quarter", "2026-10-01", "2026-12-31"},
+                {"year", "2026-01-01", "2026-12-31"}
+        };
+        for (String[] period : cases) {
+            String body = """
+                    {"expectedRevision":0,"mutationId":"%s-review","goal":null,"deleted":false,
+                     "review":{"id":"review-%s-%s","period":"%s","startDate":"%s","endDate":"%s",
+                     "well":"","blocked":"","change":"","note":"","completed":true}}
+                    """.formatted(period[0], period[0], period[1], period[0], period[1], period[2]);
+            assertThat(jsonRequest("PUT", "/api/v1/period-documents", access, body).statusCode()).isEqualTo(200);
+        }
+        assertThat(objectMapper.readTree(authenticatedGet("/api/v1/period-documents", access).body()).size()).isEqualTo(5);
+        var source = PlannerFixtures.snapshot();
+        var first = source.tasks().getFirst();
+        Instant checkedAt = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
+        var tasks = new ArrayList<>(source.tasks());
+        tasks.set(0, new PlannerSnapshot.Task(first.id(), first.title(), first.outcomeId(), first.estimateMinutes(), PlannerSnapshot.TaskStatus.DONE, first.pinned(), first.carryCount(), first.note(), checkedAt));
+        var snapshot = new PlannerSnapshot(source.version(), source.plan(), source.plannerWeekOffset(), tasks, source.timeBlocks(), source.timeEntries(), source.outcomes(), source.timer(), source.review());
+        var created = put(access, "checked-task", null, "*", snapshot);
+        assertThat(created.statusCode()).as(created.body()).isEqualTo(201);
+        var restored = objectMapper.readValue(authenticatedGet("/api/v1/planner", access).body(), PlannerEnvelope.class);
+        assertThat(restored.snapshot().tasks().getFirst().completedAt()).isEqualTo(checkedAt);
+        assertThat(restored.snapshot().tasks().get(1).completedAt()).isNull();
+    }
+
+    @Test
     void createReadReplayUpdateConflictDeleteAndUserIsolation() throws Exception {
         String userSubject = "user-" + UUID.randomUUID();
         String userToken = token(userSubject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);

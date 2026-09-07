@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { AppShell } from './components/AppShell';
 import { OnboardingScreen } from './screens/OnboardingScreen';
@@ -16,6 +16,10 @@ import { usePlanner } from './state/PlannerProvider';
 import { TimeZoneProvider } from './timezone/TimeZoneProvider';
 import { AdminScreen } from './admin/AdminScreen';
 import { Capacitor } from '@capacitor/core';
+import { PeriodProvider } from './state/PeriodProvider';
+import { PeriodGoalsScreen } from './screens/PeriodGoalsScreen';
+import { PeriodReviewScreen } from './screens/PeriodReviewScreen';
+import './styles/periods.css';
 
 function RequireActivePlan({ children }: { children: ReactNode }) {
   const { hasActivePlan, plannerReady } = usePlanner();
@@ -29,6 +33,11 @@ function RequireNoActivePlan({ children }: { children: ReactNode }) {
   return hasActivePlan ? <Navigate to="/today" replace /> : children;
 }
 
+function GoalsRoute() {
+  const [params] = useSearchParams();
+  return params.get('action') === 'stop' ? <Navigate to={`/goals/legacy?${params}`} replace /> : <PeriodGoalsScreen />;
+}
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -37,8 +46,10 @@ export function AppRoutes() {
         <Route index element={<Navigate to="/today" replace />} />
         <Route path="/today" element={<RequireActivePlan><TodayScreen /></RequireActivePlan>} />
         <Route path="/planner" element={<RequireActivePlan><PlannerScreen /></RequireActivePlan>} />
-        <Route path="/goals" element={<RequireActivePlan><GoalsScreen /></RequireActivePlan>} />
-        <Route path="/review" element={<RequireActivePlan><ReviewScreen /></RequireActivePlan>} />
+        <Route path="/goals" element={<GoalsRoute />} />
+        <Route path="/review" element={<PeriodReviewScreen />} />
+        <Route path="/goals/legacy" element={<RequireActivePlan><GoalsScreen /></RequireActivePlan>} />
+        <Route path="/review/legacy" element={<RequireActivePlan><ReviewScreen /></RequireActivePlan>} />
         <Route path="/plans" element={<PlansScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/admin" element={<AdminScreen />} />
@@ -59,7 +70,7 @@ export function App() {
           <AuthProvider>
             <TimeZoneProvider>
               <PlannerProvider>
-                <AppRoutes />
+                <PeriodProvider><AppRoutes /></PeriodProvider>
               </PlannerProvider>
             </TimeZoneProvider>
           </AuthProvider>

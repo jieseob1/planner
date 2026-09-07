@@ -1,6 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Modal } from './Modal';
 import type { Outcome, Task, UpdateTaskInput } from '../domain/types';
+import { SubtaskEditor } from './SubtaskEditor';
+import { validSubtasks } from '../domain/subtasks';
 
 interface TaskEditorSheetProps {
   task: Task;
@@ -18,13 +20,14 @@ export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave
   const [estimate, setEstimate] = useState(String(task.estimateMinutes));
   const [status, setStatus] = useState(task.status);
   const [note, setNote] = useState(task.note ?? '');
+  const [subtasks, setSubtasks] = useState(task.subtasks ?? []);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState('');
   const composing = useRef(false);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (composing.current) return;
-    if (!onSave({ title, outcomeId: outcomeId || null, estimateMinutes: Number(estimate), status, note })) {
+    if (!validSubtasks(subtasks) || !onSave({ title, outcomeId: outcomeId || null, estimateMinutes: Number(estimate), status, note, subtasks })) {
       setError('저장하지 못했습니다. 입력 내용과 동기화 상태를 확인해 주세요.');
       return;
     }
@@ -38,6 +41,7 @@ export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave
         <div className="task-editor-delete">
           <p><strong>{task.title}</strong></p>
           <p>이 할 일과 연결된 일정 {blockCount}개, 실행 기록 {entryCount}개가 함께 삭제됩니다. 실행 중인 타이머도 종료되며, 되돌릴 수 없습니다.</p>
+          <p>하위 할 일 {task.subtasks?.length ?? 0}개도 함께 삭제됩니다.</p>
           <p>일정만 지우려면 시간표에서 <strong>시간표에서 빼기</strong>를 사용하세요.</p>
           <div className="modal__actions">
             <button className="button button--secondary" type="button" onClick={() => { setConfirmDelete(false); setError(''); }}>수정으로 돌아가기</button>
@@ -50,6 +54,7 @@ export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave
       ) : (
         <form className="task-editor-form" onSubmit={submit} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}>
           <label className="field"><span className="field-label">할 일 제목</span><input data-autofocus value={title} onChange={(event) => setTitle(event.target.value)} maxLength={500} required /></label>
+          <SubtaskEditor value={subtasks} onChange={setSubtasks} />
           <label className="field"><span className="field-label">목표 연결 <small>선택</small></span><select aria-label="목표 연결" value={outcomeId} onChange={(event) => setOutcomeId(event.target.value)}>
             <option value="">목표 없이 사용</option>{outcomes.map((outcome) => <option key={outcome.id} value={outcome.id}>{outcome.title}</option>)}
           </select></label>
@@ -64,7 +69,7 @@ export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave
           <div className="modal__actions task-editor-actions">
             <button className="button button--delete" type="button" onClick={() => { setConfirmDelete(true); setError(''); }}>할 일 삭제</button>
             <button className="button button--secondary" type="button" onClick={onClose}>취소</button>
-            <button className="button button--primary" type="submit" disabled={!title.trim()}>변경 저장</button>
+            <button className="button button--primary" type="submit" disabled={!title.trim() || !validSubtasks(subtasks)}>변경 저장</button>
           </div>
         </form>
       )}

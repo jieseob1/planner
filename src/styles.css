@@ -1567,6 +1567,10 @@ textarea:focus-visible,
 
 .modal {
   width: min(540px, 100%);
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 21px;
   background: var(--paper);
@@ -7723,6 +7727,7 @@ textarea:focus-visible,
   }
 
   .today-direct-week {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 2px;
   }
 

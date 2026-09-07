@@ -18,6 +18,9 @@ import { CapacityBar } from '../components/CapacityBar';
 import { Modal } from '../components/Modal';
 import { TaskRow } from '../components/TaskRow';
 import { TimeBlockSheet, type TimeBlockEditorValue, type TimeBlockMode } from '../components/TimeBlockSheet';
+import { SubtaskEditor, SubtaskProgress } from '../components/SubtaskEditor';
+import { validSubtasks } from '../domain/subtasks';
+import type { Subtask } from '../domain/types';
 import type { DayKey, Task, TimeBlock } from '../domain/types';
 import { formatClock, formatMinutes } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
@@ -84,6 +87,7 @@ export function PlannerScreen() {
   const [addOutcomeId, setAddOutcomeId] = useState('');
   const [addEstimate, setAddEstimate] = useState('25');
   const [addNote, setAddNote] = useState('');
+  const [addSubtasks, setAddSubtasks] = useState<Subtask[]>([]);
   const queryAction = searchParams.get('action');
   const queryTaskId = searchParams.get('task');
 
@@ -223,6 +227,7 @@ export function PlannerScreen() {
     setAddOutcomeId(sourceTask?.outcomeId ?? '');
     setAddEstimate(sourceTask ? String(getSplitEstimate(sourceTask.estimateMinutes)) : '25');
     setAddNote('');
+    setAddSubtasks([]);
     setAddOpen(true);
   };
 
@@ -232,6 +237,7 @@ export function PlannerScreen() {
     setAddOutcomeId(task.outcomeId ?? '');
     setAddEstimate(String(task.estimateMinutes));
     setAddNote(task.note ?? '');
+    setAddSubtasks(task.subtasks ?? []);
     setAddOpen(true);
   };
 
@@ -279,13 +285,14 @@ export function PlannerScreen() {
 
   const submitTask = (event: FormEvent) => {
     event.preventDefault();
-    if (!addTitle.trim()) return;
+    if (!addTitle.trim() || !validSubtasks(addSubtasks)) return;
     if (editingTask) {
       const saved = updateTask(editingTask.id, {
         title: addTitle,
         outcomeId: addOutcomeId || null,
         estimateMinutes: Number(addEstimate),
-        note: addNote
+        note: addNote,
+        subtasks: addSubtasks
       });
       if (!saved) { showNotice('수정하지 못했습니다. 입력 내용과 동기화 상태를 확인해 주세요.'); return; }
       showNotice(`${addTitle.trim()}을 수정했어요.`);
@@ -293,7 +300,8 @@ export function PlannerScreen() {
       const taskId = addTask({
         title: addTitle.trim(),
         outcomeId: addOutcomeId || null,
-        estimateMinutes: Number(addEstimate)
+        estimateMinutes: Number(addEstimate),
+        subtasks: addSubtasks
       });
       if (!taskId) { showNotice('할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요.'); return; }
       if (taskId && addNote.trim()) updateTask(taskId, { note: addNote });
@@ -323,7 +331,8 @@ export function PlannerScreen() {
       taskId = addTask({
         title: value.title,
         outcomeId: value.outcomeId,
-        estimateMinutes: value.durationMinutes
+        estimateMinutes: value.durationMinutes,
+        subtasks: value.subtasks
       });
       if (!taskId) {
         setPlacementError('새 할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요.');
@@ -341,7 +350,7 @@ export function PlannerScreen() {
       date: weekDays.find((day) => day.key === value.day)?.isoDate,
       weekOffset: plannerWeekOffset,
       incrementCarryCount: placementDraft?.explicitCarryover === true,
-      ...(value.mode === 'existing-task' ? { taskPatch: { title: value.title, outcomeId: value.outcomeId } } : {})
+      ...(value.mode === 'existing-task' ? { taskPatch: { title: value.title, outcomeId: value.outcomeId, subtasks: value.subtasks } } : {})
     })) {
       if (value.mode === 'new-task' && taskId) removeTask(taskId);
       setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시간을 바꿔주세요.');
@@ -364,6 +373,9 @@ export function PlannerScreen() {
     const task = tasks.find((item) => item.id === queryTaskId);
     if (!task) return;
     if (queryAction === 'split') {
+      setEditingTask(null);
+      setAddSubtasks([]);
+      setAddNote('');
       setAddTitle(`${task.title} — 1단계`);
       setAddOutcomeId(task.outcomeId ?? '');
       setAddEstimate(String(getSplitEstimate(task.estimateMinutes)));
@@ -625,7 +637,7 @@ export function PlannerScreen() {
                               onClick={() => openBlock(block)}
                             >
                               <span><Clock3 size={11} /> {formatClock(block.startMinutes)}</span>
-                              <strong>{block.title}</strong>
+                              <strong>{block.title}</strong>{block.durationMinutes >= 60 && <SubtaskProgress items={tasks.find(task => task.id === block.taskId)?.subtasks} />}
                               <small>{formatMinutes(block.durationMinutes)}</small>
                             </button>
                           ))}
@@ -755,12 +767,13 @@ export function PlannerScreen() {
                 />
               </label>
             </div>
+            <SubtaskEditor value={addSubtasks} onChange={setAddSubtasks} />
             <div className="modal__actions">
               <button className="button button--secondary" type="button" onClick={() => {
                 setAddOpen(false);
                 setEditingTask(null);
               }}>취소</button>
-              <button className="button button--primary" type="submit" disabled={!addTitle.trim()}>
+              <button className="button button--primary" type="submit" disabled={!addTitle.trim() || !validSubtasks(addSubtasks)}>
                 {editingTask ? '변경 저장' : '할 일 추가'}
               </button>
             </div>
@@ -775,6 +788,7 @@ export function PlannerScreen() {
           onClose={() => setDeleteTaskCandidate(null)}
         >
           <p className="delete-task-summary"><strong>{deleteTaskCandidate.title}</strong></p>
+          <p>하위 할 일 {deleteTaskCandidate.subtasks?.length ?? 0}개도 함께 삭제됩니다.</p>
           <div className="modal__actions">
             <button className="button button--secondary" type="button" onClick={() => setDeleteTaskCandidate(null)}>취소</button>
             <button className="button button--delete" type="button" onClick={() => {

@@ -2,6 +2,7 @@ import { PlannerApiError } from '../api/plannerApi';
 
 export interface PlannerSaveProblem {
   status: 400;
+  kind: 'input' | 'precondition';
   code: string | null;
   detail: string;
   errors: Array<{ field: string; label: string; message: string }>;
@@ -79,7 +80,8 @@ export function plannerSaveProblem(error: unknown, localStored: boolean): Planne
   const problem = error.problem;
   const codes = ['validation-failed', 'invalid-planner-snapshot', 'malformed-json', 'invalid-request-header', 'invalid-precondition'];
   const code = typeof problem?.code === 'string' && codes.includes(problem.code) ? problem.code : null;
-  const rawErrors: unknown[] = Array.isArray(problem?.errors) ? problem.errors : [];
+  const kind = code === 'invalid-precondition' ? 'precondition' : 'input';
+  const rawErrors: unknown[] = kind === 'input' && Array.isArray(problem?.errors) ? problem.errors : [];
   const errors = rawErrors.slice(0, 5).flatMap((value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
     const item = value as Record<string, unknown>;
@@ -87,8 +89,10 @@ export function plannerSaveProblem(error: unknown, localStored: boolean): Planne
     return field ? [{ ...field, message: safeMessage(item.message) ?? '이 항목의 입력값을 확인해 주세요.' }] : [];
   });
   return {
-    status: 400, code,
-    detail: safeMessage(problem?.detail) ?? '서버가 저장할 내용을 받아들이지 못했습니다. 입력값을 확인해 주세요.',
+    status: 400, kind, code,
+    detail: kind === 'precondition'
+      ? '입력값의 문제가 아닙니다. 서버가 저장 버전 정보를 확인하지 못했습니다. 할 일이나 일정 내용을 바꾸지 말고 다시 저장해 주세요. 반복되면 앱 버전과 동기화 상태 확인이 필요합니다.'
+      : safeMessage(problem?.detail) ?? '서버가 저장할 내용을 받아들이지 못했습니다. 입력값을 확인해 주세요.',
     errors, additionalErrors: Math.max(0, rawErrors.length - errors.length), localStored
   };
 }

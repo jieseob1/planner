@@ -172,7 +172,7 @@ describe('Planner frontend core flows', () => {
     expect(screen.getByText(/시간 미정 목록에 추가했습니다/)).toBeInTheDocument();
     expect(capture).toHaveValue('');
 
-    await openRouteFromNavigation(user, '계획 · 주간 계획');
+    await openRouteFromNavigation(user, '일정 · 주간 시간표');
     expect(screen.getAllByText('배포 체크리스트 확인')).toHaveLength(1);
   });
 
@@ -293,7 +293,7 @@ describe('Planner frontend core flows', () => {
     await user.click(within(firstDialog).getByRole('button', { name: '취소' }));
     expect(screen.queryByRole('dialog', { name: '현재 계획을 초기화할까요?' })).not.toBeInTheDocument();
 
-    await openRouteFromNavigation(user, '계획 · 주간 계획');
+    await openRouteFromNavigation(user, '일정 · 주간 시간표');
     expect(screen.getByText('초기화 전에 남길 작업')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '현재 계획 초기화' }));
@@ -379,7 +379,7 @@ describe('Planner frontend core flows', () => {
 
   it('rejects invalid review metrics and applies a valid value to Goals', async () => {
     const user = userEvent.setup();
-    renderRoute('/review');
+    renderRoute('/review/legacy');
 
     await user.selectOptions(screen.getByLabelText('갱신할 결과'), 'outcome-revenue');
     const metric = screen.getByPlaceholderText('예: 24');
@@ -396,7 +396,9 @@ describe('Planner frontend core flows', () => {
     await user.click(screen.getByRole('button', { name: '반영' }));
     expect(screen.getByRole('button', { name: '반영됨' })).toBeInTheDocument();
 
-    await openRouteFromNavigation(user, '목표 · 목표와 지표');
+    await openRouteFromNavigation(user, '목표 · 기간별 목표');
+    await user.click(screen.getByText('기존 분기 결과와 지표'));
+    await user.click(screen.getByRole('link', { name: '기존 분기 결과 관리 열기' }));
     const revenueRow = screen.getByText('사이드 수익 월 80만원').closest('tr');
     expect(revenueRow).not.toBeNull();
     expect(within(revenueRow as HTMLTableRowElement).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '30');
@@ -407,7 +409,7 @@ describe('Planner frontend core flows', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 8, 2, 12, 0));
     const user = userEvent.setup();
-    renderRoute('/review');
+    renderRoute('/review/legacy');
 
     await completeReviewChoices(user);
     await user.click(screen.getByRole('button', { name: /주간 점검 완료/ }));
@@ -443,7 +445,7 @@ describe('Planner frontend core flows', () => {
   });
 
   it('opens the parent outcome stop confirmation from a carryover query', () => {
-    renderRoute('/goals?action=stop&task=task-diagram');
+    renderRoute('/goals/legacy?action=stop&task=task-diagram');
 
     const dialog = screen.getByRole('dialog', { name: 'Redis Streams 배포 중단 확인' });
     expect(within(dialog).getByText(/장애 복구 흐름 다이어그램 작성/)).toBeInTheDocument();
@@ -452,7 +454,7 @@ describe('Planner frontend core flows', () => {
 
   it('edits the annual plan and its selected outcome in one save', async () => {
     const user = userEvent.setup();
-    renderRoute('/goals');
+    renderRoute('/goals/legacy');
 
     await user.click(screen.getByRole('button', { name: '계획과 결과 편집' }));
     const dialog = screen.getByRole('dialog', { name: '계획 편집' });
@@ -493,7 +495,7 @@ describe('Planner frontend core flows', () => {
 
   it('records a goal decision', async () => {
     const user = userEvent.setup();
-    renderRoute('/goals');
+    renderRoute('/goals/legacy');
 
     const group = screen.getByRole('group', { name: /기술 글 6개 발행 결정/ });
     await user.click(within(group).getByRole('button', { name: '유지' }));
@@ -687,7 +689,7 @@ describe('Planner API synchronization', () => {
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
     expect(screen.getByText('기기 변경을 덮어쓰지 않고 보존했어요')).toBeInTheDocument();
     expect(window.localStorage.getItem(TEST_STORAGE_KEYS.snapshot)).toContain('충돌에서도 지킬 작업');
-    await openRouteFromNavigation(user, '계획 · 주간 계획');
+    await openRouteFromNavigation(user, '일정 · 주간 시간표');
     expect(screen.getByText('충돌에서도 지킬 작업')).toBeInTheDocument();
   });
 
@@ -722,7 +724,7 @@ describe('Planner API synchronization', () => {
     await user.type(screen.getByLabelText('빠른 메모'), '충돌 유도 작업{Enter}');
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
 
-    await openRouteFromNavigation(user, '계획 · 주간 계획');
+    await openRouteFromNavigation(user, '일정 · 주간 시간표');
     await user.click(screen.getByRole('button', { name: '세금계산서 발행 수정' }));
     const editDialog = screen.getByRole('dialog', { name: '할 일 수정' });
     const title = within(editDialog).getByLabelText('할 일');
@@ -812,7 +814,7 @@ describe('Planner API synchronization', () => {
     });
 
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
-    await openRouteFromNavigation(user, '계획 · 주간 계획');
+    await openRouteFromNavigation(user, '일정 · 주간 시간표');
     expect(screen.getByText('초기 조회 중 작성한 작업')).toBeInTheDocument();
     expect(apiMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
   });

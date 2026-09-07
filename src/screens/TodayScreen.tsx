@@ -27,6 +27,7 @@ import { DayTimeline, DAY_TIMELINE_HOUR_HEIGHT, type TimelineCreateInput } from 
 import { Modal } from '../components/Modal';
 import { SaveStatus } from '../components/SaveStatus';
 import { TaskEditorSheet } from '../components/TaskEditorSheet';
+import { SubtaskProgress } from '../components/SubtaskEditor';
 import type { Task, TimeBlock, TimeEntry } from '../domain/types';
 import {
   addLocalDateDays,
@@ -44,6 +45,7 @@ import { QUICK_CAPTURE_EVENT } from '../lib/quickCapture';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
+import { TodayGoalStrip, TodayReview } from '../components/TodayPeriodContext';
 
 const DAY_END_MINUTES = 24 * 60;
 const MEMO_STORAGE_KEY = 'goals-to-today.today-memo.v1';
@@ -256,6 +258,7 @@ function TodoPanel({
                   <button className="today-direct-todo__edit" type="button" title="할 일 수정" aria-label={`${task.title} 수정`} onClick={() => onEdit(task)}>
                     {task.pinned && <Star size={13} fill="currentColor" aria-label="Top 3" />}
                     <span>{task.title}</span>
+                    <SubtaskProgress items={task.subtasks} />
                   </button>
                   <small>
                     <Clock3 size={13} aria-hidden="true" /> {formatMinutes(task.estimateMinutes)}
@@ -297,8 +300,10 @@ function TodoPanel({
       )}
 
       <details className="today-direct-utility">
-        <summary><StickyNote size={15} /> 오늘 메모</summary>
-        <textarea value={memo} onChange={(event) => onMemoChange(event.target.value)} placeholder="실행 중 참고할 내용을 적어두세요." aria-label="오늘 메모" />
+        <summary><StickyNote size={15} /> 이전 기기 메모</summary>
+        <p>기존 메모에는 계정·날짜 정보가 없습니다. 자동으로 회고에 옮기지 않습니다. 새 메모는 아래 하루 마무리에 남겨주세요.</p>
+        <button type="button" onClick={() => onMemoChange(loadTodayMemo())}>이 기기의 이전 메모 확인</button>
+        {memo && <textarea value={memo} readOnly aria-label="이전 기기 메모 (읽기 전용)" />}
       </details>
 
       {canRecordManualTime && activeTasks.length > 0 && (
@@ -342,7 +347,7 @@ export function TodayScreen() {
   const today = getToday(new Date(), timeZone);
   const todayDate = today.isoDate;
   const [selectedDate, setSelectedDate] = useState(todayDate);
-  const [memo, setMemo] = useState(loadTodayMemo);
+  const [memo, setMemo] = useState('');
   const [manualMinutes, setManualMinutes] = useState('25');
   const [manualTaskId, setManualTaskId] = useState('');
   const [manualNotice, setManualNotice] = useState<{ entryId: string; label: string } | null>(null);
@@ -382,14 +387,6 @@ export function TodayScreen() {
   const elapsed = useTimerSeconds(timer?.startedAt ?? null, timer?.accumulatedSeconds ?? 0, timer?.paused ?? true);
   const plannedMinutes = selectedBlocks.filter((block) => !block.external).reduce((sum, block) => sum + block.durationMinutes, 0);
   const loggedSeconds = getLoggedSecondsForDate(timeEntries, selectedDate, timeZone);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(MEMO_STORAGE_KEY, memo);
-    } catch {
-      // The memo stays available in memory when storage is unavailable.
-    }
-  }, [memo]);
 
   useEffect(() => () => {
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
@@ -710,6 +707,8 @@ export function TodayScreen() {
         </section>
       )}
 
+      <TodayGoalStrip date={selectedDate} />
+
       <div className="today-direct-workspace">
         <section className="today-direct-timeline-column" aria-label={`${formatDateLabel(selectedDate)} 24시간 시간표`}>
           <div className="today-direct-timeline-heading">
@@ -748,6 +747,7 @@ export function TodayScreen() {
             tasks={tasks}
             onCompleteTask={(taskId) => updateTask(taskId, { status: tasks.find((task) => task.id === taskId)?.status === 'done' ? 'todo' : 'done' })}
             onEditTask={editTask}
+            onUpdateTask={updateTask}
             onCreate={createTimelineItem}
             onDragTaskEnd={() => setDraggingTask(null)}
             onRemoveBlock={removeBlockFromSchedule}
@@ -758,8 +758,10 @@ export function TodayScreen() {
           />
         </section>
 
-        {!isCompact && <aside className="today-direct-sidebar" aria-label="미배치 할 일">{todoPanel}</aside>}
+        {!isCompact && <aside className="today-direct-sidebar" aria-label="미배치 할 일">{todoPanel}<TodayReview date={selectedDate} expanded /></aside>}
       </div>
+
+      {isCompact && <TodayReview date={selectedDate} />}
 
       {isCompact && (
         <>

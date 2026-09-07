@@ -38,6 +38,11 @@ public class PlannerSnapshotValidator {
                 .collect(Collectors.toUnmodifiableSet());
 
         snapshot.tasks().forEach(task -> {
+            ensureUnique("tasks[].subtasks[].id", task.subtasksOrEmpty().stream().map(PlannerSnapshot.Subtask::id).toList());
+            if (task.completedAt() != null && (task.status() != PlannerSnapshot.TaskStatus.DONE
+                    || task.completedAt().isAfter(Instant.now().plus(MAX_CLIENT_CLOCK_SKEW)))) {
+                throw PlannerException.validation("tasks[].completedAt", "완료 시각은 완료된 할 일의 현재 또는 과거 시각이어야 합니다.");
+            }
             if (task.outcomeId() != null && !outcomeIds.contains(task.outcomeId())) {
                 throw PlannerException.validation("tasks[].outcomeId",
                         "할 일이 존재하지 않는 outcomeId를 참조합니다: " + task.outcomeId());
@@ -85,6 +90,14 @@ public class PlannerSnapshotValidator {
     }
 
     public void ensureMetricHistoryAppendOnly(PlannerSnapshot previous, PlannerSnapshot next) {
+        // An older client must not silently erase a checklist it cannot represent.
+        Map<String, PlannerSnapshot.Task> oldTasks = previous.tasks().stream().collect(Collectors.toMap(PlannerSnapshot.Task::id, task -> task));
+        for (var task : next.tasks()) {
+            var old = oldTasks.get(task.id());
+            if (task.subtasks() == null && old != null && !old.subtasksOrEmpty().isEmpty()) {
+                throw PlannerException.validation("tasks[].subtasks", "하위 할 일 데이터가 빠져 있습니다. 최신 화면을 다시 불러온 뒤 수정해 주세요. 전체 삭제는 빈 목록으로 명시해야 합니다.");
+            }
+        }
         Set<String> previousIds = previous.outcomes().stream()
                 .map(PlannerSnapshot.Outcome::id)
                 .collect(Collectors.toUnmodifiableSet());

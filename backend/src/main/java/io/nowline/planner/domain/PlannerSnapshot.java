@@ -48,9 +48,20 @@ public record PlannerSnapshot(
             @NotNull TaskStatus status,
             boolean pinned,
             @Min(0) @Max(10_000) int carryCount,
-            @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 4_000) String note
+            @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 4_000) String note,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Instant completedAt,
+            @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 100) List<@Valid @NotNull Subtask> subtasks
     ) {
+        public Task(String id, String title, String outcomeId, int estimateMinutes, TaskStatus status, boolean pinned, int carryCount, String note) {
+            this(id, title, outcomeId, estimateMinutes, status, pinned, carryCount, note, null, null);
+        }
+        public Task(String id, String title, String outcomeId, int estimateMinutes, TaskStatus status, boolean pinned, int carryCount, String note, Instant completedAt) {
+            this(id, title, outcomeId, estimateMinutes, status, pinned, carryCount, note, completedAt, null);
+        }
+        public List<Subtask> subtasksOrEmpty() { return subtasks == null ? List.of() : subtasks; }
     }
+
+    public record Subtask(@NotBlank @Size(max = 160) String id, @NotBlank @Size(max = 500) String title, @NotNull Boolean done) {}
 
     public record TimeBlock(
             @NotBlank @Size(max = 160) String id,

@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { nativePushEnabled, registerNativePushToken } from '../auth/nativePush';
 import { Link } from 'react-router-dom';
 import { getPlannerStorageKeys } from '../state/PlannerProvider';
+import { getPeriodDraftStorageKeys } from '../state/periodDraftStorage';
 import {
   cleanupNotificationRegistration,
   getOrCreateNotificationDeviceId,
@@ -34,6 +35,7 @@ const LEGACY_PRIVATE_STORAGE_KEYS = [
 
 export const getPrivateStorageKeys = (subject: string | null) => [
   ...LEGACY_PRIVATE_STORAGE_KEYS,
+  ...getPeriodDraftStorageKeys(subject),
   ...(subject ? Object.values(getPlannerStorageKeys(subject)) : []),
   ...(subject ? [notificationDeviceStorageKey(subject)] : [])
 ];

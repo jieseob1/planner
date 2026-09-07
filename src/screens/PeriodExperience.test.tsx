@@ -1,0 +1,114 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PeriodProvider } from '../state/PeriodProvider';
+import { PeriodGoalsScreen } from './PeriodGoalsScreen';
+import { PeriodReviewScreen } from './PeriodReviewScreen';
+import { periodApi } from '../api/periodApi';
+import { PlannerApiError } from '../api/plannerApi';
+import { documentId, emptyReview, periodRange, type PeriodDocument, type PeriodWrite } from '../domain/periods';
+
+const auth = vi.hoisted(() => ({ subject: 'test:period-ui' }));
+vi.mock('../auth/AuthProvider', () => ({ useAuth: () => auth }));
+vi.mock('../timezone/TimeZoneProvider', () => ({ useTimeZone: () => ({ timeZone: 'Asia/Seoul' }) }));
+vi.mock('../state/PlannerProvider', () => ({ usePlanner: () => ({ tasks: [], timeBlocks: [], timeEntries: [], hasActivePlan: true, saveStatus: 'saved', addTask: vi.fn() }) }));
+vi.mock('../api/periodApi', () => ({ periodApi: { list: vi.fn(), save: vi.fn(), history: vi.fn() } }));
+let server: PeriodDocument[];
+beforeEach(() => {
+  vi.clearAllMocks(); localStorage.clear(); server = []; auth.subject = 'test:period-ui';
+  vi.mocked(periodApi.list).mockImplementation(async () => structuredClone(server));
+  vi.mocked(periodApi.history).mockResolvedValue([]);
+  vi.mocked(periodApi.save).mockImplementation(async (write: PeriodWrite) => {
+    const existing = server.find(d => documentId(d) === documentId(write));
+    if ((existing?.revision ?? 0) !== write.expectedRevision) throw new PlannerApiError(412, '다른 기기와 충돌했습니다.');
+    const result: PeriodDocument = { revision: write.expectedRevision + 1, goal: write.goal, review: write.review, deleted: write.deleted, updatedAt: new Date().toISOString(), goalCheckpoints: existing?.goalCheckpoints ?? [] };
+    server = [...server.filter(d => documentId(d) !== documentId(result)), result];
+    return structuredClone(result);
+  });
+});
+const view = (route: string) => render(<PeriodProvider><MemoryRouter initialEntries={[route]}><Routes><Route path="/goals" element={<PeriodGoalsScreen />} /><Route path="/review" element={<PeriodReviewScreen />} /></Routes></MemoryRouter></PeriodProvider>);
+
+describe('period goal and reflection experience', () => {
+  it('creates, edits, completes and deletes a title-only goal without requiring a parent or metric', async () => {
+    const user = userEvent.setup(); view('/goals?period=week&date=2026-09-07');
+    await waitFor(() => expect(screen.getByRole('button', { name: '목표 추가' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: '목표 추가' }));
+    await user.type(screen.getByLabelText('목표 이름'), '작은 결과 하나');
+    await user.click(screen.getByRole('button', { name: '목표 저장' }));
+    await user.click(await screen.findByRole('button', { name: '작은 결과 하나 목표 수정' }));
+    await user.clear(screen.getByLabelText('목표 이름'));
+    await user.type(screen.getByLabelText('목표 이름'), '수정된 결과');
+    await user.click(screen.getByLabelText('목표를 달성했어요'));
+    await user.click(screen.getByRole('button', { name: '목표 저장' }));
+    const row = await screen.findByRole('button', { name: '수정된 결과 목표 수정' });
+    expect(within(row).getByText('100%')).toBeInTheDocument();
+    expect(server[0].goal).toMatchObject({ parentId: null, measurement: 'completion', done: true });
+    await user.click(row); await user.click(screen.getByRole('button', { name: '목표 삭제' }));
+    await user.click(screen.getByRole('button', { name: '삭제 확인' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: '수정된 결과 목표 수정' })).not.toBeInTheDocument());
+    expect(server[0].deleted).toBe(true);
+  });
+  it('allows daily reflection with no goals, keeps dates separate and reopens previous text', async () => {
+    const user = userEvent.setup(); view('/review?period=day&date=2026-09-07');
+    await user.type(await screen.findByLabelText('잘된 점'), '오늘은 작은 일을 마쳤다');
+    expect(screen.getByRole('link', { name: '회고 쓰기' })).toHaveAttribute('href', '#period-review-input');
+    expect(screen.getByLabelText('잘된 점').closest('form')).toHaveAttribute('id', 'period-review-input');
+    await user.click(screen.getByRole('button', { name: '기록 저장' }));
+    await screen.findByText('서버에 저장했습니다.');
+    await user.click(screen.getByRole('button', { name: '다음 기간' }));
+    expect(screen.getByLabelText('잘된 점')).toHaveValue('');
+    await user.type(screen.getByLabelText('막힌 점'), '다음날 기록');
+    await user.click(screen.getByRole('button', { name: '기록 저장' }));
+    await screen.findByText('서버에 저장했습니다.');
+    await user.click(screen.getByRole('button', { name: '이전 기간' }));
+    expect(screen.getByLabelText('잘된 점')).toHaveValue('오늘은 작은 일을 마쳤다');
+    expect(screen.getByLabelText('막힌 점')).toHaveValue('');
+    expect(server).toHaveLength(2);
+  });
+  it('keeps rejected local input and only advances its revision after explicit conflict choice', async () => {
+    const user = userEvent.setup();
+    const range = periodRange('day', '2026-09-07');
+    server = [{ revision: 1, goal: null, review: { ...emptyReview(range), well: '서버 원본' }, deleted: false, updatedAt: new Date().toISOString() }];
+    view('/review?period=day&date=2026-09-07');
+    await user.clear(await screen.findByLabelText('잘된 점'));
+    await user.type(screen.getByLabelText('잘된 점'), '내 입력 보존');
+    server[0] = { ...server[0], revision: 2, review: { ...server[0].review!, well: '다른 기기 내용' } };
+    await user.click(screen.getByRole('button', { name: '기록 저장' }));
+    await screen.findByText('최신 서버 내용과 비교');
+    expect(screen.getByLabelText('잘된 점')).toHaveValue('내 입력 보존');
+    expect(server[0].review?.well).toBe('다른 기기 내용');
+    expect(periodApi.save).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: '비교 완료 · 내 입력 선택' }));
+    await user.click(screen.getByRole('button', { name: '기록 저장' }));
+    await screen.findByText('서버에 저장했습니다.');
+    expect(server[0].revision).toBe(3);
+    expect(server[0].review?.well).toBe('내 입력 보존');
+  });
+  it('deletes only the selected reflection and permits writing it again', async () => {
+    const user = userEvent.setup();
+    const range = periodRange('day', '2026-09-07');
+    server = [{ revision: 1, goal: null, review: { ...emptyReview(range), well: '삭제 대상' }, deleted: false, updatedAt: new Date().toISOString() }];
+    view('/review?period=day&date=2026-09-07');
+    await user.click(await screen.findByRole('button', { name: '이 회고 삭제' }));
+    await user.click(screen.getByRole('button', { name: '회고 삭제 확인' }));
+    await screen.findByText('삭제된 회고입니다. 새로 작성해 저장할 수 있어요.');
+    expect(screen.getByLabelText('잘된 점')).toHaveValue('');
+    expect(server[0].deleted).toBe(true);
+    await user.type(screen.getByLabelText('잘된 점'), '다시 작성');
+    await user.click(screen.getByRole('button', { name: '기록 저장' }));
+    await waitFor(() => expect(server[0].deleted).toBe(false));
+    expect(server[0].review?.well).toBe('다시 작성');
+  });
+  it('restores a draft after route unmount but never gives it to another account', async () => {
+    const first = view('/review?period=day&date=2026-09-07');
+    fireEvent.change(await screen.findByLabelText('잘된 점'), { target: { value: '계정 A의 미저장 내용' } });
+    await waitFor(() => expect(localStorage.length).toBe(1)); first.unmount();
+    const second = view('/review?period=day&date=2026-09-07');
+    expect(await screen.findByLabelText('잘된 점')).toHaveValue('계정 A의 미저장 내용'); second.unmount();
+    auth.subject = 'test:other-account';
+    view('/review?period=day&date=2026-09-07');
+    expect(await screen.findByLabelText('잘된 점')).toHaveValue('');
+    expect(periodApi.save).not.toHaveBeenCalled();
+  });
+});

@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import type { DragEvent } from 'react';
 import type { Task } from '../domain/types';
 import { formatMinutes } from '../lib/format';
+import { SubtaskProgress } from './SubtaskEditor';
 
 interface TaskRowProps {
   task: Task;
@@ -81,6 +82,7 @@ export function TaskRow({
             )}
           </span>
           <span className="task-row__meta">
+            <SubtaskProgress items={task.subtasks} />
             {outcomeTitle && <span className="task-row__outcome">{outcomeTitle}</span>}
             <span className="task-row__duration">
               <Clock3 size={13} aria-hidden="true" />
@@ -107,6 +109,7 @@ export function TaskRow({
           )}
         </div>
         <div className="task-row__meta">
+          <SubtaskProgress items={task.subtasks} />
           {outcomeTitle && <span className="task-row__outcome">{outcomeTitle}</span>}
           <span className="task-row__duration">
             <Clock3 size={13} aria-hidden="true" />

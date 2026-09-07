@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { ArrowRight, CalendarClock, CalendarDays, Check, Clock3, ListChecks, Plus, Trash2 } from 'lucide-react';
-import type { DayKey, Outcome, Task } from '../domain/types';
+import type { DayKey, Outcome, Task, Subtask } from '../domain/types';
+import { SubtaskEditor } from './SubtaskEditor';
+import { validSubtasks } from '../domain/subtasks';
 import { formatClock, formatMinutes } from '../lib/format';
 import { Modal } from './Modal';
 
@@ -15,6 +17,7 @@ export interface TimeBlockEditorValue {
   day: DayKey;
   startMinutes: number;
   durationMinutes: number;
+  subtasks?: Subtask[];
 }
 
 interface TimeBlockSheetProps {
@@ -76,6 +79,8 @@ export function TimeBlockSheet({
   const firstTask = tasks.find((task) => task.id === (initialTaskId || tasks[0]?.id));
   const [title, setTitle] = useState((initialMode ?? fallbackMode) === 'existing-task' ? firstTask?.title ?? '' : initialTitle);
   const [outcomeId, setOutcomeId] = useState((initialMode ?? fallbackMode) === 'existing-task' ? firstTask?.outcomeId ?? '' : '');
+  const [taskSubtasks, setTaskSubtasks] = useState<Record<string, Subtask[]>>({});
+  const [newSubtasks, setNewSubtasks] = useState<Subtask[]>([]);
   const [day, setDay] = useState<DayKey>(initialDay);
   const [startMinutes, setStartMinutes] = useState(initialStartMinutes);
   const [endMinutes, setEndMinutes] = useState(() => Math.min(
@@ -84,6 +89,7 @@ export function TimeBlockSheet({
   ));
 
   const selectedTask = tasks.find((task) => task.id === taskId);
+  const subtasks = mode === 'existing-task' ? taskSubtasks[taskId] ?? selectedTask?.subtasks ?? [] : newSubtasks;
   const selectedTitle = title.trim();
   const endOptions = useMemo(
     () => includeExactTime(buildTimes(startMinutes + SLOT_MINUTES, DAY_END_MINUTES), endMinutes),
@@ -120,7 +126,7 @@ export function TimeBlockSheet({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedTitle || endMinutes <= startMinutes || (mode === 'existing-task' && !selectedTask)) return;
+    if (!selectedTitle || endMinutes <= startMinutes || (mode === 'existing-task' && !selectedTask) || (mode !== 'event' && !validSubtasks(subtasks))) return;
     onSave({
       blockId: initialBlockId,
       mode,
@@ -129,7 +135,8 @@ export function TimeBlockSheet({
       outcomeId: mode !== 'event' ? outcomeId || null : null,
       day,
       startMinutes,
-      durationMinutes: endMinutes - startMinutes
+      durationMinutes: endMinutes - startMinutes,
+      ...(mode !== 'event' ? { subtasks } : {})
     });
   };
 
@@ -212,6 +219,7 @@ export function TimeBlockSheet({
             {mode === 'existing-task' && <p className="field-help">제목과 목표 연결은 원래 할 일에도 반영됩니다. 시간 변경은 이 일정에만 적용됩니다.</p>}
           </div>
 
+        {mode !== 'event' && <SubtaskEditor key={mode === 'existing-task' ? taskId : 'new-task'} value={subtasks} onChange={items => mode === 'existing-task' ? setTaskSubtasks(current => ({ ...current, [taskId]: items })) : setNewSubtasks(items)} />}
         {days && days.length > 1 && (
           <div className="field-group">
             <span className="field-label"><CalendarDays size={16} /> 날짜</span>
@@ -282,7 +290,7 @@ export function TimeBlockSheet({
           )}
           <span className="time-block-actions__spacer" />
           <button className="button button--secondary" type="button" onClick={onClose}>취소</button>
-          <button className="button button--primary" type="submit" disabled={!selectedTitle}>
+          <button className="button button--primary" type="submit" disabled={!selectedTitle || (mode !== 'event' && !validSubtasks(subtasks))}>
             <Check size={16} /> {initialBlockId ? '변경 저장' : '추가'}
           </button>
         </div>

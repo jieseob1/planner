@@ -15,6 +15,7 @@ import {
   type PlannerReadResult
 } from '../api/plannerApi';
 import { createEmptySnapshot } from '../data/empty';
+import { cleanSubtasks, validSubtasks } from '../domain/subtasks';
 import type {
   AddTaskInput,
   DayKey,
@@ -1295,6 +1296,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   }, [isOnline, serverReady, snapshot, syncNow, syncPulse]);
 
   const addTask = useCallback((input: AddTaskInput): string => {
+    if (input.subtasks && !validSubtasks(input.subtasks)) return '';
     const title = input.title.trim();
     const estimateMinutes = Math.round(input.estimateMinutes);
     if (!title || title.length > 500 || !Number.isFinite(estimateMinutes) || estimateMinutes <= 0 || estimateMinutes > 10_080) return '';
@@ -1312,7 +1314,8 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         estimateMinutes,
         status: 'todo',
         pinned: false,
-        carryCount: 0
+        carryCount: 0,
+        ...(input.subtasks ? { subtasks: cleanSubtasks(input.subtasks) } : {})
       };
       added = true;
       return { ...current, tasks: [task, ...current.tasks] };
@@ -1325,6 +1328,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   }, [addTask]);
 
   const updateTask = useCallback((taskId: string, input: UpdateTaskInput): boolean => {
+    if (input.subtasks && !validSubtasks(input.subtasks)) return false;
     let updated = false;
     updateSnapshot((current) => {
       const existing = current.tasks.find((task) => task.id === taskId);
@@ -1348,9 +1352,13 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       const nextTask: Task = {
         ...existing,
         ...input,
+        ...(input.subtasks ? { subtasks: cleanSubtasks(input.subtasks) } : {}),
         title,
         estimateMinutes,
         outcomeId,
+        completedAt: input.status === undefined || input.status === existing.status
+          ? existing.completedAt
+          : input.status === 'done' ? new Date().toISOString() : undefined,
         note: input.note === undefined ? existing.note : input.note.trim() || undefined
       };
       updated = true;
@@ -1540,6 +1548,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   }, [updateSnapshot]);
 
   const saveTimeBlock = useCallback((input: SaveTimeBlockInput): boolean => {
+    if (input.taskPatch?.subtasks && !validSubtasks(input.taskPatch.subtasks)) return false;
     let saved = false;
     updateSnapshot((current) => {
       const task = input.taskId === null
@@ -1596,7 +1605,8 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         && targetWeek === 1
       );
       const updatedTasks = task && input.taskPatch
-        ? current.tasks.map((item) => item.id === task.id ? { ...item, title, outcomeId } : item)
+        ? current.tasks.map((item) => item.id === task.id ? { ...item, title, outcomeId,
+            ...(input.taskPatch?.subtasks ? { subtasks: cleanSubtasks(input.taskPatch.subtasks) } : {}) } : item)
         : current.tasks;
       const updatedBlocks = task && input.taskPatch
         ? current.timeBlocks.map((item) => item.taskId === task.id && !item.external ? { ...item, title } : item)
@@ -1748,7 +1758,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       return {
         ...current,
         timer: { taskId, startedAt: Date.now(), accumulatedSeconds: 0, paused: false },
-        tasks: current.tasks.map((task) => task.id === taskId ? { ...task, status: 'in-progress' } : task)
+        tasks: current.tasks.map((task) => task.id === taskId ? { ...task, status: 'in-progress', completedAt: undefined } : task)
       };
     });
   }, [updateSnapshot]);
@@ -1783,7 +1793,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         timer: null,
         timeEntries: [entry, ...current.timeEntries],
         tasks: current.tasks.map((task) => task.id === entry.taskId
-          ? { ...task, status: completion === 'done' ? 'done' : 'in-progress' }
+          ? { ...task, status: completion === 'done' ? 'done' : 'in-progress', completedAt: completion === 'done' ? new Date().toISOString() : undefined }
           : task)
       };
     });

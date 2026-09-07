@@ -189,7 +189,7 @@ describe('red-team interface recovery', () => {
     expect(screen.getByTestId('top-bar-actions')).toBeEmptyDOMElement();
   });
 
-  it('uses Korean navigation names and exposes one current planning step', () => {
+  it('uses four Korean primary destinations without a duplicate planning journey', () => {
     render(
       <MemoryRouter initialEntries={['/goals']}>
         <Routes>
@@ -201,13 +201,14 @@ describe('red-team interface recovery', () => {
     );
 
     const mainNavigation = screen.getByRole('navigation', { name: '주 메뉴' });
-    expect(within(mainNavigation).getByRole('link', { name: '목표 · 목표와 지표' })).toHaveAttribute('aria-current', 'page');
+    expect(within(mainNavigation).getByRole('link', { name: '목표 · 기간별 목표' })).toHaveAttribute('aria-current', 'page');
     expect(within(mainNavigation).queryByRole('link', { name: 'Goals' })).not.toBeInTheDocument();
 
-    const journey = screen.getByRole('navigation', { name: '연간 목표에서 주간 회고까지의 계획 흐름' });
-    const currentSteps = within(journey).getAllByRole('link').filter((link) => link.hasAttribute('aria-current'));
+    expect(screen.queryByRole('navigation', { name: '연간 목표에서 주간 회고까지의 계획 흐름' })).not.toBeInTheDocument();
+    const currentSteps = within(mainNavigation).getAllByRole('link').filter((link) => link.hasAttribute('aria-current'));
     expect(currentSteps).toHaveLength(1);
-    expect(currentSteps[0]).toHaveAccessibleName('1연간·분기 방향');
+    expect(currentSteps[0]).toHaveAccessibleName('목표 · 기간별 목표');
+    expect(within(mainNavigation).getAllByRole('link')).toHaveLength(4);
   });
 
   it('keeps successful Settings cards actionable when sibling requests fail', async () => {
@@ -347,10 +348,13 @@ describe('red-team interface recovery', () => {
       `planner.mvp.snapshot.v1:${ownSuffix}`,
       `planner.mvp.sync.v1:${ownSuffix}`,
       `planner.mvp.last-conflict.v1:${ownSuffix}`,
-      `nowline.active-plan.absent.v1:${ownSuffix}`
+      `nowline.active-plan.absent.v1:${ownSuffix}`,
+      `goalstotoday.period-draft.v1:${ownSuffix}:new-goal`,
+      `goalstotoday.period-draft.v1:${ownSuffix}:review-day-2026-09-07`
     ];
     ownKeys.forEach((key) => window.localStorage.setItem(key, 'private'));
     window.localStorage.setItem(`planner.mvp.snapshot.v1:${otherSuffix}`, 'other-account');
+    window.localStorage.setItem(`goalstotoday.period-draft.v1:${otherSuffix}:new-goal`, 'other-draft');
     const ownDeviceKey = `nowline.notification-device-id.v1:subject:${ownSuffix}`;
     const otherDeviceKey = `nowline.notification-device-id.v1:subject:${otherSuffix}`;
     window.localStorage.setItem(ownDeviceKey, 'device-id');
@@ -375,6 +379,7 @@ describe('red-team interface recovery', () => {
     expect(window.localStorage.getItem(otherDeviceKey)).toBe('other-device-id');
     expect(window.localStorage.getItem('nowline.notification-device-id.v1')).toBe('ambiguous-legacy-device');
     expect(window.localStorage.getItem(`planner.mvp.snapshot.v1:${otherSuffix}`)).toBe('other-account');
+    expect(window.localStorage.getItem(`goalstotoday.period-draft.v1:${otherSuffix}:new-goal`)).toBe('other-draft');
   });
 
   it('keeps reauthentication available inside a failed account deletion dialog', async () => {

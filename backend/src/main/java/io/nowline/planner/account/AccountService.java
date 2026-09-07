@@ -76,6 +76,8 @@ public class AccountService {
         result.put("preferences", preferences.get(userId));
         result.put("entitlement", entitlements.get(userId));
         result.put("activePlanner", planner.find(userId).orElse(null));
+        result.put("periodDocuments", jdbc.queryForList("SELECT document_id, revision, body, deleted, updated_at FROM period_document WHERE user_id = ?", id(userId)));
+        result.put("periodDocumentHistory", jdbc.queryForList("SELECT document_id, revision, body, created_at FROM period_document_history WHERE user_id = ? ORDER BY document_id, revision", id(userId)));
 
         List<Map<String, Object>> planExports = new ArrayList<>();
         for (PlanHistory.Summary summary : plans.list(userId)) {

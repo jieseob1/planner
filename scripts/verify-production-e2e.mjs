@@ -79,8 +79,7 @@ const runAndWaitForPlannerSave = async (page, action, label) => {
   const responsePromise = page.waitForResponse((response) => (
     response.request().method() === 'PUT' && response.url().endsWith('/api/v1/planner')
   ), { timeout: 20_000 });
-  await action();
-  const response = await responsePromise;
+  const [response] = await Promise.all([responsePromise, action()]);
   if (!response.ok()) {
     const requestHeaders = response.request().headers();
     fail(`${label} save failed with ${response.status()} (If-Match: ${requestHeaders['if-match'] ?? 'missing'}, If-None-Match: ${requestHeaders['if-none-match'] ?? 'missing'}): ${await response.text()}`);
@@ -91,6 +90,93 @@ const runAndWaitForPlannerSave = async (page, action, label) => {
 const activateAndWaitForPlannerSave = async (page, locator, label, key = 'Enter') => (
   runAndWaitForPlannerSave(page, () => activateByKeyboard(page, locator, key), label)
 );
+
+const writePeriodDocument = async (page, action) => {
+  const saved = page.waitForResponse(response => response.request().method() === 'PUT'
+    && response.url().endsWith('/api/v1/period-documents'));
+  const [response] = await Promise.all([saved, action()]);
+  if (!response.ok()) fail(`Period write failed: HTTP ${response.status()} ${await response.text()}`);
+  return response.json();
+};
+
+// Real Spring/MySQL round trip, separate from the retained legacy review assertions.
+const exercisePeriodDocuments = async (page, frontendUrl) => {
+  const title = `기간 목표 E2E ${randomUUID().slice(0, 8)}`;
+  const goalUrl = `${frontendUrl}/goals?period=week&date=2026-09-07`;
+  await page.goto(goalUrl);
+  await page.getByRole('button', { name: '목표 추가', exact: true }).click();
+  await page.getByLabel('목표 이름', { exact: true }).fill(title);
+  const created = await writePeriodDocument(page, () => page.getByRole('button', { name: '목표 저장', exact: true }).click());
+  if (created.revision !== 1 || created.goal.parentId !== null) fail('Title-only goal must not require a parent');
+  await page.getByRole('button', { name: `${title} 목표 수정`, exact: true }).waitFor();
+  await page.reload();
+  await page.getByRole('button', { name: `${title} 목표 수정`, exact: true }).click();
+  await page.getByLabel('목표 이름', { exact: true }).fill(`${title} 수정`);
+  await page.getByLabel('목표를 달성했어요', { exact: true }).check();
+  const updated = await writePeriodDocument(page, () => page.getByRole('button', { name: '목표 저장', exact: true }).click());
+  if (updated.revision !== 2 || !updated.goal.done) fail('Goal completion/edit did not persist');
+
+  await page.goto(`${frontendUrl}/review?period=day&date=2026-09-07`);
+  await page.getByLabel('잘된 점', { exact: true }).fill('목표 없이도 자유롭게 기록하는 하루');
+  const review = await writePeriodDocument(page, () => page.getByRole('button', { name: '기록 저장', exact: true }).click());
+  if (!review.goalCheckpoints.some(goal => goal.id === created.goal.id && goal.done)) fail('Review must snapshot goal measurements');
+  await page.reload();
+  const well = page.getByLabel('잘된 점', { exact: true });
+  await well.waitFor();
+  if (await well.inputValue() !== '목표 없이도 자유롭게 기록하는 하루') fail('Daily reflection did not survive reload');
+  await page.getByRole('button', { name: '다음 기간', exact: true }).click();
+  await page.waitForURL(/period=day&date=2026-09-08$/);
+  await page.getByText('2026-09-08', { exact: true }).waitFor();
+  if (await page.getByLabel('잘된 점', { exact: true }).inputValue() !== '') fail('Reflections leaked into another date');
+
+  await page.goto(goalUrl);
+  await page.getByRole('button', { name: `${title} 수정 목표 수정`, exact: true }).click();
+  await page.getByRole('button', { name: '목표 삭제', exact: true }).click();
+  const deleted = await writePeriodDocument(page, () => page.getByRole('button', { name: '삭제 확인', exact: true }).click());
+  if (!deleted.deleted || deleted.revision !== 3) fail('Goal deletion did not persist');
+  await page.reload();
+  await page.getByRole('heading', { name: '작은 목표 하나부터 시작해요', exact: true }).waitFor();
+  if (await page.getByRole('button', { name: `${title} 수정 목표 수정`, exact: true }).count()) fail('Deleted goal remains visible');
+};
+
+const exerciseSubtasks = async (page, frontendUrl) => {
+  const title = `하위 작업 E2E ${randomUUID().slice(0, 8)}`;
+  await page.goto(`${frontendUrl}/today`);
+  await waitForPlannerSaved(page);
+  await page.getByLabel('빠른 메모', { exact: true }).fill(title);
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '추가', exact: true }).click(), 'Subtask parent create');
+  await page.getByRole('button', { name: `${title} 수정`, exact: true }).click();
+  await page.getByRole('button', { name: '하위 할 일 추가', exact: true }).click();
+  await page.getByLabel('하위 할 일 1 제목', { exact: true }).fill('원인 확인');
+  await page.getByRole('button', { name: '하위 할 일 추가', exact: true }).click();
+  await page.getByLabel('하위 할 일 2 제목', { exact: true }).fill('회귀 테스트');
+  await page.getByLabel('원인 확인 완료', { exact: true }).check();
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '변경 저장', exact: true }).click(), 'Subtask create');
+  await page.reload();
+  await waitForPlannerSaved(page);
+  await page.getByRole('button', { name: `${title} 수정`, exact: true }).click();
+  if (!await page.getByLabel('원인 확인 완료', { exact: true }).isChecked()) fail('Subtask completion lost after reload');
+  if (await page.getByLabel('상태', { exact: true }).inputValue() !== 'todo') fail('Subtask completion unexpectedly completed the parent');
+  const previousViewport = page.viewportSize();
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.getByLabel('하위 할 일 2 제목', { exact: true }).fill('모바일 회귀 테스트');
+  await page.getByRole('button', { name: '하위 할 일 2 위로', exact: true }).click();
+  await assertNoDocumentOverflow(page, 'Subtask editor 320px');
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '변경 저장', exact: true }).click(), 'Mobile subtask edit');
+  await page.setViewportSize(previousViewport);
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: `${title} 다음 빈 시간에 배치`, exact: true }).click(), 'Subtask parent schedule');
+  await page.getByRole('button', { name: new RegExp(`^${title},`) }).click();
+  if (await page.getByLabel('하위 할 일 1 제목', { exact: true }).inputValue() !== '모바일 회귀 테스트') fail('Timetable does not share task subtasks');
+  await page.getByRole('button', { name: '하위 할 일 2 삭제', exact: true }).click();
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '하위 할 일 저장', exact: true }).click(), 'Timetable subtask delete');
+  await page.getByRole('button', { name: '할 일 상세 수정·삭제', exact: true }).click();
+  if (await page.getByLabel('하위 할 일 2 제목', { exact: true }).count()) fail('Deleted subtask remains in task editor');
+  await page.getByRole('button', { name: '할 일 삭제', exact: true }).click();
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '할 일과 연결 기록 삭제', exact: true }).click(), 'Subtask parent cascade delete');
+  await page.reload();
+  await waitForPlannerSaved(page);
+  if (await page.getByRole('button', { name: `${title} 수정`, exact: true }).count()) fail('Deleted parent remains after reload');
+};
 
 const runCompose = (args, environment, allowFailure = false) => {
   const result = spawnSync('docker', [
@@ -386,15 +472,15 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
 
   await page.goto(`${frontendUrl}/planner`);
   await activateByKeyboard(page, page.getByRole('button', { name: /새 할 일/ }));
-  await page.getByRole('dialog', { name: '새 할 일' }).getByLabel('할 일').fill('운영 E2E 회고 준비');
+  await page.getByRole('dialog', { name: '새 할 일' }).getByLabel('할 일', { exact: true }).fill('운영 E2E 회고 준비');
   await activateAndWaitForPlannerSave(
     page,
-    page.getByRole('dialog', { name: '새 할 일' }).getByRole('button', { name: '할 일 추가' }),
+    page.getByRole('dialog', { name: '새 할 일' }).getByRole('button', { name: '할 일 추가', exact: true }),
     'Planner task creation'
   );
   await page.getByRole('button', { name: '운영 E2E 회고 준비 일정에 배치', exact: true }).waitFor();
 
-  await page.goto(`${frontendUrl}/goals`);
+  await page.goto(`${frontendUrl}/goals/legacy`);
   await activateByKeyboard(page, page.getByRole('button', { name: '계획과 결과 편집' }));
   const planEditor = page.getByRole('dialog', { name: '계획 편집' });
   await planEditor.getByLabel('연간 방향').fill('운영 가능한 계획 서비스 완성');
@@ -405,7 +491,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   );
   await page.getByText('운영 가능한 계획 서비스 완성').waitFor();
 
-  await page.goto(`${frontendUrl}/review`);
+  await page.goto(`${frontendUrl}/review/legacy`);
   await page.getByPlaceholder('예: 24').fill('1');
   await page.getByPlaceholder('예: 결제 대시보드 9월 2일 확인').fill('운영 E2E 주간 점검 근거');
   await activateAndWaitForPlannerSave(
@@ -430,6 +516,8 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
     'Review completion'
   );
   await page.getByRole('heading', { name: '다음 주의 기준이 정해졌습니다.' }).waitFor();
+  await exercisePeriodDocuments(page, frontendUrl);
+  await exerciseSubtasks(page, frontendUrl);
   await page.goto(`${frontendUrl}/today`);
   await waitForPlannerSaved(page);
 
@@ -582,21 +670,23 @@ const exerciseMobile = async (frontendUrl) => {
   await page.getByRole('heading', { name: '이번 주 할 일과 일정을 함께 봅니다.' }).waitFor();
   await page.getByRole('button', { name: /새 할 일/ }).click();
   const addDialog = page.getByRole('dialog', { name: '새 할 일' });
-  await addDialog.getByLabel('할 일').fill('모바일 계획함 QA');
+  await addDialog.getByLabel('할 일', { exact: true }).fill('모바일 계획함 QA');
   await runAndWaitForPlannerSave(
     page,
-    () => addDialog.getByRole('button', { name: '할 일 추가' }).click(),
+    () => addDialog.getByRole('button', { name: '할 일 추가', exact: true }).click(),
     'Mobile planner task creation'
   );
   await page.getByRole('button', { name: '모바일 계획함 QA 일정에 배치', exact: true }).waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Planner');
 
   await page.goto(`${frontendUrl}/goals`);
-  await page.getByRole('heading', { name: '결과와 결정을 한 화면에서 봅니다.' }).waitFor();
+  await page.getByRole('heading', { name: '기간별 목표', exact: true }).waitFor();
+  await page.getByRole('button', { name: '목표 추가', exact: true }).waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Goals');
 
   await page.goto(`${frontendUrl}/review`);
-  await page.getByRole('heading', { name: '한 주를 닫고, 다음 주를 고릅니다.' }).waitFor();
+  await page.getByRole('heading', { name: '돌아보기', exact: true }).waitFor();
+  await page.getByLabel('잘된 점', { exact: true }).waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Review');
 
   await page.goto(`${frontendUrl}/plans`);

@@ -26,7 +26,9 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import type { DayKey, Task, TimeBlock } from '../domain/types';
+import type { DayKey, Task, TimeBlock, UpdateTaskInput } from '../domain/types';
+import { SubtaskEditor, SubtaskProgress } from './SubtaskEditor';
+import { validSubtasks } from '../domain/subtasks';
 import {
   createDefaultRange,
   DAY_END_MINUTES,
@@ -79,6 +81,7 @@ interface DayTimelineProps {
   tasks: Task[];
   onCompleteTask: (taskId: string) => void;
   onEditTask?: (task: Task) => void;
+  onUpdateTask?: (taskId: string, input: UpdateTaskInput) => boolean;
   onCreate: (input: TimelineCreateInput) => boolean;
   onDragTaskEnd: () => void;
   onRemoveBlock: (block: TimeBlock) => void;
@@ -142,6 +145,7 @@ interface BlockActionPanelProps {
   onCommit: (range: DayMinuteRange, date?: string, title?: string) => boolean;
   onCompleteTask: (taskId: string) => void;
   onEditTask?: (task: Task) => void;
+  onUpdateTask?: (taskId: string, input: UpdateTaskInput) => boolean;
   onRemove: () => void;
   onScheduleTaskAgain: (task: Task) => void;
   onStartTask: (taskId: string) => void;
@@ -236,6 +240,7 @@ function BlockActionPanel({
   onCommit,
   onCompleteTask,
   onEditTask,
+  onUpdateTask,
   onRemove,
   onScheduleTaskAgain,
   onStartTask
@@ -248,6 +253,8 @@ function BlockActionPanel({
   const [dateValue, setDateValue] = useState(block.date);
   const [titleValue, setTitleValue] = useState(block.title);
   const [error, setError] = useState('');
+  const [subtasks, setSubtasks] = useState(task?.subtasks ?? []);
+  const [subtaskNotice, setSubtaskNotice] = useState('');
 
   useDialogFocusTrap(panelRef);
 
@@ -323,6 +330,15 @@ function BlockActionPanel({
           </div>
         ) : (
           <>
+            {task && onUpdateTask && <form onSubmit={event => {
+              event.preventDefault();
+              if (!validSubtasks(subtasks)) return;
+              setSubtaskNotice(onUpdateTask(task.id, { subtasks }) ? '변경을 적용했습니다. 상단의 서버 저장 상태를 확인하세요.' : '적용하지 못했습니다. 입력과 동기화 상태를 확인해 주세요.');
+            }}>
+              <SubtaskEditor value={subtasks} onChange={items => { setSubtasks(items); setSubtaskNotice(''); }} />
+              <div className="subtask-panel-save"><button className="button button--primary button--small" type="submit" disabled={!validSubtasks(subtasks)}>하위 할 일 저장</button></div>
+              {subtaskNotice && <p role="status" className="field-help">{subtaskNotice}</p>}
+            </form>}
             <div className="today-direct-block-quick-actions" aria-label="15분 단위 시간 조정">
               <button type="button" disabled={originalRange.startMinutes === 0} onClick={() => commit(moveRange(originalRange, originalRange.startMinutes - 15))}><ChevronUp />15분 앞당기기</button>
               <button type="button" disabled={originalRange.endMinutes === DAY_END_MINUTES} onClick={() => commit(moveRange(originalRange, originalRange.startMinutes + 15))}><ChevronUp className="is-down" />15분 미루기</button>
@@ -409,6 +425,7 @@ export function DayTimeline({
   tasks,
   onCompleteTask,
   onEditTask,
+  onUpdateTask,
   onCreate,
   onDragTaskEnd,
   onRemoveBlock,
@@ -1016,6 +1033,7 @@ export function DayTimeline({
                     <span className="today-direct-block__kind">
                       {block.external ? <LockKeyhole /> : block.taskId ? <CircleCheck /> : <Calendar />}
                       {block.external ? 'Google · 읽기 전용' : block.taskId ? '할 일' : '독립 일정'}
+                      {task && block.durationMinutes >= 60 && <SubtaskProgress items={task.subtasks} />}
                     </span>
                     <strong>{task?.pinned && <Star size={12} fill="currentColor" aria-label="Top 3" />}{block.title}</strong>
                     <span className="today-direct-block__time">
@@ -1159,6 +1177,7 @@ export function DayTimeline({
 
       {activeBlock && (
         <BlockActionPanel
+          key={activeBlock.id}
           block={activeBlock}
           ownsTimer={runningTaskId !== null && runningTaskId === activeBlock.taskId}
           timerBusy={runningTaskId !== null && runningTaskId !== activeBlock.taskId}
@@ -1168,6 +1187,7 @@ export function DayTimeline({
           onCommit={(range, targetDate, title) => commitBlockAction(activeBlock, range, targetDate, title)}
           onCompleteTask={onCompleteTask}
           onEditTask={onEditTask}
+          onUpdateTask={onUpdateTask}
           onRemove={() => { onRemoveBlock(activeBlock); setActiveBlockId(null); }}
           onScheduleTaskAgain={onScheduleTaskAgain}
           onStartTask={onStartTask}

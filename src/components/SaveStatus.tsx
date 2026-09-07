@@ -42,19 +42,25 @@ export function SaveStatus() {
   }, [saveStatus]);
 
   if (saveStatus === 'validation-error') {
+    const isPrecondition = saveProblem?.kind === 'precondition';
+    const title = isPrecondition ? '저장 버전 정보를 확인해 주세요' : '저장할 내용을 확인해 주세요';
     const firstError = saveProblem?.errors[0];
-    const summary = firstError ? `${firstError.label}: ${firstError.message}` : saveProblem?.detail ?? copy.detail;
+    const summary = isPrecondition
+      ? '입력 내용은 유지하고 저장 버전 정보를 확인해야 합니다.'
+      : firstError ? `${firstError.label}: ${firstError.message}` : saveProblem?.detail ?? copy.detail;
     const localCopy = saveProblem?.localStored === false
       ? '변경 내용은 현재 화면에 유지됩니다. 기기 저장에도 실패했으니 이 탭을 닫지 마세요.'
-      : '변경 내용은 이 기기에 보관 중입니다. 초기화하지 말고 입력값을 수정해 주세요.';
+      : isPrecondition
+        ? '변경 내용은 이 기기에 보관 중입니다. 초기화하거나 로그아웃하지 마세요.'
+        : '변경 내용은 이 기기에 보관 중입니다. 초기화하지 말고 입력값을 수정해 주세요.';
     return <>
       <div className="save-validation-notice" role="status" aria-live="polite" aria-atomic="true">
         <TriangleAlert size={15} aria-hidden="true" />
-        <div><strong>{copy.label}</strong><small>{summary}</small>
+        <div><strong>{isPrecondition ? '저장 버전 확인 필요' : copy.label}</strong><small>{summary}</small>
           <button className="text-button" type="button" onClick={() => setValidationOpen(true)}>오류 확인</button>
         </div>
       </div>
-      {validationOpen && <Modal title="저장할 내용을 확인해 주세요" description={localCopy} onClose={() => setValidationOpen(false)} className="save-validation-modal">
+      {validationOpen && <Modal title={title} description={localCopy} onClose={() => setValidationOpen(false)} className="save-validation-modal">
         <p>{saveProblem?.detail ?? copy.detail}</p>
         {saveProblem?.errors.length ? <ul>{saveProblem.errors.map((error, index) => <li key={`${error.field}-${index}`}>
           <strong>{error.label}</strong><p>{error.message}</p><code>{error.field}</code>
@@ -62,7 +68,7 @@ export function SaveStatus() {
         {saveProblem && saveProblem.additionalErrors > 0 && <p>추가로 확인할 항목이 {saveProblem.additionalErrors}개 있습니다.</p>}
         <p className="save-validation-code">HTTP 400{saveProblem?.code ? ` · ${saveProblem.code}` : ''}</p>
         <div className="save-validation-actions">
-          <button className="button button--ghost" type="button" onClick={() => setValidationOpen(false)}>입력값 확인하기</button>
+          <button className="button button--ghost" type="button" onClick={() => setValidationOpen(false)}>{isPrecondition ? '나중에 확인' : '입력값 확인하기'}</button>
           <button className="primary-button" type="button" onClick={() => { setValidationOpen(false); retrySync(); }}>다시 저장</button>
         </div>
       </Modal>}

@@ -3,6 +3,16 @@ import { PlannerApiError } from '../api/plannerApi';
 import { plannerSaveProblem } from './saveProblem';
 
 describe('safe planner validation messages', () => {
+  it('distinguishes conditional-save metadata errors from editable input errors', () => {
+    const result = plannerSaveProblem(new PlannerApiError(400, 'PRIVATE', {
+      code: 'invalid-precondition',
+      detail: 'If-Match에는 현재 계정에 발급된 strong ETag 한 개가 필요합니다.'
+    }), true);
+    expect(result).toMatchObject({ kind: 'precondition', code: 'invalid-precondition', localStored: true });
+    expect(result?.detail).toContain('입력값의 문제가 아닙니다');
+    expect(result?.detail).not.toContain('PRIVATE');
+  });
+
   it('retains validation field paths and translates normal Bean Validation messages', () => {
     const problem = plannerSaveProblem(new PlannerApiError(400, 'unused raw message', {
       code: 'validation-failed', detail: '요청 값이 유효성 규칙을 충족하지 않습니다.',

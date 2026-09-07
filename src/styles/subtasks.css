@@ -1,0 +1,25 @@
+.subtask-progress { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2, #475467); font-size: 12px; font-weight: 600; }
+.subtask-editor { min-width: 0; margin: 16px 0; padding: 16px; border: 1px solid var(--border, #e4e7ec); border-radius: 12px; background: #f8faff; }
+.subtask-editor__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.subtask-editor__hint { margin: 8px 0 12px; font-size: 12px; line-height: 1.6; color: var(--text-2, #475467); }
+.subtask-editor__list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.subtask-editor__list li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 4px; align-items: center; }
+.subtask-editor .subtask-editor__check { display: flex; flex-direction: row; justify-content: center; align-items: center; margin: 0; min-height: 44px; }
+.subtask-editor .subtask-editor__check input { width: 19px; height: 19px; margin: 0; accent-color: var(--primary, #3457ef); }
+.subtask-editor .subtask-editor__title { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--border, #e4e7ec); border-radius: 8px; background: var(--surface, #fff); color: var(--text, #202733); font: inherit; font-size: 14px; }
+.subtask-editor .is-done .subtask-editor__title { text-decoration: line-through; color: var(--text-2, #475467); }
+.subtask-editor__tools { display: flex; }
+.subtask-editor__tools button { display: inline-flex; justify-content: center; align-items: center; min-width: 36px; min-height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-2, #475467); }
+.subtask-editor__tools button:hover:not(:disabled) { background: #e6ecff; }
+.subtask-editor__tools button:disabled { opacity: .3; cursor: default; }
+.subtask-editor__footer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.subtask-editor button:focus-visible, .subtask-editor input:focus-visible { outline: 2px solid #3457ef; outline-offset: 2px; }
+.today-direct-block-panel .subtask-editor { margin-top: 0; }
+.subtask-panel-save { display: flex; justify-content: flex-end; margin: -6px 0 16px; }
+.today-direct-block .subtask-progress { color: inherit; font-size: 10px; }
+@media (max-width: 520px) {
+  .subtask-editor { padding: 12px; }
+  .subtask-editor__list li { grid-template-columns: 32px minmax(0, 1fr); }
+  .subtask-editor__tools { grid-column: 2; justify-content: flex-end; }
+  .subtask-editor__tools button { min-width: 44px; }
+}

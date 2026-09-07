@@ -17,7 +17,7 @@ describe('TaskEditorSheet', () => {
     fireEvent.change(screen.getByLabelText('상태'), { target: { value: 'todo' } });
     fireEvent.change(screen.getByLabelText('메모'), { target: { value: '메모 수정' } });
     fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
-    expect(onSave).toHaveBeenCalledWith({ title: '새 제목', outcomeId: null, estimateMinutes: 37, status: 'todo', note: '메모 수정' });
+    expect(onSave).toHaveBeenCalledWith({ title: '새 제목', outcomeId: null, estimateMinutes: 37, status: 'todo', note: '메모 수정', subtasks: [] });
     expect(onClose).toHaveBeenCalledOnce();
   });
   it('keeps a failed edit open and does not claim success', () => {

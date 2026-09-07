@@ -82,6 +82,17 @@ try {
     ) VALUES (
       '${userId}', 7, 1, 0, 2026, '복구 훈련 데이터', 3, '백업 무결성 검증', '2026-09-30', '', '${planId}'
     );
+    INSERT INTO planner_task (user_id, task_id, sort_order, title, estimate_minutes, status, pinned, carry_count, completed_at)
+    VALUES ('${userId}', 'recovery-task', 0, '완료 시점 복구', 25, 'done', FALSE, 0, '2026-09-07 03:10:00.123456');
+    INSERT INTO planner_subtask (user_id, task_id, subtask_id, title, done, sort_order) VALUES
+      ('${userId}', 'recovery-task', 'child-one', '하위 할 일 복구', TRUE, 0),
+      ('${userId}', 'recovery-task', 'child-two', '다음 단계 복구', FALSE, 1);
+    INSERT INTO period_document (user_id, document_id, revision, body, deleted) VALUES
+      ('${userId}', 'goal-recovery', 1, JSON_OBJECT('revision', 1, 'goal', JSON_OBJECT('id', 'goal-recovery', 'title', '기간 목표 복구', 'current', 2), 'deleted', FALSE), FALSE),
+      ('${userId}', 'review-day-2026-09-07', 1, JSON_OBJECT('revision', 1, 'review', JSON_OBJECT('id', 'review-day-2026-09-07', 'well', '하루 회고 복구'), 'deleted', FALSE), FALSE);
+    INSERT INTO period_document_history (user_id, document_id, revision, body, mutation_id, request_hash)
+    SELECT user_id, document_id, revision, body, CONCAT('restore-', document_id), SHA2(CAST(body AS CHAR), 256)
+    FROM period_document WHERE user_id = '${userId}';
   `);
 
   const fingerprintQuery = `
@@ -89,8 +100,19 @@ try {
       p.revision, p.annual_direction, p.quarter_focus)
     FROM app_user u JOIN planner_aggregate p USING (user_id)
     WHERE u.user_id = '${userId}';
+    SELECT CONCAT_WS('|', 'task', task_id, status, DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s.%f'))
+    FROM planner_task WHERE user_id = '${userId}' ORDER BY task_id;
+    SELECT CONCAT_WS('|', 'subtask', task_id, subtask_id, title, done, sort_order)
+    FROM planner_subtask WHERE user_id = '${userId}' ORDER BY task_id, sort_order;
+    SELECT CONCAT_WS('|', 'period', document_id, revision, deleted, SHA2(CAST(body AS CHAR), 256))
+    FROM period_document WHERE user_id = '${userId}' ORDER BY document_id;
+    SELECT CONCAT_WS('|', 'history', document_id, revision, mutation_id, request_hash, SHA2(CAST(body AS CHAR), 256))
+    FROM period_document_history WHERE user_id = '${userId}' ORDER BY document_id, revision;
   `;
   const before = mysql(database, fingerprintQuery).trim();
+  if (before.split('\n').length !== 8 || !before.includes('2026-09-07 03:10:00.123456') || !before.includes('child-two')) {
+    throw new Error('Recovery fixture must contain planner, completed task, two subtasks, two period documents and two history rows');
+  }
   const dumpStartedAt = performance.now();
   const dump = spawnSync('docker', [
     'exec', '--env', `MYSQL_PWD=${databasePassword}`, container,
@@ -120,6 +142,7 @@ try {
 
   console.log(JSON.stringify({
     result: 'production recovery drill passed',
+    scope: 'isolated local fixture; no production database was read or changed',
     database: 'MySQL 8.4',
     snapshotRpo: '0 rows lost',
     backupSeconds: Number(backupSeconds.toFixed(2)),

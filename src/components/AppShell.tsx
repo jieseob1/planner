@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, CheckCircle2, Compass, Flag, Layers3, LogOut, Plus, RotateCcw, Settings, ShieldCheck, Target } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Compass, Flag, LogOut, Plus, RotateCcw, Settings, ShieldCheck, Target } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Modal } from './Modal';
@@ -14,17 +14,9 @@ import { nativePushEnabled } from '../auth/nativePush';
 
 const navItems = [
   { to: '/today', label: '오늘', contextLabel: '오늘 실행', icon: CheckCircle2 },
-  { to: '/planner', label: '계획', contextLabel: '주간 계획', icon: CalendarDays },
-  { to: '/goals', label: '목표', contextLabel: '목표와 지표', icon: Target },
-  { to: '/review', label: '회고', contextLabel: '주간 회고', icon: Flag },
-  { to: '/plans', label: '계획함', contextLabel: '연간·분기 계획', icon: Layers3 }
-];
-
-const journeyItems = [
-  { to: '/goals', label: '연간·분기 방향', paths: ['/goals'] },
-  { to: '/planner', label: '주간 계획', paths: ['/planner'] },
-  { to: '/today', label: '오늘 실행', paths: ['/today'] },
-  { to: '/review', label: '주간 회고', paths: ['/review'] }
+  { to: '/planner', label: '일정', contextLabel: '주간 시간표', icon: CalendarDays },
+  { to: '/goals', label: '목표', contextLabel: '기간별 목표', icon: Target },
+  { to: '/review', label: '돌아보기', contextLabel: '기록과 회고', icon: Flag }
 ];
 
 export function AppShell() {
@@ -38,8 +30,11 @@ export function AppShell() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState('');
   const isToday = pathname === '/today';
-  const currentNavItem = navItems.find((item) => item.to === pathname)
-    ?? (pathname === '/admin' ? { contextLabel: '운영 관리' } : pathname === '/settings' ? { contextLabel: '설정과 연동' } : navItems[0]);
+  const currentNavItem = navItems.find((item) => item.to === pathname || pathname.startsWith(`${item.to}/`))
+    ?? (pathname === '/admin' ? { contextLabel: '운영 관리' }
+      : pathname === '/settings' ? { contextLabel: '설정과 연동' }
+      : pathname === '/plans' ? { contextLabel: '계획 보관함' }
+      : navItems[0]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -176,21 +171,6 @@ export function AppShell() {
             </button>
           </div>
         </header>
-        {hasActivePlan && !['/plans', '/settings', '/admin'].includes(pathname) ? (
-          <nav className="plan-journey" aria-label="연간 목표에서 주간 회고까지의 계획 흐름">
-            {journeyItems.map((item, index) => (
-              <NavLink
-                key={`${item.to}-${item.label}`}
-                to={item.to}
-                className={clsx('plan-journey__item', item.paths.includes(pathname) && 'is-active')}
-                aria-current={item.paths.includes(pathname) ? 'step' : undefined}
-              >
-                <span>{index + 1}</span>
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        ) : null}
         <main id="main-content" className="main-content" tabIndex={-1}>
           <Outlet />
         </main>
@@ -213,7 +193,7 @@ export function AppShell() {
         <Modal
           eyebrow="계획 관리"
           title="현재 계획을 초기화할까요?"
-          description="현재 활성 계획과 실행 화면의 목표, 작업, 시간 기록, 회고를 보관하고 새 계획 온보딩으로 이동합니다. 이 작업은 되돌릴 수 없습니다."
+          description="현재 활성 계획의 분기 결과·할 일·시간 기록·기존 주간 회고를 보관하고 새 계획 온보딩으로 이동합니다. 기간별 목표와 날짜별 돌아보기 기록은 그대로 유지됩니다. 이 초기화는 되돌릴 수 없습니다."
           onClose={() => {
             if (!resetBusy) setResetConfirmOpen(false);
           }}
