@@ -23,6 +23,29 @@ export function verifyImportedManifest(manifest, configDigest) {
   assert.equal(manifest.config?.digest, configDigest, 'Imported image config differs from the published manifest');
 }
 
+export function verifyRuntimeImageDigests(status, tag, configDigest, readManifest) {
+  assert.equal(status.id, configDigest, 'CRI image config differs from the published image');
+  assert.ok(status.repoTags?.includes(tag), 'CRI image is missing the release tag');
+  const verify = (digest, depth = 0) => {
+    assert.match(digest || '', /^sha256:[a-f0-9]{64}$/);
+    assert.ok(depth < 4, 'Unexpected recursive image index');
+    const manifest = readManifest(digest);
+    if (manifest.config) verifyImportedManifest(manifest, configDigest);
+    else {
+      // kind/Docker 29 may wrap the single-platform manifest in an OCI archive
+      // index and expose that index as the Pod imageID. Follow it, never trust
+      // the generated import tag or digest without checking the actual config.
+      assert.equal(manifest.manifests?.length, 1, 'Expected a single-image import index');
+      verify(manifest.manifests[0].digest, depth + 1);
+    }
+  };
+  return (status.repoDigests || []).map((reference) => {
+    const digest = reference.match(/@(?<digest>sha256:[a-f0-9]{64})$/)?.groups.digest;
+    verify(digest);
+    return digest;
+  });
+}
+
 export function verifyWorkloads(deployments, pods, release) {
   for (const component of components) {
     const name = `nowline-${component}`;
@@ -46,7 +69,7 @@ export function verifyWorkloads(deployments, pods, release) {
       assert.ok(container?.ready, `${pod.metadata.name}: container not ready`);
       assert.equal(pod.spec.containers.find((c) => c.name === component)?.image, image.tag);
       const runtimeDigest = container.imageID?.match(/sha256:[a-f0-9]{64}$/)?.[0];
-      assert.ok([image.configDigest, ...image.nodeDigests].includes(runtimeDigest), `${pod.metadata.name}: running image ID does not match the imported release`);
+      assert.ok([image.configDigest, ...image.nodeDigests].includes(runtimeDigest), `${pod.metadata.name}: running image ID ${container.imageID} does not match the imported release`);
     }
   }
 }

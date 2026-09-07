@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync, rmSync,
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { components, imageTag, validateRelease, verifyImage, verifyImportedManifest, verifyWorkloads } from './lib/mac-mini-release.mjs';
+import { components, imageTag, validateRelease, verifyImage, verifyImportedManifest, verifyRuntimeImageDigests, verifyWorkloads } from './lib/mac-mini-release.mjs';
 
 const revision = process.env.NOWLINE_RELEASE_SHA;
 const images = Object.fromEntries(components.map((name) => [name, process.env[`NOWLINE_${name.toUpperCase()}_IMAGE`]]));
@@ -88,13 +88,14 @@ if (process.argv.includes('--verify')) {
       const tag = imageTag(component, revision);
       run('docker', ['tag', images[component], tag]);
       run('kind', ['load', 'docker-image', tag, '--name', 'nowline-local'], { stdio: 'inherit' });
-      const nodeDigests = nodes.map((node) => {
+      const nodeDigests = nodes.flatMap((node) => {
         const rows = run('docker', ['exec', node, 'ctr', '-n', 'k8s.io', 'images', 'list']).split('\n');
         const fields = rows.find((line) => line.split(/\s+/)[0] === tag)?.split(/\s+/);
         assert.match(fields?.[2] || '', /^sha256:[a-f0-9]{64}$/, `${node}: imported image missing`);
-        const manifest = JSON.parse(run('docker', ['exec', node, 'ctr', '-n', 'k8s.io', 'content', 'get', fields[2]]));
-        verifyImportedManifest(manifest, configDigest);
-        return fields[2];
+        const readManifest = (digest) => JSON.parse(run('docker', ['exec', node, 'ctr', '-n', 'k8s.io', 'content', 'get', digest]));
+        verifyImportedManifest(readManifest(fields[2]), configDigest);
+        const { status } = JSON.parse(run('docker', ['exec', node, 'crictl', 'inspecti', tag]));
+        return [fields[2], ...verifyRuntimeImageDigests(status, tag, configDigest, readManifest)];
       });
       release.images[component] = { published: images[component], tag, configDigest, nodeDigests };
     }
@@ -127,6 +128,7 @@ if (process.argv.includes('--verify')) {
       console.log(kube('rollout', 'status', `deployment/${name}`, '--timeout=300s').trim());
     }
     await waitFor('ready image IDs', () => verifyWorkloads(kubeJson('get', 'deployments'), kubeJson('get', 'pods'), release));
+    console.log('All Ready Pods match the verified release image IDs');
     await verifyPublic(revision);
     // Keep the operator checkout and boot scripts on the release that actually passed health checks.
     if (git('branch', '--list', 'main')) git('switch', 'main');

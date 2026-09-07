@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { spawnSync } from 'node:child_process';
-import { components, imageRepository, imageTag, validateRelease, verifyImage, verifyImportedManifest, verifyWorkloads } from './mac-mini-release.mjs';
+import { components, imageRepository, imageTag, validateRelease, verifyImage, verifyImportedManifest, verifyRuntimeImageDigests, verifyWorkloads } from './mac-mini-release.mjs';
 
 const revision = 'a'.repeat(40);
 const digest = `sha256:${'b'.repeat(64)}`;
@@ -45,6 +45,23 @@ test('compare image config digests independently of Docker classic/containerd im
   assert.throws(() => verifyImportedManifest({ config: { digest: otherDigest } }, digest));
   assert.throws(() => verifyImportedManifest({ manifests: [{ digest }] }, digest));
   assert.throws(() => verifyImportedManifest({}, undefined));
+});
+test('verify CRI import index image IDs through the actual single-platform manifest', () => {
+  const tag = imageTag('backend', revision);
+  const status = { id: otherDigest, repoTags: [tag], repoDigests: [`docker.io/library/import-date@${digest}`] };
+  const manifestDigest = `sha256:${'d'.repeat(64)}`;
+  const readManifest = (ref) => ref === digest
+    ? { manifests: [{ digest: manifestDigest }] } : { config: { digest: otherDigest } };
+  assert.deepEqual(verifyRuntimeImageDigests(status, tag, otherDigest, readManifest), [digest]);
+  const f = fixture();
+  f.pods.items[0].status.containerStatuses[0].imageID = status.repoDigests[0];
+  f.release.images.backend.nodeDigests = verifyRuntimeImageDigests(status, tag, otherDigest, readManifest);
+  verifyWorkloads(f.deployments, f.pods, f.release);
+  assert.throws(() => verifyRuntimeImageDigests({ ...status, id: digest }, tag, otherDigest, readManifest));
+  assert.throws(() => verifyRuntimeImageDigests({ ...status, repoTags: ['wrong:tag'] }, tag, otherDigest, readManifest));
+  assert.throws(() => verifyRuntimeImageDigests(status, tag, otherDigest, () => ({ config: { digest } })));
+  assert.throws(() => verifyRuntimeImageDigests(status, tag, otherDigest, () => ({ manifests: [{ digest }] })));
+  assert.throws(() => verifyRuntimeImageDigests(status, tag, otherDigest, () => ({ manifests: [] })));
 });
 for (const [label, mutate] of [
   ['wrong runtime digest despite matching tag', (f) => { f.pods.items[0].status.containerStatuses[0].imageID = `sha256:${'d'.repeat(64)}`; }],
