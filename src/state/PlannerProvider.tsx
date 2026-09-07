@@ -49,6 +49,7 @@ import {
   timeRangesOverlap
 } from '../lib/timeBlocks';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
+import { plannerSaveProblem, type PlannerSaveProblem } from './saveProblem';
 
 const LEGACY_STORAGE_KEY = 'planner.mvp.snapshot.v1';
 const LEGACY_SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
@@ -64,6 +65,7 @@ export type SaveStatus =
   | 'saving'
   | 'offline'
   | 'retry'
+  | 'validation-error'
   | 'conflict'
   | 'storage-error';
 
@@ -80,6 +82,7 @@ export interface SyncConflict {
 
 export interface PlannerContextValue extends PlannerSnapshot {
   saveStatus: SaveStatus;
+  saveProblem: PlannerSaveProblem | null;
   isOnline: boolean;
   plannerReady: boolean;
   hasActivePlan: boolean;
@@ -831,6 +834,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const onlineRef = useRef(isOnline);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(isOnline ? 'checking' : 'offline');
+  const [saveProblem, setSaveProblem] = useState<PlannerSaveProblem | null>(null);
   const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
   const [serverReady, setServerReady] = useState(false);
   const serverReadyRef = useRef(false);
@@ -920,6 +924,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     removedTimeBlocksRef.current.clear();
     const localStored = writeLocalSnapshot(storageKeys, serverSnapshot);
     const metadataStored = acknowledgeSnapshot(revision, etag, acknowledgedSnapshotKey);
+    setSaveProblem(null);
     setSaveStatus(localStored && metadataStored ? 'saved' : 'storage-error');
   }, [acknowledgeSnapshot, storageKeys]);
 
@@ -928,6 +933,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     const updated = updater(current);
     const next = updated === current ? current : withDerivedOutcomeMetrics(updated, new Date(), timeZone);
     if (next !== current) {
+      setSaveProblem(null);
       snapshotRef.current = next;
       setSnapshot(next);
       hasStoredSnapshotRef.current = true;
@@ -986,6 +992,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         idempotencyKey: createIdempotencyKey()
       };
     pendingWriteRef.current = pendingWrite;
+    setSaveProblem(null);
     setSaveStatus('saving');
     let scheduleFollowUp = false;
 
@@ -1016,6 +1023,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       }
     } catch (error) {
       if (requestEpoch !== resetEpochRef.current) return;
+      const rejectedSave = plannerSaveProblem(error, localStored);
       if (error instanceof PlannerConflictError) {
         pendingWriteRef.current = null;
         try {
@@ -1032,6 +1040,11 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         } catch {
           markConflict();
         }
+      } else if (rejectedSave) {
+        // A rejected write is still dirty and stays in account-scoped local storage.
+        // Keep the submitted revision; never reset or hydrate over the local edits.
+        setSaveProblem(rejectedSave);
+        setSaveStatus('validation-error');
       } else {
         setSaveStatus(onlineRef.current ? 'retry' : 'offline');
       }
@@ -1907,6 +1920,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   const value = useMemo<PlannerContextValue>(() => ({
     ...snapshot,
     saveStatus,
+    saveProblem: saveStatus === 'validation-error' ? saveProblem : null,
     isOnline,
     plannerReady,
     hasActivePlan,
@@ -1944,6 +1958,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   }), [
     snapshot,
     saveStatus,
+    saveProblem,
     isOnline,
     plannerReady,
     hasActivePlan,

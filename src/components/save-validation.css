@@ -1,0 +1,15 @@
+.save-validation-notice { display: flex; align-items: flex-start; gap: 7px; max-width: min(360px, 50vw); min-width: 0; color: #9b4316; white-space: normal; text-align: left; }
+.save-validation-notice > svg { flex-shrink: 0; margin-top: 2px; }
+.save-validation-notice > div { min-width: 0; }
+.save-validation-notice strong, .save-validation-notice small { display: block; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.save-validation-notice small { color: #765c4c; max-width: 100%; }
+.save-validation-notice button { font-size: 11px; min-height: 32px; padding: 3px 0; color: #8c431c; }
+.save-validation-notice button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.save-validation-modal > p { font-size: 14px; line-height: 1.7; }
+.save-validation-modal ul { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 12px; }
+.save-validation-modal li { padding: 13px; border: 1px solid #ebdfd5; border-radius: 10px; background: #fffaf6; overflow-wrap: anywhere; }
+.save-validation-modal li strong { font-size: 14px; }
+.save-validation-modal li p { margin: 6px 0; font-size: 13px; }
+.save-validation-modal code, .save-validation-code { font-size: 11px; color: #6b7280; overflow-wrap: anywhere; }
+.save-validation-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 18px; }
+@media (max-width: 600px) { .save-validation-notice { max-width: 46vw; } .save-validation-actions > button { flex: 1; } }

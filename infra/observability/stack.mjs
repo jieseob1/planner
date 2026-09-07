@@ -58,7 +58,9 @@ export function buildStack() {
     configMap('nowline-grafana-dashboard', {'dashboard.json': read('dashboard.json')}),
     configMap('nowline-fluent-bit', {'fluent-bit.conf': read('fluent-bit.conf'), 'parsers.conf': read('parsers.conf'), 'sanitize.lua': read('sanitize.lua')})];
   items.push(workload('prometheus', {uid: 65534, port: 9090, probePath: '/-/ready', serviceAccountName: 'nowline-prometheus',
-    args: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.path=/prometheus', '--storage.tsdb.retention.time=5d', '--storage.tsdb.retention.size=2GB', '--query.max-concurrency=4', '--query.timeout=20s', '--web.enable-admin-api=false'],
+    // Admin/lifecycle APIs are disabled by default; do not pass a boolean value
+    // to their switch-only command-line flags.
+    args: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.path=/prometheus', '--storage.tsdb.retention.time=5d', '--storage.tsdb.retention.size=2GB', '--query.max-concurrency=4', '--query.timeout=20s'],
     resource: resources('150m', '256Mi', '1', '768Mi'),
     mounts: [mount('config', '/etc/prometheus', true), mount('data', '/prometheus'), mount('credentials', '/etc/metrics-secret', true), mount('kubelet-ca', '/etc/kubelet-ca', true)],
     volumes: [configVolume('nowline-prometheus'), dataVolume('nowline-prometheus'), secretVolume('nowline-prometheus-oauth'), {name: 'kubelet-ca', configMap: {name: 'nowline-kubelet-ca'}}]}));

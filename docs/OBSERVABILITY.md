@@ -38,6 +38,8 @@ The same `sanitize.lua` tested by the container check runs before Loki output. I
 
 Source applications must still avoid logging request bodies and credentials: a text filter cannot identify an arbitrary unlabeled secret or reliably reconstruct multiline secret values. CRI partial fragments are dropped; this is intentionally lossy for very long lines. The collector retry spool is ephemeral local state and can contain the already-existing raw source logs before processing; it is never a public mount. Collector Pod recreation loses positions and pending spool; `Read_from_Head false` prevents bulk backfill, so brief restart gaps are possible. This is operational debugging, not a complete audit log.
 
+Every tail input explicitly uses a 16 KiB initial buffer and 32 KiB maximum; the initial buffer cannot exceed its maximum. Do not rely on a version-dependent default chunk size when setting the maximum.
+
 Curated queries in Grafana Explore:
 
 ```logql
@@ -89,6 +91,8 @@ Runtime mode checks all controllers Ready and PVCs Bound; every Ready backend Po
 For installation/startup, runtime mode retries the same complete checks every two seconds for at most 150 seconds. Each Kubernetes/public HTTP operation has a five-second cap within that shared deadline. Empty first-scrape or first-ingestion results stay failures until real data arrives; timeout exits nonzero with the last concise failure. CI should give this command at least 180 seconds including process startup. Static mode performs no runtime wait.
 
 The isolated Grafana container test uses the same 384 MiB / 0.5 CPU limits as deployment. First-start migrations have a bounded 75-second readiness budget because other integration suites can share the Docker VM. A terminated/OOM container fails immediately; a failure includes its state and up to 30 sanitized log lines before that exact temporary container is removed. Increasing the readiness budget does not bypass the healthy-database or anonymous-401 checks. Identity provisioning re-reads full client representations (without `--fields`) and verifies existing client secrets remain equal without printing them.
+
+Container verification also starts Prometheus using the exact manifest arguments/configuration and Fluent Bit using the exact four tail inputs. Network-disabled fixtures use nonfunctional credentials, temporary storage and synthetic log files; no cluster credentials or real host logs are mounted. It checks Prometheus readiness, its disabled-admin flag and the API's explicit disabled response, plus all four SQLite offset databases. Negative variants replay the two observed startup defects: `--web.enable-admin-api=false` is rejected by the pinned switch-only CLI, and a 64 KiB chunk with a 32 KiB maximum prevents tail initialization. The real deployment omits admin/lifecycle switches, preserving their disabled defaults. This Prometheus version returns HTTP 500 with `admin APIs disabled` for the disabled snapshot route; that denial is checked by reason, not mistaken for an enabled API.
 
 ## Primary sources checked 2026-09-07
 

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { buildStack, renderStack, images, namespace, context } from '../infra/observability/stack.mjs';
 import { waitReady, verifyWaitReady } from '../infra/observability/wait-ready.mjs';
+import { verifyManifestStartup } from '../infra/observability/startup-check.mjs';
 
 const directory = fileURLToPath(new URL('../infra/observability/', import.meta.url));
 const read = (name) => readFileSync(new URL(name, `file://${directory}`), 'utf8');
@@ -72,6 +73,14 @@ assert.equal(loki.limits_config.retention_period, '72h');
 assert.equal(loki.compactor.retention_enabled, true);
 assert.equal(loki.compactor.delete_request_store, 'filesystem');
 assert(pick('Deployment', 'nowline-prometheus').spec.template.spec.containers[0].args.includes('--storage.tsdb.retention.size=2GB'));
+assert(pick('Deployment', 'nowline-prometheus').spec.template.spec.containers[0].args.every(arg => !/^--web\.enable-(admin-api|lifecycle)/.test(arg)), 'Prometheus admin/lifecycle switches must remain absent and disabled by default');
+const tailInputs = read('fluent-bit.conf').split(/^\[INPUT\]\s*$/m).slice(1).map(block => block.split(/^\[/m)[0]);
+assert.equal(tailInputs.length, 4);
+for (const block of tailInputs) {
+  const chunk = Number(block.match(/^\s*Buffer_Chunk_Size\s+(\d+)k\s*$/mi)?.[1]);
+  const maximum = Number(block.match(/^\s*Buffer_Max_Size\s+(\d+)k\s*$/mi)?.[1]);
+  assert(chunk > 0 && chunk <= maximum && maximum <= 32, 'Each tail buffer must explicitly satisfy 0 < chunk <= maximum <= 32 KiB');
+}
 assert.equal(stack.filter(item => item.kind === 'PersistentVolumeClaim').reduce((sum, item) => sum + parseFloat(item.spec.resources.requests.storage), 0), 9);
 const collector = pick('DaemonSet', 'nowline-fluent-bit').spec.template.spec;
 assert.equal(collector.automountServiceAccountToken, false);
@@ -108,6 +117,7 @@ if (args.includes('--containers')) {
   run('docker', [...promBase, 'check', 'rules', '/etc/prometheus/rules.yml']);
   run('docker', [...base, images.loki, '-config.file=/fluent-bit/etc/nowline/loki.yml', '-verify-config=true']);
   run('docker', [...base, '--tmpfs', '/state', images['fluent-bit'], '--dry-run', '-c', '/fluent-bit/etc/nowline/fluent-bit.conf']);
+  await verifyManifestStartup();
   // Test the actual deployed Lua code in the actual collector, not a JS rewrite.
   const fixtures = [
     {log: 'ERROR ordinary-positive-control database connection timed out', stream: 'stderr'},

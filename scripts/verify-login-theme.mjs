@@ -31,9 +31,11 @@ try {
     clients: [{ clientId: 'theme-qa', enabled: true, publicClient: true, standardFlowEnabled: true, redirectUris: [`${base}/callback`] }],
   }));
   browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const auth = `${base}/idp/realms/theme-qa/protocol/openid-connect/auth?${new URLSearchParams({ client_id: 'theme-qa', redirect_uri: `${base}/callback`, response_type: 'code', scope: 'openid', kc_locale: 'ko' })}`;
+  // OIDC uses ui_locales. Keep the browser English so CI proves the explicit
+  // client preference works rather than accidentally inheriting the host locale.
+  const auth = `${base}/idp/realms/theme-qa/protocol/openid-connect/auth?${new URLSearchParams({ client_id: 'theme-qa', redirect_uri: `${base}/callback`, response_type: 'code', scope: 'openid', ui_locales: 'ko' })}`;
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
-    const page = await browser.newPage({ viewport });
+    const page = await browser.newPage({ viewport, locale: 'en-US' });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(auth);
@@ -58,6 +60,10 @@ try {
     await page.locator('a[href*="reset-credentials"]').click();
     await page.locator('#username').waitFor();
     await page.screenshot({ path: `${output}keycloak-recovery-${viewport.width}.png`, fullPage: true });
+    const englishAuth = new URL(auth);
+    englishAuth.searchParams.set('ui_locales', 'en');
+    await page.goto(englishAuth.href);
+    assert.equal(await page.locator('#kc-page-title').innerText(), 'Pick up where you left off');
     assert.deepEqual(errors, [], 'Login page JS errors');
     await page.close();
   }
