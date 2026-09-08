@@ -170,7 +170,7 @@ Docker Compose만 사용할 때는 `npm run beta:up`, `npm run verify:beta:runti
 
 외부 사용자는 [https://goalstotoday.com](https://goalstotoday.com)으로 접속합니다. `127.0.0.1:4189`는 Goals to Today 전용 Cloudflare Tunnel의 origin으로만 사용하며 라우터 포트나 Kubernetes Service를 인터넷에 직접 열지 않습니다. 기존 Mac mini SSH 터널은 별도 tunnel이라 웹 배포·재시작의 영향을 받지 않습니다.
 
-`main`에 push하면 CI(프론트·백엔드·매니페스트·E2E) 통과 후 ARM64 이미지를 GHCR에 게시하고, Mac mini의 `kind-nowline-local / nowline-local`에 자동 배포합니다. 배포 작업은 DB·로그인 데이터 백업, 이미지 교체, Ready Pod의 실제 이미지 ID와 공개 `/version.json` 검증까지 마쳐야 성공합니다. 실패하면 이전 Pod 템플릿으로 롤백하며 DB 백업은 보존합니다. 현재 배포 버전은 [version.json](https://goalstotoday.com/version.json)에서 확인할 수 있습니다. 실행기 설치·재배포·복구는 [자동 배포 운영 문서](docs/MAIN_AUTODEPLOY.md)를 참고하세요.
+`main`에 push하면 CI(프론트·백엔드·매니페스트·E2E) 통과 후 ARM64 이미지를 GHCR에 게시하고, Mac mini의 `kind-nowline-local / nowline-local`에 자동 배포합니다. 앱 배포는 DB·로그인 데이터 백업, 이미지 교체, Ready Pod의 실제 이미지 ID와 공개 `/version.json` 검증까지 수행합니다. 앱 배포 도중 실패하면 이전 Pod 템플릿으로 롤백하며 DB 백업은 보존합니다. 이후 모니터링 수집과 일일 백업 스케줄 등록·백업 최신성까지 확인해야 전체 CI가 성공합니다. 이 후속 운영 점검이 실패하면 CI는 실패하지만 이미 성공한 앱 배포를 자동으로 되돌리지는 않습니다. 현재 배포 버전은 [version.json](https://goalstotoday.com/version.json)에서 확인할 수 있습니다. 실행기 설치·재배포·복구는 [자동 배포 운영 문서](docs/MAIN_AUTODEPLOY.md)를 참고하세요.
 
 ## 5분 단일 사용자 개발 실행
 

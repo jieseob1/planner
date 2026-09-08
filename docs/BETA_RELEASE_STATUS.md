@@ -23,6 +23,8 @@
 - 실제 Spring/MySQL과 인증된 데스크톱·모바일 브라우저 E2E가 통과했습니다. Todo/하위 할 일 CRUD, 하위 목표 저장·새로고침·삭제, 월간 일정 생성·날짜 변경·삭제, AI 미설정 시 차단을 포함합니다. Google은 격리 모의 서버 계약 검사이며 실계정 연동 증거가 아닙니다.
 - main CI/실제 배포는 아래 링크의 해당 커밋 결과로 확인합니다. 네이티브 프로젝트 동기화를 스토어 빌드나 실기기 알림 성공으로 해석하지 않습니다.
 - 실제 배포 식별: [main CI](https://github.com/jieseob1/planner/actions/workflows/ci.yml)와 [공개 버전](https://goalstotoday.com/version.json)의 SHA, 서버 release 상태와 Pod image ID를 함께 비교합니다.
+- 첫 배포 `986c73b`: [CI/실제 배포](https://github.com/jieseob1/planner/actions/runs/34181150647), [Android 디버그 APK·iOS 시뮬레이터 빌드](https://github.com/jieseob1/planner/actions/runs/34181150649), [CodeQL](https://github.com/jieseob1/planner/actions/runs/34181150663) 모두 성공. 별도 SSH 재검사로 실제 backend/frontend/Keycloak 이미지 ID와 공개 SHA 일치, backend 4개 타깃·JVM/컨테이너 지표·Loki 로그·Grafana 비로그인 차단을 확인했습니다.
+- 해당 배포 후 실제 서버 백업(135,879 bytes)을 네트워크 격리 MySQL 8.4.10에 복원했습니다. 앱 32개·로그인 100개 테이블과 109개 외래키 검사, 서비스 realm·Flyway 검사가 통과했고 임시 컨테이너 제거도 확인했습니다. 동일 시점 원본 행 수 기준선은 제공하지 않아 원본과의 행 수 동등성은 `not-supplied`입니다. 이 결과는 로컬 백업의 복원 가능성 증거이며 외부 보관·재해 복구 완료를 뜻하지 않습니다.
 
 ## 아직 운영자가 준비해야 하는 것
 
@@ -39,6 +41,6 @@
 - 백오피스: [운영 관리](https://goalstotoday.com/admin), `nowline-admin` 역할 필요. 조회용이며 개인 계획 내용을 제공하지 않습니다.
 - 모니터링: [Grafana](https://goalstotoday.com/ops/grafana/) → Dashboards → Nowline → 운영 요약/API·저장 오류/서버·JVM·DB/중앙 로그.
 - 매일: 저장·로그인 실패, 메모리, 백업 최신 시각, 피드백을 확인합니다. 새 배포가 없더라도 백업이 실행되어야 합니다.
-- Mac mini 재부팅 후: 사용자 로그인, 컨테이너/k8s/터널, 배포 runner, 백업 LaunchAgent 순서로 확인합니다. 보안 해제나 자동 로그인을 임의로 설정하지 않았습니다.
+- Mac mini 재부팅 후: 컨테이너/k8s/터널, 배포 runner, 백업 서비스 등록 여부와 최신성을 확인합니다. GUI가 없는 SSH 환경은 user 도메인 등록을 지원하지만, 이번 작업에서 실제 재부팅 후 자동 재등록은 검증하지 않았습니다. 보안 해제나 자동 로그인을 임의로 설정하지 않았습니다.
 
 [운영 상세](BETA_OPERATIONS.md) · [AI 설정·보관 정책](AI_REVIEW_REPORTS.md) · [모집·학습 계획](BETA_MARKETING.md)

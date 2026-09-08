@@ -49,7 +49,7 @@ async function atomicJson(file, value) {
   await rename(temp, file);
 }
 const run = (command, args) => {
-  const result = spawnSync(command, args, { encoding: 'utf8', timeout: 600_000, maxBuffer: 2 * 1024 ** 2 });
+  const result = spawnSync(command, args, { encoding: 'utf8', timeout: ['launchctl', 'plutil'].includes(command) ? 10_000 : 600_000, maxBuffer: 2 * 1024 ** 2 });
   // CLI errors may include credentials, database names and paths; caller emits
   // a stable phase code, never child stderr/stdout on failures.
   if (result.status !== 0) throw new Error('Operation failed.');
@@ -131,7 +131,7 @@ export async function executeBackup({ home = homedir(), now = () => Date.now(), 
   try {
     const last = await exists(join(directory, 'last-success.json')) ? await readJson(join(directory, 'last-success.json')) : null;
     const recentRun = await exists(join(directory, 'last-run.json')) ? await readJson(join(directory, 'last-run.json')) : null;
-    if (!force && last && recentRun?.status === 'success' && now() - Date.parse(last.completedAt) < DAY && now() >= Date.parse(last.completedAt) && (await verify({ home, now: now() })).fresh) {
+    if (!force && last && recentRun?.status === 'success' && now() - Date.parse(last.completedAt) < DAY && now() >= Date.parse(last.completedAt) && (await verifyBackup({ home, now: now() })).fresh) {
       return { status: 'skipped', reason: 'A successful backup is less than 24 hours old.', offhost: last.offhost };
     }
     const deployLock = join(home, '.local', 'state', 'goalstotoday-deploy', 'deploy.lock');
@@ -212,12 +212,40 @@ export function launchdPlist({ home, repository, nodePath }) {
 </dict></plist>\n`;
 }
 
-export async function install({ home = homedir(), repository, nodePath = process.execPath, env = process.env, platform = process.platform, command = run } = {}) {
+export function inspectScheduler({ home = homedir(), uid = process.getuid?.(), platform = process.platform, command = run } = {}) {
+  const result = { schedulerLoaded: false, schedulerDomain: null, schedulerStatus: 'not-loaded', availableDomains: [], bootPersistenceVerified: false };
+  if (platform !== 'darwin') return { ...result, schedulerStatus: 'unsupported-platform' };
+  if (!Number.isSafeInteger(uid) || uid <= 0) return { ...result, schedulerStatus: 'non-root-user-required' };
+  const plist = join(home, 'Library', 'LaunchAgents', `${LABEL}.plist`);
+  const services = [];
+  // OS launchctl(1): gui/<uid> requires a GUI login domain; user/<uid> may
+  // exist without one. Query only existing domains for this UID, never create
+  // a domain or fall back to the privileged system domain.
+  for (const domain of [`gui/${uid}`, `user/${uid}`]) {
+    try { command('launchctl', ['print', domain]); result.availableDomains.push(domain); } catch { continue; }
+    try {
+      const output = command('launchctl', ['print', `${domain}/${LABEL}`]);
+      const path = output.match(/^\s*path = (.+)\s*$/m)?.[1].trim().replace(/^"(.*)"$/, '$1');
+      services.push({ domain, trusted: path === plist });
+    } catch { /* Domain exists, but the service is absent or unreadable. */ }
+  }
+  if (services.some(service => !service.trusted)) return { ...result, schedulerStatus: 'registration-path-mismatch' };
+  if (services.length > 1) return { ...result, schedulerStatus: 'duplicate-registration' };
+  if (services.length === 1) return { ...result, schedulerLoaded: true, schedulerDomain: services[0].domain, schedulerStatus: 'loaded' };
+  return { ...result, schedulerStatus: result.availableDomains.length ? 'not-loaded' : 'domains-unavailable' };
+}
+
+export async function install({ home = homedir(), repository, nodePath = process.execPath, env = process.env, platform = process.platform, uid = process.getuid?.(), command = run } = {}) {
   if (platform !== 'darwin') throw new Error('LaunchAgent installation requires macOS.');
   if (!isAbsolute(repository || '')) throw new Error('--repository must be an absolute path.');
   await regularFile(join(repository, 'scripts/scheduled-beta-backup.mjs'));
   await regularFile(nodePath);
+  const scheduler = inspectScheduler({ home, uid, platform, command });
+  if (['registration-path-mismatch', 'duplicate-registration'].includes(scheduler.schedulerStatus)) throw new Error('Existing backup registration is ambiguous; no service was stopped.');
+  const domain = scheduler.schedulerDomain || scheduler.availableDomains[0];
+  if (!domain) throw new Error('No existing same-user launchd domain is available; no privileged fallback attempted.');
   const directory = stateFor(home);
+  if (await exists(join(directory, 'backup.lock'))) throw new Error('A backup lock exists; wait for the active backup before installing its schedule.');
   await ownedDirectory(directory);
   // An empty ambient environment must not silently disable an existing remote
   // destination during an ordinary code update.
@@ -228,25 +256,33 @@ export async function install({ home = homedir(), repository, nodePath = process
   await mkdir(agents, { recursive: true, mode: 0o700 });
   if ((await lstat(agents)).isSymbolicLink()) throw new Error('LaunchAgents must not be a symlink.');
   const plist = join(agents, `${LABEL}.plist`);
+  const desired = launchdPlist({ home, repository, nodePath });
+  let unchanged = false;
   if (await exists(plist)) {
     await regularFile(plist);
-    if (!(await readFile(plist, 'utf8')).includes(`<string>${LABEL}</string>`)) throw new Error('Refusing to replace an unrelated LaunchAgent.');
+    const existing = await readFile(plist, 'utf8');
+    if (!existing.includes(`<string>${LABEL}</string>`)) throw new Error('Refusing to replace an unrelated LaunchAgent.');
+    unchanged = existing === desired;
   }
-  const pending = `${plist}.${randomUUID()}.pending`;
-  await writeFile(pending, launchdPlist({ home, repository, nodePath }), { flag: 'wx', mode: 0o600 });
-  command('plutil', ['-lint', pending]);
-  await rename(pending, plist);
-  const target = `gui/${process.getuid()}/${LABEL}`;
-  let loaded = false;
-  try { command('launchctl', ['print', target]); loaded = true; } catch { /* not loaded */ }
-  if (loaded) command('launchctl', ['bootout', target]);
-  command('launchctl', ['bootstrap', `gui/${process.getuid()}`, plist]);
+  // Routine main deployments use the same executable/script paths and need no
+  // restart. Do not bootout (which could kill a just-starting backup) at all.
+  if (scheduler.schedulerLoaded && !unchanged) throw new Error('Loaded schedule definition differs; review and stop only an idle owned service manually before reinstalling.');
+  if (!unchanged) {
+    const pending = `${plist}.${randomUUID()}.pending`;
+    await writeFile(pending, desired, { flag: 'wx', mode: 0o600 });
+    command('plutil', ['-lint', pending]);
+    await rename(pending, plist);
+  } else command('plutil', ['-lint', plist]);
+  const target = `${domain}/${LABEL}`;
   command('launchctl', ['enable', target]);
-  command('launchctl', ['print', target]);
-  return { status: 'installed', label: LABEL, schedule: '03:15 local time + hourly retry; skip successful backups younger than 24h', offhost: (await readJson(configFile)).s3Prefix ? 'configured-not-yet-verified' : 'not-configured', requiresUserLogin: true };
+  if (!scheduler.schedulerLoaded) command('launchctl', ['bootstrap', domain, plist]);
+  const verified = inspectScheduler({ home, uid, platform, command });
+  if (!verified.schedulerLoaded || verified.schedulerDomain !== domain) throw new Error('Schedule registration could not be verified after install.');
+  return { status: 'installed', label: LABEL, ...verified, reusedRegistration: scheduler.schedulerLoaded,
+    schedule: '03:15 local time + hourly retry; skip successful backups younger than 24h', offhost: (await readJson(configFile)).s3Prefix ? 'configured-not-yet-verified' : 'not-configured', requiresGuiLogin: domain.startsWith('gui/') };
 }
 
-export async function verify({ home = homedir(), now = Date.now() } = {}) {
+async function verifyBackup({ home = homedir(), now = Date.now() } = {}) {
   const directory = stateFor(home);
   if (!await exists(join(directory, 'owner.json'))) return { status: 'not-installed', fresh: false, offhost: 'not-configured' };
   if ((await readJson(join(directory, 'owner.json'))).owner !== OWNER) throw new Error('Unknown backup state.');
@@ -263,6 +299,13 @@ export async function verify({ home = homedir(), now = Date.now() } = {}) {
   const fresh = valid && now - Date.parse(last.completedAt) <= 26 * 3_600_000 && now >= Date.parse(last.completedAt);
   return { status: lastRun?.status === 'failed' ? 'failed' : fresh ? 'healthy' : 'stale-or-invalid', fresh, locked, completedAt: last.completedAt, offhost: last.offhost,
     lastFailureStage: lastRun?.stage, localEncryption: 'none-permissions-only', restoreVerified: false };
+}
+
+export async function verify({ home = homedir(), now = Date.now(), uid = process.getuid?.(), platform = process.platform, command = run } = {}) {
+  const backup = await verifyBackup({ home, now });
+  const scheduler = inspectScheduler({ home, uid, platform, command });
+  return { ...backup, backupStatus: backup.status, ...scheduler,
+    status: backup.status === 'healthy' && !scheduler.schedulerLoaded ? 'schedule-not-loaded' : backup.status };
 }
 
 export async function main(args = process.argv.slice(2)) {

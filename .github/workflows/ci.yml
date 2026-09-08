@@ -226,4 +226,14 @@ jobs:
           node scripts/install-observability.mjs --apply --context kind-nowline-local
           curl -fsS --retry 3 --output /dev/null "https://goalstotoday.com/?ops-check=$NOWLINE_RELEASE_SHA"
           node scripts/verify-observability.mjs --runtime --context kind-nowline-local
+          node scripts/scheduled-beta-backup.mjs --install --context kind-nowline-local --repository /Users/jieseobpark/develop/planner
+          backup_ready=0
+          for attempt in {1..30}; do
+            if node scripts/scheduled-beta-backup.mjs --verify; then
+              backup_ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$backup_ready" -eq 1
           printf '### Mac mini deployment verified\n\nCommit: `%s`\n\nPublic version: https://goalstotoday.com/version.json\n' "$NOWLINE_RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"

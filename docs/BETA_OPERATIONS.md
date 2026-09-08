@@ -53,7 +53,7 @@ rtk proxy node scripts/verify-observability.mjs --runtime --context kind-nowline
 
 ### Mac mini 일일 백업 설치
 
-`scripts/scheduled-beta-backup.mjs`는 기본 실행이 읽기 전용 도움말입니다. 아래 **install/run은 상태를 변경**하므로 배포 담당자가 Mac mini 저장소에서 명시적으로 실행합니다. 설치 시 `RunAtLoad`로 첫 백업이 즉시 시작될 수 있습니다. 현재 로그인한 사용자의 LaunchAgent이며 root 작업이 아닙니다.
+`scripts/scheduled-beta-backup.mjs`는 기본 실행이 읽기 전용 도움말입니다. 아래 **install/run은 상태를 변경**하므로 배포 담당자가 Mac mini 저장소에서 명시적으로 실행합니다. 설치 시 `RunAtLoad`로 첫 백업이 즉시 시작될 수 있습니다. 현재 UID 소유의 사용자 작업이며 root 작업이 아닙니다.
 
 ```sh
 rtk proxy node scripts/scheduled-beta-backup.mjs --install --context kind-nowline-local --repository /Users/jieseobpark/develop/planner
@@ -66,14 +66,16 @@ rtk proxy node scripts/scheduled-beta-backup.mjs --run --context kind-nowline-lo
 rtk proxy node scripts/scheduled-beta-backup.mjs --verify --require-offhost
 ```
 
-- LaunchAgent 이름: `com.goalstotoday.backup`. 절대 Node/저장소 경로와 Homebrew 포함 PATH를 저장하여 비로그인 셸에서도 실행합니다. 로컬 03:15 트리거 + 1시간마다 재시도하며, 24시간 이내 정상 백업이 있으면 건너뜁니다. 성공 주기는 최초 실행 시간에 따라 달라질 수 있습니다.
-- **재부팅 후 사용자 로그인이 필요합니다.** LaunchAgent가 살아 있어도 k8s/MySQL이 꺼져 있으면 덤프가 실패하고 다음 기회에 재시도합니다. root LaunchDaemon/로그인 전 FileVault 해제/자동 로그인은 자동 설정하지 않습니다.
+- 작업 이름: `com.goalstotoday.backup`. 절대 Node/저장소 경로와 Homebrew 포함 PATH를 저장하여 비로그인 셸에서도 실행합니다. 로컬 03:15 트리거 + 1시간마다 재시도하며, 24시간 이내 정상 백업이 있으면 건너뜁니다. 성공 주기는 최초 실행 시간에 따라 달라질 수 있습니다.
+- 등록 도메인: 같은 UID에 이미 등록된 작업이 있으면 그 도메인을 유지합니다. 처음 설치할 때 기존 `gui/<uid>`를 조회하고, GUI 로그인 도메인이 없으면 기존 `user/<uid>`를 조회해 사용합니다. 둘 다 없으면 실패하며 새 도메인/`system`/root로 우회하지 않습니다. OS `launchctl(1)` 매뉴얼에 따르면 `gui`는 GUI 로그인 도메인의 별칭이고 `user`는 GUI 로그인과 독립적으로 존재할 수 있습니다. 2026-09-08 Mac mini에서는 `gui/501` 부재, `user/501`의 Background 도메인이 확인되었습니다.
+- **재부팅 후 자동 등록·재개는 아직 실증하지 않았습니다.** `requiresGuiLogin`은 선택한 도메인 특성만 나타내며 `bootPersistenceVerified:false`를 유지합니다. 재부팅 후 `--verify`로 실제 등록을 다시 확인하고 없으면 같은 사용자로 재설치합니다. 등록되어 있어도 k8s/MySQL이 꺼져 있으면 백업은 실패하고 다음 기회에 재시도합니다. root LaunchDaemon/FileVault 해제/자동 로그인은 자동 설정하지 않습니다.
+- main 재배포 시 동일한 설정이면 기존 등록을 재사용하며 `bootout`으로 작업을 중단하지 않습니다. 백업 lock이 있으면 설치를 중단하고 완료 후 재시도합니다. 이미 로드된 작업의 Node 경로/스케줄 정의가 달라지면 자동 종료·교체하지 않고 실패합니다. 운영자가 실행 중이 아님을 확인한 해당 소유 작업만 별도로 정리한 뒤 재설치해야 합니다. GUI/user 양쪽 중복 등록이나 plist 경로 불일치도 자동 삭제하지 않고 실패로 보고합니다.
 - 보관 위치: 로그인 사용자 `.local/state/goalstotoday-backup`. 디렉터리 700, 파일 600. SQL을 디스크에 평문 중간 파일로 쓰지 않고 gzip으로 스트리밍하지만 **로컬 gzip은 암호화가 아닙니다**. 파일시스템/기기 암호화·오프사이트 사본이 추가로 필요합니다.
 - 2 GiB 여유 공간 확인, 압축 1 GiB/해제 8 GiB 제한, 10분 dump timeout. 범위를 넘는다면 실패를 무시하지 말고 DB 규모에 맞게 용량·백업 방식을 조정합니다.
 - 앱 DB와 Keycloak 로그인 DB를 함께 `--single-transaction` 덤프합니다. 배포 lock 발견 시 실패하며 스키마 변경과 백업을 동시에 계획하지 않습니다.
 - 자동 정리는 자기 소유 manifest가 있는 정상 파일만 대상으로 합니다. 최신 7개를 무조건 남기고, 그 밖의 **14일 초과** 로컬 artifact만 삭제합니다. 알 수 없는 파일/심볼릭 링크/사용자 디렉터리/원격 객체는 삭제하지 않습니다. 삭제 수는 결과의 `removedLocalArtifacts`에 표시되며 외부 사본이 없다면 삭제본 복구를 보장하지 않습니다.
 - 실패 시 `last-run.json`의 단계와 종료 코드만 기록하고 이전 `last-success.json`과 정상본은 보존합니다. SQL/자격 증명은 scheduler 로그에 출력하지 않습니다. stale lock은 자동 제거하지 않으며 PID를 확인한 운영자만 정확한 lock 파일을 처리합니다.
-- `--verify`는 최신 파일의 gzip·크기·SHA와 26시간 신선도, 마지막 실패/lock 상태를 검사합니다. 실패/지연/미설치 exit 2. `beta-operations.mjs --runtime`도 이 상태를 함께 보여 줍니다. 이것은 외부 알림을 발송하는 스케줄러가 아닙니다.
+- `--verify`는 최신 파일의 gzip·크기·SHA와 26시간 신선도, 마지막 실패/lock 상태에 더해 `launchctl print <domain>/com.goalstotoday.backup` 성공과 실제 등록 plist 경로를 확인합니다. `backupStatus`/`fresh`와 `schedulerLoaded`/`schedulerDomain`/`schedulerStatus`를 분리합니다. **수동 백업만 성공하고 스케줄이 없으면** `backupStatus:healthy`, `fresh:true`여도 전체 `status:schedule-not-loaded`, exit 2입니다. 실패/지연/미등록/등록 조회 오류도 성공 처리하지 않습니다. `beta-operations.mjs --runtime`도 이 전체 상태를 보여 줍니다. 등록 확인은 다음 예약 실행·재부팅 복구나 외부 알림 도착을 보증하지 않습니다.
 
 ### 선택한 외부 저장소로 자동 업로드
 
