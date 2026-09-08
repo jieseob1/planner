@@ -1,0 +1,46 @@
+.ai-review-panel { margin: 24px 0; border: 1px solid #dce3f2; border-radius: 16px; padding: 24px; background: #fff; color: #34425a; }
+.ai-review-panel > header, .ai-review-report > header, .ai-review-generate { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.ai-review-panel h2, .ai-review-panel h3 { margin: 4px 0 8px; color: #172239; }
+.ai-review-panel h3, .ai-review-panel .eyebrow { display: flex; align-items: center; gap: 7px; }
+.ai-review-panel p { line-height: 1.7; font-size: 13px; margin: 8px 0; overflow-wrap: anywhere; }
+.ai-review-panel > header > .button { flex-shrink: 0; }
+.ai-review-notice { display: flex; align-items: flex-start; gap: 10px; padding: 16px; margin-top: 16px; background: #f1f5fb; border-radius: 10px; }
+.ai-review-notice > svg { flex-shrink: 0; }
+.ai-review-settings { margin: 18px 0; padding: 14px 16px; border: 1px solid #e2e7f0; border-radius: 10px; }
+.ai-review-settings summary, .ai-review-snapshot summary { cursor: pointer; font-size: 14px; font-weight: 650; min-height: 24px; }
+.ai-review-settings fieldset { display: grid; gap: 14px; padding: 12px 0; margin: 0; border: 0; }
+.ai-review-settings label { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; line-height: 1.6; }
+.ai-review-settings input[type="checkbox"] { width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; accent-color: #365cf2; }
+.ai-review-settings .ai-review-time { flex-wrap: wrap; align-items: center; }
+.ai-review-time input, .ai-review-versions select { min-height: 40px; border: 1px solid #ccd5e7; padding: 8px; border-radius: 8px; font: inherit; background: #fff; color: #24324a; max-width: 100%; }
+.ai-review-generate { align-items: center; padding: 16px 0; border-top: 1px solid #e6eaf2; }
+.ai-review-generate > p { flex-basis: 100%; margin: 0; }
+.ai-review-panel .ai-review-warning { padding: 12px; background: #fff7e7; color: #795110; border-radius: 8px; }
+.ai-review-panel .ai-review-error { padding: 12px; color: #9d2636; background: #fff0f2; border-radius: 8px; }
+.ai-review-versions { margin: 20px 0 12px; }
+.ai-review-versions label { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-weight: 600; font-size: 13px; }
+.ai-review-versions p, .ai-review-empty { color: #68758c; }
+.ai-review-report { padding: 20px; background: #f9fbff; border: 1px solid #e1e7f4; border-radius: 12px; }
+.ai-review-report h3 { font-size: 16px; }
+.ai-review-report h4 { margin: 22px 0 10px; }
+.ai-review-report a { color: #3556b5; font-size: 12px; overflow-wrap: anywhere; }
+.ai-review-report li { margin-bottom: 10px; }
+.ai-review-summary { white-space: pre-wrap; font-size: 15px !important; }
+.ai-review-evidence-links { display: flex; flex-wrap: wrap; gap: 6px; color: #65748e; font-size: 12px; }
+.ai-review-disclaimer { color: #65748e; border-top: 1px solid #e1e7f4; padding-top: 10px; }
+.ai-review-snapshot { margin: 18px 0; }
+.ai-review-snapshot dl { display: flex; flex-wrap: wrap; gap: 20px; font-size: 12px; }
+.ai-review-snapshot dd { margin: 4px 0; font-weight: 650; }
+.ai-review-snapshot ul { padding-inline-start: 18px; }
+.ai-review-snapshot small { display: block; color: #62728d; overflow-wrap: anywhere; }
+.ai-review-snapshot li:target { outline: 2px solid #4467d5; outline-offset: 6px; }
+.ai-review-snapshot pre { font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 6px; background: #edf1f7; padding: 10px; }
+.ai-review-report footer { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid #e1e7f4; padding-top: 12px; font-size: 11px; color: #6a7790; }
+.ai-review-panel button:focus-visible, .ai-review-panel summary:focus-visible, .ai-review-panel a:focus-visible, .ai-review-panel input:focus-visible, .ai-review-panel select:focus-visible { outline: 3px solid #365cf2; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .ai-review-panel { padding: 16px 12px; }
+  .ai-review-panel > header > .button, .ai-review-generate > .button { min-height: 44px; }
+  .ai-review-settings { padding: 12px; }
+  .ai-review-report { padding: 14px; }
+  .ai-review-panel h2 { font-size: 19px; }
+}

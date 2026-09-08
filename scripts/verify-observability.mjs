@@ -22,6 +22,7 @@ const ini = Object.fromEntries(read('grafana.ini').split(/\n(?=\[)/).map(section
   return [header.replace(/[\[\]]/g, ''), Object.fromEntries(fields)];
 }));
 const prom = parse(read('prometheus.yml'));
+const rules = parse(read('rules.yml')).groups.flatMap(group => group.rules);
 const loki = parse(read('loki.yml'));
 const dashboard = JSON.parse(read('dashboard.json'));
 assert.equal(new Set([dashboard, ...operatorDashboards].map(item => item.uid)).size, 4);
@@ -49,6 +50,10 @@ function checkContract(objects, prometheus, grafana) {
       assert(container.resources.requests.memory && container.resources.limits.memory);
     }
   }
+  const grafanaContainer = objects.find(object => object.kind === 'Deployment' && object.metadata.name === 'nowline-grafana').spec.template.spec.containers[0];
+  assert.equal(grafanaContainer.resources.requests.memory, '384Mi', 'Grafana needs a realistic scheduling reservation');
+  assert.equal(grafanaContainer.resources.limits.memory, '768Mi', 'Keep validated post-OOM Grafana headroom');
+  assert.equal(grafanaContainer.resources.limits.cpu, '1', 'Grafana startup must not be throttled below the validated limit');
   const backend = prometheus.scrape_configs.find(job => job.job_name === 'nowline-backend');
   assert.equal(backend.metrics_path, '/actuator/prometheus');
   assert.equal(backend.oauth2.client_id, 'nowline-prometheus');
@@ -68,6 +73,7 @@ function checkContract(objects, prometheus, grafana) {
 checkContract(stack, prom, ini);
 for (const mutate of [
   objects => objects.find(object => object.kind === 'Service').spec.type = 'NodePort',
+  objects => objects.find(object => object.metadata.name === 'nowline-grafana' && object.kind === 'Deployment').spec.template.spec.containers[0].resources.limits.memory = '384Mi',
   (objects, prometheus) => delete prometheus.scrape_configs[0].oauth2.client_secret_file,
   (objects, prometheus, grafana) => grafana['auth.generic_oauth'].role_attribute_strict = 'false',
   (objects, prometheus, grafana) => grafana['auth.generic_oauth'].role_attribute_path += " || 'Viewer'",
@@ -82,6 +88,11 @@ const memoryMi = value => value.endsWith('Gi') ? parseFloat(value) * 1024 : pars
 const requestMi = containers.reduce((sum, container) => sum + memoryMi(container.resources.requests.memory), 0);
 const limitMi = containers.reduce((sum, container) => sum + memoryMi(container.resources.limits.memory), 0);
 assert(requestMi < 1024 && limitMi <= 3 * 1024, 'One-node resource budget');
+assert.equal(rules.length, new Set(rules.map(rule => rule.alert)).size, 'Alert names must be unique');
+for (const name of ['NowlineObservabilityDiskMetricsMissing', 'NowlineCollectorMetricsMissing', 'NowlineDatabasePoolWaiting']) {
+  assert(rules.some(rule => rule.alert === name && rule.expr && rule.for && rule.labels.severity), `Missing actionable alert ${name}`);
+}
+assert(rules.find(rule => rule.alert === 'NowlineContainerMemoryHigh').expr.includes('nowline-(local|observability)'), 'Memory alert must cover Grafana itself');
 assert.equal(loki.limits_config.retention_period, '72h');
 assert.equal(loki.compactor.retention_enabled, true);
 assert.equal(loki.compactor.delete_request_store, 'filesystem');
@@ -128,6 +139,7 @@ if (args.includes('--containers')) {
   const promBase = ['run', '--rm', '--network', 'none', '--platform', 'linux/arm64', '--mount', `type=bind,source=${directory},target=/etc/prometheus,readonly`, '--entrypoint', '/bin/promtool', images.prometheus];
   run('docker', [...promBase, 'check', 'config', '--syntax-only', '/etc/prometheus/prometheus.yml']);
   run('docker', [...promBase, 'check', 'rules', '/etc/prometheus/rules.yml']);
+  run('docker', [...promBase, 'test', 'rules', '/etc/prometheus/rules.test.yml']);
   run('docker', [...base, images.loki, '-config.file=/fluent-bit/etc/nowline/loki.yml', '-verify-config=true']);
   run('docker', [...base, '--tmpfs', '/state', images['fluent-bit'], '--dry-run', '-c', '/fluent-bit/etc/nowline/fluent-bit.conf']);
   await verifyManifestStartup();
@@ -162,7 +174,7 @@ if (args.includes('--containers')) {
   // Start the real Grafana binary without network access or published ports.
   // The credential below is an intentionally nonfunctional fixture, not an IdP secret.
   const grafanaContainer = run('docker', ['run', '-d', '--network', 'none', '--platform', 'linux/arm64', '--read-only',
-    '--memory', '384m', '--cpus', '0.5', '--tmpfs', '/var/lib/grafana:uid=472,gid=472,mode=0750', '--tmpfs', '/tmp:uid=472,gid=472,mode=0750',
+    '--memory', '768m', '--cpus', '1', '--tmpfs', '/var/lib/grafana:uid=472,gid=472,mode=0750', '--tmpfs', '/tmp:uid=472,gid=472,mode=0750',
     '--mount', `type=bind,source=${directory}grafana.ini,target=/etc/nowline-grafana.ini,readonly`,
     '--mount', `type=bind,source=${directory}datasources.yml,target=/etc/grafana/provisioning/datasources/nowline.yml,readonly`,
     '--mount', `type=bind,source=${directory}dashboards.yml,target=/etc/grafana/provisioning/dashboards/nowline.yml,readonly`,
@@ -184,7 +196,7 @@ if (args.includes('--containers')) {
     return {state, logs: safeLogs};
   };
   try {
-    // At the production 0.5 CPU limit, Grafana's first-start migrations can
+    // Even at the production 1 CPU limit, Grafana's first-start migrations can
     // exceed 30s when backend integration tests share the Docker VM. Keep a
     // finite budget and diagnose an exited/OOM container rather than retry it.
     const deadline = started + 75000;
@@ -227,6 +239,7 @@ if (args.includes('--runtime')) {
       const expected = controller.kind === 'DaemonSet' ? object.status.desiredNumberScheduled : object.spec.replicas;
       const ready = controller.kind === 'DaemonSet' ? object.status.numberReady : object.status.readyReplicas;
       assert(expected > 0 && ready === expected, `${controller.metadata.name} not fully Ready`);
+      assert.deepEqual(object.spec.template.spec.containers[0].resources, controller.spec.template.spec.containers[0].resources, `${controller.metadata.name} resource budget not deployed`);
     }
     const pvc = json('-n', namespace, 'get', 'pvc').items;
     for (const component of ['prometheus', 'grafana', 'loki']) assert.equal(pvc.find(item => item.metadata.name === `nowline-${component}`)?.status.phase, 'Bound');

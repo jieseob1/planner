@@ -19,13 +19,14 @@ import { Modal } from '../components/Modal';
 import { TaskRow } from '../components/TaskRow';
 import { TimeBlockSheet, type TimeBlockEditorValue, type TimeBlockMode } from '../components/TimeBlockSheet';
 import { SubtaskEditor, SubtaskProgress } from '../components/SubtaskEditor';
+import { MonthCalendar } from '../components/MonthCalendar';
 import { validSubtasks } from '../domain/subtasks';
 import type { Subtask } from '../domain/types';
 import type { DayKey, Task, TimeBlock } from '../domain/types';
 import { formatClock, formatMinutes } from '../lib/format';
 import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
-import { getToday, getWeekDays, toLocalDate } from '../lib/calendarDate';
+import { addLocalDateDays, getDayKeyForDate, getToday, getWeekDays, getWeekOffsetForDate, getWeekStartDate, toLocalDate } from '../lib/calendarDate';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
 
 const defaultPlacementStart = 1020;
@@ -38,6 +39,7 @@ interface PlannerBlockDraft {
   taskId: string;
   title: string;
   day: DayKey;
+  date?: string;
   startMinutes: number;
   durationMinutes: number;
   mode?: TimeBlockMode;
@@ -83,6 +85,8 @@ export function PlannerScreen() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deleteTaskCandidate, setDeleteTaskCandidate] = useState<Task | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [calendarView, setCalendarView] = useState<'week' | 'month'>('week');
+  const [monthSelectedDate, setMonthSelectedDate] = useState(() => toLocalDate(new Date(), timeZone));
   const [addTitle, setAddTitle] = useState('');
   const [addOutcomeId, setAddOutcomeId] = useState('');
   const [addEstimate, setAddEstimate] = useState('25');
@@ -105,6 +109,9 @@ export function PlannerScreen() {
     [plannerWeekOffset, weekBlocks]
   );
   const actualToday = toLocalDate(new Date(), timeZone);
+  // Legacy wire fields are bounded to +/- 520 weeks, even though dates are authoritative.
+  const calendarMinDate = addLocalDateDays(getWeekStartDate(actualToday), -520 * 7);
+  const calendarMaxDate = addLocalDateDays(getWeekStartDate(actualToday), 520 * 7 + 6);
 
   const unscheduled = useMemo(() => {
     const items = tasks.filter((task) => (
@@ -198,7 +205,8 @@ export function PlannerScreen() {
     setPlacementDraft({
       taskId: task?.id ?? '',
       title: task?.title ?? '',
-      day,
+      day: calendarView === 'month' ? getDayKeyForDate(monthSelectedDate) : day,
+      ...(calendarView === 'month' ? { date: monthSelectedDate } : {}),
       startMinutes,
       durationMinutes: task?.estimateMinutes ?? 30,
       mode,
@@ -214,10 +222,16 @@ export function PlannerScreen() {
       taskId: block.taskId ?? '',
       title: block.title,
       day: block.day,
+      ...(calendarView === 'month' ? { date: block.date } : {}),
       startMinutes: block.startMinutes,
       durationMinutes: block.durationMinutes,
       mode: block.taskId ? 'existing-task' : 'event'
     });
+    setPlacementError('');
+  };
+
+  const openMonthDate = (date: string) => {
+    setPlacementDraft({ taskId: '', title: '', date, day: getDayKeyForDate(date), startMinutes: defaultPlacementStart, durationMinutes: 30, mode: 'event' });
     setPlacementError('');
   };
 
@@ -312,14 +326,20 @@ export function PlannerScreen() {
   };
 
   const saveBlockDraft = (value: TimeBlockEditorValue) => {
-    const currentBlock = comparableWeekBlocks.find((block) => block.id === value.blockId);
-    const sameSlot = currentBlock && currentBlock.taskId === value.taskId && currentBlock.day === value.day
+    const date = value.date ?? weekDays.find((day) => day.key === value.day)?.isoDate;
+    if (!date || date < calendarMinDate || date > calendarMaxDate) {
+      setPlacementError('저장 가능한 날짜 범위를 벗어났습니다. 날짜를 다시 선택해 주세요.'); return;
+    }
+    const weekOffset = getWeekOffsetForDate(date, new Date(), timeZone);
+    const day = getDayKeyForDate(date);
+    const currentBlock = timeBlocks.find((block) => block.id === value.blockId);
+    const sameSlot = currentBlock && currentBlock.taskId === value.taskId && currentBlock.date === date
       && currentBlock.startMinutes === value.startMinutes && currentBlock.durationMinutes === value.durationMinutes;
-    const conflict = findTimeBlockConflict(comparableWeekBlocks, {
-      day: value.day,
+    const conflict = findTimeBlockConflict(timeBlocks.filter(block => block.date === date).map(block => ({ ...block, day, weekOffset })), {
+      day,
       startMinutes: value.startMinutes,
       durationMinutes: value.durationMinutes,
-      weekOffset: plannerWeekOffset
+      weekOffset
     }, { ignoreBlockId: value.blockId });
     if (conflict && !sameSlot) {
       setPlacementError(`${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`);
@@ -344,11 +364,11 @@ export function PlannerScreen() {
       id: value.blockId,
       taskId: value.mode === 'event' ? null : taskId,
       title: value.title,
-      day: value.day,
+      day,
       startMinutes: value.startMinutes,
       durationMinutes: value.durationMinutes,
-      date: weekDays.find((day) => day.key === value.day)?.isoDate,
-      weekOffset: plannerWeekOffset,
+      date,
+      weekOffset,
       incrementCarryCount: placementDraft?.explicitCarryover === true,
       ...(value.mode === 'existing-task' ? { taskPatch: { title: value.title, outcomeId: value.outcomeId, subtasks: value.subtasks } } : {})
     })) {
@@ -358,7 +378,7 @@ export function PlannerScreen() {
     }
     setPlacementDraft(null);
     setPlacementError('');
-    showNotice(`${value.title}을 ${formatClock(value.startMinutes)}에 ${value.blockId ? '수정' : '추가'}했어요.`);
+    showNotice(`${value.title}을 ${date} ${formatClock(value.startMinutes)}에 ${value.blockId ? '수정' : '추가'}했어요.`);
   };
 
   const deleteBlockDraft = () => {
@@ -400,36 +420,35 @@ export function PlannerScreen() {
     <div className="page page--planner planner-nowline">
       <header className="page-header page-header--compact planner-header">
         <div>
-          <p className="eyebrow" aria-live="polite">주간 Planner · {getWeekLabel(weekDays)}</p>
-          <h1>이번 주 할 일과 일정을 함께 봅니다.</h1>
+          <p className="eyebrow" aria-live="polite">{calendarView === 'week' ? `주간 Planner · ${getWeekLabel(weekDays)}` : '월간 Planner'}</p>
+          <h1>{calendarView === 'week' ? '이번 주 할 일과 일정을 함께 봅니다.' : '한 달의 일정을 한눈에 봅니다.'}</h1>
           <p className="page-header__description">목표 연결은 선택입니다. 할 일만 적거나 일정만 만들어도 바로 저장됩니다.</p>
         </div>
-        <div className="week-switcher" aria-label="주 변경">
+        {calendarView === 'week' && <div className="week-switcher" aria-label="주 변경">
           <button className="icon-button" type="button" aria-label="이전 주" onClick={() => setPlannerWeekOffset(plannerWeekOffset - 1)}><ChevronLeft size={19} /></button>
           <button className="button button--secondary button--small" type="button" onClick={() => setPlannerWeekOffset(0)}>
             {plannerWeekOffset === 0 ? '이번 주' : '이번 주로'}
           </button>
           <button className="icon-button" type="button" aria-label="다음 주" onClick={() => setPlannerWeekOffset(plannerWeekOffset + 1)}><ChevronRight size={19} /></button>
-        </div>
+        </div>}
       </header>
 
-      {plannerWeekOffset === 1 && review.selectedTopTaskIds.length > 0 && (
+      <div className="planner-view-switch" role="group" aria-label="일정 보기 방식"><button type="button" aria-pressed={calendarView === 'week'} onClick={() => setCalendarView('week')}>주간</button><button type="button" aria-pressed={calendarView === 'month'} onClick={() => { if (calendarView !== 'month') setMonthSelectedDate(plannerWeekOffset === 0 ? actualToday : weekDays[0].isoDate); setCalendarView('month'); }}>월간</button></div>
+
+      {calendarView === 'week' && plannerWeekOffset === 1 && review.selectedTopTaskIds.length > 0 && (
         <div className="next-week-priority" role="status">
           <Sparkles size={17} />
           <span><strong>회고에서 고른 다음 주 Top 3를 먼저 보여드려요.</strong> 이제 시간을 배치하면 계획이 완성됩니다.</span>
         </div>
       )}
 
-      <section className="planner-capacity-toolbar" aria-label="주간 계획 도구">
+      {calendarView === 'week' && <section className="planner-capacity-toolbar" aria-label="주간 계획 도구">
         <div className="planner-capacity-toolbar__capacity">
           <div className="planning-number">
-            <span>계획 / 가용</span>
-            <strong>{plannedHours.toFixed(1)}<small> / {availableHours.toFixed(0)}시간</small></strong>
+            <span>{availableHours > 0 ? '계획 / 가용' : '계획한 시간'}</span>
+            <strong>{plannedHours.toFixed(1)}<small>{availableHours > 0 ? ` / ${availableHours.toFixed(0)}시간` : '시간'}</small></strong>
           </div>
-          <CapacityBar used={plannedHours} total={availableHours} label="계획된 주간 용량" />
-          <span className={clsx('capacity-percent', capacityPercentage >= 85 && 'capacity-percent--warning')}>
-            {capacityPercentage}%
-          </span>
+          {availableHours > 0 ? <><CapacityBar used={plannedHours} total={availableHours} label="계획된 주간 용량" /><span className={clsx('capacity-percent', capacityPercentage >= 85 && 'capacity-percent--warning')}>{capacityPercentage}%</span></> : <span className="field-help">가용 시간 미설정 · 계획한 시간만 표시합니다.</span>}
         </div>
 
         {outcomes.length > 0 ? (
@@ -471,10 +490,10 @@ export function PlannerScreen() {
             <Check size={15} /> 오늘 실행 보기
           </Link>
         </div>
-      </section>
+      </section>}
 
       <div
-        className="planner-workspace planner-workspace--outcomes"
+        className={clsx('planner-workspace planner-workspace--outcomes', calendarView === 'month' && 'planner-workspace--month')}
         style={{ '--planner-context-width': '296px' } as CSSProperties}
       >
         <aside className="backlog-panel backlog-panel--context" aria-label="내 할 일">
@@ -488,7 +507,7 @@ export function PlannerScreen() {
             </summary>
 
             <div className="backlog-panel__controls">
-              <p className="backlog-panel__guide"><GripVertical size={14} /> 끌어서 배치하거나 제목을 눌러 시간을 정하세요.</p>
+              <p className="backlog-panel__guide"><GripVertical size={14} /> {calendarView === 'month' ? '날짜를 고른 뒤 할 일 제목을 눌러 시간을 정하세요.' : '끌어서 배치하거나 제목을 눌러 시간을 정하세요.'}</p>
               <button type="button" onClick={() => setShowCompleted((value) => !value)}>
                 {showCompleted ? '완료 숨기기' : `완료 보기 ${tasks.filter((task) => task.status === 'done').length}`}
               </button>
@@ -508,7 +527,7 @@ export function PlannerScreen() {
                       <TaskRow
                         key={task.id}
                         task={task}
-                        draggable
+                        draggable={calendarView === 'week'}
                         compact
                         outcomeTitle={outcome?.title}
                         onSelect={() => task.status === 'done' ? openEditTask(task) : openPlacement(task)}
@@ -538,7 +557,7 @@ export function PlannerScreen() {
           </details>
         </aside>
 
-        <section className="outcome-planner" aria-label="주간 결과와 시간 배치표">
+        {calendarView === 'month' ? <MonthCalendar today={actualToday} initialDate={monthSelectedDate} blocks={timeBlocks} minDate={calendarMinDate} maxDate={calendarMaxDate} onSelectDate={setMonthSelectedDate} onAdd={openMonthDate} onEdit={openBlock} /> : <section className="outcome-planner" aria-label="주간 결과와 시간 배치표">
           <header className="calendar-panel__toolbar outcome-planner__toolbar">
             <div><CalendarRange size={17} /> 7일 결과 / 시간</div>
             <div className="calendar-legend" aria-label="시간 블록 범례">
@@ -667,10 +686,10 @@ export function PlannerScreen() {
               })}
             </div>
           </div>
-        </section>
+        </section>}
       </div>
 
-      <section className="allocation-strip allocation-signals" aria-label="목표별 시간 배분">
+      {calendarView === 'week' && <section className="allocation-strip allocation-signals" aria-label="목표별 시간 배분">
         <div className="allocation-strip__title">
           <span className="eyebrow">배분 신호</span>
           <strong>결과별 이번 주 판단</strong>
@@ -690,13 +709,13 @@ export function PlannerScreen() {
             );
           })}
         </div>
-      </section>
+      </section>}
 
       {notice && <div className="toast" role="status"><Clock3 size={17} /> {notice}</div>}
 
       {placementDraft && (
         <TimeBlockSheet
-          key={`${placementDraft.blockId ?? 'new'}-${placementDraft.taskId}-${placementDraft.day}-${placementDraft.startMinutes}`}
+          key={`${placementDraft.blockId ?? 'new'}-${placementDraft.taskId}-${placementDraft.date ?? placementDraft.day}-${placementDraft.startMinutes}`}
           tasks={tasks.filter((task) => task.id === placementDraft.taskId || (task.status !== 'done' && task.status !== 'cancelled'))}
           outcomes={outcomes}
           days={weekDays}
@@ -704,6 +723,9 @@ export function PlannerScreen() {
           initialTaskId={placementDraft.taskId}
           initialTitle={placementDraft.title}
           initialDay={placementDraft.day}
+          initialDate={placementDraft.date}
+          minDate={calendarMinDate}
+          maxDate={calendarMaxDate}
           initialStartMinutes={placementDraft.startMinutes}
           initialDurationMinutes={placementDraft.durationMinutes}
           initialMode={placementDraft.mode}

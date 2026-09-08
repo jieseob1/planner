@@ -91,10 +91,10 @@ class RedTeamDataIntegrityTest {
         verify(deliveries).createDelivery(
                 userId,
                 "TIME_BLOCK",
-                "block:today:2026-09-02",
+                "block:v2:today:" + Instant.parse("2026-09-02T10:00:00Z").toEpochMilli() + ":10",
                 "오늘 일정",
                 "10분 뒤 시작합니다.",
-                "/today",
+                "/today?date=2026-09-02",
                 now);
         verifyNoMoreInteractions(deliveries);
     }

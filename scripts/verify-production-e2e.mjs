@@ -116,6 +116,22 @@ const exercisePeriodDocuments = async (page, frontendUrl) => {
   const updated = await writePeriodDocument(page, () => page.getByRole('button', { name: '목표 저장', exact: true }).click());
   if (updated.revision !== 2 || !updated.goal.done) fail('Goal completion/edit did not persist');
 
+  const childTitle = `${title} 작은 결과`;
+  await page.getByRole('button', { name: `${title} 수정 하위 목표 추가`, exact: true }).click();
+  await page.getByLabel('목표 이름', { exact: true }).fill(childTitle);
+  const child = await writePeriodDocument(page, () => page.getByRole('button', { name: '목표 저장', exact: true }).click());
+  if (child.goal.parentId !== created.goal.id || child.goal.done) fail('Child goal must preserve an explicit parent with independent progress');
+  await page.reload();
+  await page.getByRole('button', { name: `${childTitle} 목표 수정`, exact: true }).waitFor();
+  await page.getByRole('button', { name: `${title} 수정 하위 목표 접기`, exact: true }).click();
+  if (await page.getByRole('button', { name: `${childTitle} 목표 수정`, exact: true }).isVisible()) fail('Collapsed child goal remains visible');
+  await page.getByRole('button', { name: `${title} 수정 하위 목표 펼치기`, exact: true }).click();
+  await page.getByRole('button', { name: `${childTitle} 목표 수정`, exact: true }).click();
+  if (await page.getByLabel('상위 목표 (선택)', { exact: true }).inputValue() !== created.goal.id) fail('Child parent link lost after reload');
+  await page.getByRole('button', { name: '목표 삭제', exact: true }).click();
+  const childDeleted = await writePeriodDocument(page, () => page.getByRole('button', { name: '삭제 확인', exact: true }).click());
+  if (!childDeleted.deleted) fail('Child goal deletion did not persist');
+
   await page.goto(`${frontendUrl}/review?period=day&date=2026-09-07`);
   await page.getByLabel('잘된 점', { exact: true }).fill('목표 없이도 자유롭게 기록하는 하루');
   const review = await writePeriodDocument(page, () => page.getByRole('button', { name: '기록 저장', exact: true }).click());
@@ -137,6 +153,40 @@ const exercisePeriodDocuments = async (page, frontendUrl) => {
   await page.reload();
   await page.getByRole('heading', { name: '작은 목표 하나부터 시작해요', exact: true }).waitFor();
   if (await page.getByRole('button', { name: `${title} 수정 목표 수정`, exact: true }).count()) fail('Deleted goal remains visible');
+};
+
+const exerciseMonthCalendar = async (page, frontendUrl) => {
+  const title = `월간 자유 일정 ${randomUUID().slice(0, 8)}`;
+  await page.goto(`${frontendUrl}/planner`);
+  await page.getByRole('button', { name: '월간', exact: true }).click();
+  await page.getByRole('button', { name: '다음 달', exact: true }).click();
+  await page.getByRole('region', { name: '선택한 날짜의 일정', exact: true }).getByRole('button', { name: '일정 추가', exact: true }).click();
+  const originalDate = await page.getByLabel('일정 날짜', { exact: true }).inputValue();
+  if (!originalDate.endsWith('-01')) fail('Next month selection must start at the first date');
+  await page.getByLabel('일정 제목', { exact: true }).fill(title);
+  await page.getByLabel('시작', { exact: true }).selectOption('0');
+  await page.getByLabel('종료', { exact: true }).selectOption('30');
+  await runAndWaitForPlannerSave(page, () => page.getByRole('dialog').getByRole('button', { name: '추가', exact: true }).click(), 'Monthly standalone event create');
+  await page.reload();
+  await page.getByRole('button', { name: '월간', exact: true }).click();
+  await page.getByRole('button', { name: '다음 달', exact: true }).click();
+  await page.getByRole('region', { name: '선택한 날짜의 일정', exact: true }).getByRole('button', { name: `${title} 일정 수정`, exact: true }).click();
+  if (await page.getByLabel('일정 날짜', { exact: true }).inputValue() !== originalDate) fail('Month event date did not survive reload');
+  const movedDate = `${originalDate.slice(0, 8)}02`;
+  await page.getByLabel('일정 날짜', { exact: true }).fill(movedDate);
+  await page.getByLabel('일정 제목', { exact: true }).fill(`${title} 수정`);
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '변경 저장', exact: true }).click(), 'Monthly event moved to another date');
+  await page.reload();
+  await page.getByRole('button', { name: '월간', exact: true }).click();
+  await page.getByRole('button', { name: '다음 달', exact: true }).click();
+  const [year, month] = movedDate.split('-').map(Number);
+  await page.getByRole('button', { name: `${year}년 ${month}월 2일 00:00 ${title} 수정 일정 수정`, exact: true }).click();
+  if (await page.getByLabel('일정 날짜', { exact: true }).inputValue() !== movedDate) fail('Moved event did not retain its destination date');
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '일정에서 삭제', exact: true }).click(), 'Monthly standalone event delete');
+  await page.reload();
+  await page.getByRole('button', { name: '월간', exact: true }).click();
+  await page.getByRole('button', { name: '다음 달', exact: true }).click();
+  if (await page.getByRole('button', { name: `${year}년 ${month}월 2일 00:00 ${title} 수정 일정 수정`, exact: true }).count()) fail('Deleted month event remains visible');
 };
 
 const exerciseSubtasks = async (page, frontendUrl) => {
@@ -518,12 +568,17 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   await page.getByRole('heading', { name: '다음 주의 기준이 정해졌습니다.' }).waitFor();
   await exercisePeriodDocuments(page, frontendUrl);
   await exerciseSubtasks(page, frontendUrl);
+  await exerciseMonthCalendar(page, frontendUrl);
   await page.goto(`${frontendUrl}/today`);
   await waitForPlannerSaved(page);
 
   const accessToken = await page.evaluate(() => window.sessionStorage.getItem('nowline.local-access-token'));
   if (!accessToken) fail('Browser local-auth session did not store an access token in sessionStorage');
   const authHeaders = { Accept: 'application/json', Authorization: `Bearer ${accessToken}` };
+  const aiConfig = await expectResponse(await fetch(`${backendUrl}/api/v1/ai-reviews/config`, { headers: authHeaders }), 200, 'AI default configuration');
+  const aiConfiguration = await aiConfig.json();
+  if (aiConfiguration.configured || aiConfiguration.settings.consent) fail('AI must remain unconfigured and without consent in the default beta environment');
+  await expectResponse(await fetch(`${backendUrl}/api/v1/ai-reviews/reports`, { method: 'POST', headers: { ...authHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ period: 'week', startDate: '2026-08-31', requestId: randomUUID() }) }), 503, 'Unconfigured AI generation fails closed');
   const currentResponse = await expectResponse(await fetch(`${backendUrl}/api/v1/planner`, { headers: authHeaders }), 200, 'conflict base read');
   const etag = currentResponse.headers.get('etag');
   const envelope = await currentResponse.json();

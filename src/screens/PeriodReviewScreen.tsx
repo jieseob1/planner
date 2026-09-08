@@ -4,6 +4,7 @@ import { ArrowRight, CalendarDays, CheckCircle2, Clock3 } from 'lucide-react';
 import { PeriodSelector } from '../components/PeriodSelector';
 import { PeriodFeedback } from '../components/PeriodFeedback';
 import { PeriodReviewEditor } from '../components/PeriodReviewEditor';
+import { AiReviewPanel } from '../components/AiReviewPanel';
 import { usePeriods } from '../state/PeriodProvider';
 import { usePlanner } from '../state/PlannerProvider';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
@@ -37,6 +38,7 @@ export function PeriodReviewScreen() {
     {summary.dates.length > 0 && <section className="period-chart" aria-label="날짜별 계획 시간과 기록 시간">
       {summary.dates.map(([date, values]) => <div key={date}><strong>{date.slice(5)}</strong><progress max={scale} value={values.plannedMinutes} aria-label={`${date} 계획 ${values.plannedMinutes}분`} /><progress max={scale} value={values.recordedSeconds / 60} aria-label={`${date} 기록 ${Math.round(values.recordedSeconds / 60)}분`} /><small>계획 {hours(values.plannedMinutes)}</small><small>기록 {hours(values.recordedSeconds / 60)}</small></div>)}
     </section>}
+    <AiReviewPanel range={range} />
     <div className="period-review-grid">
       <section className="period-panel"><div className="period-section-title"><h2>목표는 얼마나 나아갔나요?</h2></div><p className="period-hint">{savedReview ? '회고를 처음 저장했을 때의 목표 측정값입니다. 이후 목표 수정과 분리해 보관합니다.' : '선택 기간과 겹치는 목표의 현재 측정값입니다. 회고 저장 시 함께 보관합니다.'} 완료 개수·시간과는 별개예요.</p>
         {goals.map(goal => <Link className="period-review-goal" key={goal.id} to={`/goals?period=${goal.period}&date=${goal.startDate}`}><strong>{goal.title}</strong><small>{rangeLabel(goal)}</small><GoalProgress goal={goal} /></Link>)}

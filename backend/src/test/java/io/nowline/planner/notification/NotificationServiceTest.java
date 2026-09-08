@@ -68,7 +68,7 @@ class NotificationServiceTest {
         when(cipher.decrypt("cipher", "notification-device:" + device.userId() + ":" + device.deviceId()))
                 .thenReturn("subscription");
         when(gateway.send(device, "subscription", new PushDeliveryGateway.Message(
-                delivery.title(), delivery.body(), delivery.targetPath(), delivery.type())))
+                delivery.title(), delivery.body(), delivery.targetPath(), "nowline-" + delivery.deliveryId())))
                 .thenReturn(PushDeliveryGateway.Result.RETRYABLE_FAILURE);
 
         service.dispatch(delivery);
@@ -84,7 +84,7 @@ class NotificationServiceTest {
         when(cipher.decrypt("cipher", "notification-device:" + device.userId() + ":" + device.deviceId()))
                 .thenReturn("subscription");
         when(gateway.send(device, "subscription", new PushDeliveryGateway.Message(
-                delivery.title(), delivery.body(), delivery.targetPath(), delivery.type())))
+                delivery.title(), delivery.body(), delivery.targetPath(), "nowline-" + delivery.deliveryId())))
                 .thenReturn(PushDeliveryGateway.Result.PERMANENT_FAILURE);
 
         service.dispatch(delivery);
@@ -100,7 +100,7 @@ class NotificationServiceTest {
         when(cipher.decrypt("cipher", "notification-device:" + device.userId() + ":" + device.deviceId()))
                 .thenReturn("subscription");
         when(gateway.send(device, "subscription", new PushDeliveryGateway.Message(
-                delivery.title(), delivery.body(), delivery.targetPath(), delivery.type())))
+                delivery.title(), delivery.body(), delivery.targetPath(), "nowline-" + delivery.deliveryId())))
                 .thenReturn(PushDeliveryGateway.Result.DELIVERED);
 
         service.dispatch(delivery);

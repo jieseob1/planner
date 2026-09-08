@@ -10,7 +10,7 @@
 | --- | --- |
 | [운영 요약](https://goalstotoday.com/ops/grafana/d/nowline-operations) | 전체 상태·자원·경보·오류 로그 |
 | [API와 저장 오류](https://goalstotoday.com/ops/grafana/d/nowline-api) | 요청량, 평균/P95 응답 시간, 400/401/403/409/412/429, 5xx, Pod별 수집 상태 |
-| [서버 JVM DB](https://goalstotoday.com/ops/grafana/d/nowline-resources) | 컨테이너 CPU·메모리, Heap·GC, DB 연결 사용률·대기·타임아웃, JVM 실행 시간 |
+| [서버 JVM DB](https://goalstotoday.com/ops/grafana/d/nowline-resources) | 컨테이너 CPU·메모리·한도 대비 사용률·실행 시간, Heap·GC, DB 연결 사용률·대기·타임아웃 |
 | [중앙 로그](https://goalstotoday.com/ops/grafana/d/nowline-logs) | 레벨별 로그량, 수집 상태, 경고·오류 및 전체 서버 로그 |
 
 대시보드는 저장소의 `infra/observability/operator-dashboards.mjs`와 기존 `dashboard.json`에서 자동 등록됩니다. main 자동 배포 때 반영되므로 재시작 후에도 남습니다. 코드 관리 대시보드는 UI 직접 저장을 막았으며, 개인 변형은 별도 복사본으로 만드세요. 기존 사용자 생성 대시보드는 덮어쓰지 않습니다.
@@ -28,10 +28,12 @@ Images are version-and-manifest-digest pinned in `infra/observability/stack.mjs`
 | Component | Version | CPU request / limit | Memory request / limit | Data |
 | --- | --- | --- | --- | --- |
 | Prometheus | 3.14.0 | 150m / 1 | 256 / 768 MiB | 4 GiB PVC; 5 days or 2 GB TSDB blocks, whichever first |
-| Grafana | 13.2.1 | 100m / 500m | 128 / 384 MiB | 1 GiB PVC |
+| Grafana | 13.2.1 | 250m / 1 | 384 / 768 MiB | 1 GiB PVC |
 | Loki single binary | 3.7.7 | 100m / 1 | 256 / 768 MiB | 4 GiB PVC; 72 hours, compactor deletion enabled |
 | Fluent Bit DaemonSet | 5.1.2 | 25m / 250m | 48 / 128 MiB | 64 MiB ephemeral state, 32 MiB retry spool |
-| Total, one node | | 375m / 2750m | 688 / 2048 MiB | 9 GiB PVC requests |
+| Total, one node | | 525m / 3250m | 944 / 2432 MiB | 9 GiB PVC requests |
+
+2026-09-08 SSH 재확인 시 기존 Grafana는 384 MiB 제한에서 2회 재시작했고, 마지막 종료는 `OOMKilled`/137, `2026-09-07T09:00:45Z`였습니다. 당시 현재 사용량은 281 MiB, kind 노드는 3926 MiB/49%였습니다. 위 증액은 이 관측을 반영한 코드 설정이며, 적용 여부는 runtime 검증이 실제 Deployment 자원과 비교합니다. 브라우저의 `Error loading: timeseries`가 모두 OOM 때문이었다는 증거는 아닙니다. 증액 후에도 실제 대시보드 렌더링과 장시간 부하를 확인해야 합니다. Grafana 공식 최소 권장치는 메모리 512 MB/CPU 1코어이며, 최소치는 운영 용량 보증이 아닙니다. [Grafana 설치·용량 기준](https://grafana.com/docs/grafana/latest/setup-grafana/installation/)
 
 Loki accepts at most 0.01 MiB/s sustained, roughly 2.5 GiB across 72 hours before compression, with a 2 MiB burst. Queries have concurrency, time range, line length and row limits. A sustained burst can lose logs; inspect ingestion/retry errors before assuming complete history. Prometheus has a 30-second scrape interval, sample limits and a bounded metric allowlist. OOM restarts mean the limit needs reassessment, not that the VM has spare capacity.
 
@@ -109,7 +111,9 @@ Runtime mode checks all controllers Ready and PVCs Bound; every Ready backend Po
 
 For installation/startup, runtime mode retries the same complete checks every two seconds for at most 150 seconds. Each Kubernetes/public HTTP operation has a five-second cap within that shared deadline. Empty first-scrape or first-ingestion results stay failures until real data arrives; timeout exits nonzero with the last concise failure. CI should give this command at least 180 seconds including process startup. Static mode performs no runtime wait.
 
-The isolated Grafana container test uses the same 384 MiB / 0.5 CPU limits as deployment. First-start migrations have a bounded 75-second readiness budget because other integration suites can share the Docker VM. A terminated/OOM container fails immediately; a failure includes its state and up to 30 sanitized log lines before that exact temporary container is removed. Increasing the readiness budget does not bypass the healthy-database or anonymous-401 checks. Identity provisioning re-reads full client representations (without `--fields`) and verifies existing client secrets remain equal without printing them.
+The isolated Grafana container test uses the same 768 MiB / 1 CPU limits as deployment. First-start migrations have a bounded 75-second readiness budget because other integration suites can share the Docker VM. A terminated/OOM container fails immediately; a failure includes its state and up to 30 sanitized log lines before that exact temporary container is removed. Increasing the readiness budget does not bypass the healthy-database or anonymous-401 checks. Identity provisioning re-reads full client representations (without `--fields`) and verifies existing client secrets remain equal without printing them.
+
+Memory alerts cover both application and observability namespaces, including Grafana; zero/unlimited memory limits do not produce a made-up percentage. Missing PVC metrics emit an explicit warning after 15 minutes, because the kind local-path provider may not export capacity. Collector-target loss and sustained DB-pool waiting have separate rules. `rules.test.yml` exercises real PromQL positive/negative controls through the pinned `promtool`, including Grafana memory and missing telemetry. These rules do **not** deliver an external notification by themselves. See [베타 운영 체크와 외부 의존성](BETA_OPERATIONS.md).
 
 Container verification also starts Prometheus using the exact manifest arguments/configuration and Fluent Bit using the exact four tail inputs. Network-disabled fixtures use nonfunctional credentials, temporary storage and synthetic log files; no cluster credentials or real host logs are mounted. It checks Prometheus readiness, its disabled-admin flag and the API's explicit disabled response, plus all four SQLite offset databases. Negative variants replay the two observed startup defects: `--web.enable-admin-api=false` is rejected by the pinned switch-only CLI, and a 64 KiB chunk with a 32 KiB maximum prevents tail initialization. The real deployment omits admin/lifecycle switches, preserving their disabled defaults. This Prometheus version returns HTTP 500 with `admin APIs disabled` for the disabled snapshot route; that denial is checked by reason, not mistaken for an enabled API.
 

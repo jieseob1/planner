@@ -8,7 +8,7 @@ groups:
         annotations:
           summary: Backend metrics are missing; check backend readiness and metrics OAuth client.
       - alert: NowlineContainerMemoryHigh
-        expr: container_memory_working_set_bytes{namespace="nowline-local",container!=""} / on(namespace,pod,container,instance) container_spec_memory_limit_bytes{namespace="nowline-local",container!=""} > 0.9
+        expr: container_memory_working_set_bytes{namespace=~"nowline-(local|observability)",container!="",container!="POD"} / on(namespace,pod,container,instance) (container_spec_memory_limit_bytes{namespace=~"nowline-(local|observability)",container!="",container!="POD"} > 0) > 0.9
         for: 5m
         labels: {severity: warning}
         annotations:
@@ -25,3 +25,21 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: Observability PVC has less than 15 percent free space.
+      - alert: NowlineObservabilityDiskMetricsMissing
+        expr: absent(kubelet_volume_stats_capacity_bytes{namespace="nowline-observability"})
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: PVC capacity telemetry is unavailable; check actual host and VM free disk. No data is not zero usage.
+      - alert: NowlineCollectorMetricsMissing
+        expr: absent(up{job="loki"}) or absent(up{job="kind-kubelet"}) or absent(up{job="kind-node"}) or min(up{job=~"loki|kind-kubelet|kind-node"}) < 1
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: Log or container telemetry is missing; inspect collector and kubelet connectivity.
+      - alert: NowlineDatabasePoolWaiting
+        expr: sum(hikaricp_connections_pending{job="nowline-backend"}) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Requests are waiting for database connections; check MySQL and the Hikari pool.

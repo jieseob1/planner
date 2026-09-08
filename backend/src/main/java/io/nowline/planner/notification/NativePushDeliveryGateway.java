@@ -42,7 +42,8 @@ public class NativePushDeliveryGateway implements PushDeliveryGateway {
                             "title", message.title(),
                             "body", message.body(),
                             "targetPath", message.targetPath(),
-                            "deduplicationKey", message.tag()))
+                            "deduplicationKey", message.tag(),
+                            "ttlSeconds", 120))
                     .retrieve().toBodilessEntity();
             return Result.DELIVERED;
         } catch (RestClientResponseException exception) {

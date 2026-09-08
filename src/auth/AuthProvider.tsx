@@ -17,6 +17,7 @@ import { SecureStateStore } from './SecureStateStore';
 import { cleanupNotificationRegistration } from './notificationRegistration';
 import { FocusAlert } from '../components/FocusAlert';
 import { AuthEntry } from './AuthEntry';
+import { oidcStateReturnTo, replaceAuthLocation, safeAppReturnTo } from './returnPath';
 
 type AuthStatus = 'loading' | 'consent' | 'authenticated' | 'anonymous' | 'error';
 
@@ -132,18 +133,7 @@ export const freshOidcSigninRequest = (returnTo: string) => ({
   prompt: 'login'
 });
 
-const oidcReturnTo = (value: User, fallback = '/today') => {
-  const state = value.state && typeof value.state === 'object'
-    ? value.state as { returnTo?: unknown; interaction?: unknown }
-    : null;
-  const candidate = state?.returnTo;
-  return state?.interaction === 'reauthenticate'
-    && typeof candidate === 'string'
-    && candidate.startsWith('/')
-    && !candidate.startsWith('//')
-    ? candidate
-    : fallback;
-};
+const oidcReturnTo = (value: User, fallback = '/today') => oidcStateReturnTo(value.state, fallback);
 
 const localToken = async (forceRefresh = false): Promise<string> => {
   if (!forceRefresh) {
@@ -217,10 +207,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const nativeLaunch = await oidc?.nativeNavigator?.completeLaunch(manager);
         if (nativeLaunch !== undefined) {
           authenticatedUser = nativeLaunch;
-          window.history.replaceState({}, '', nativeLaunch ? oidcReturnTo(nativeLaunch) : '/today');
+          replaceAuthLocation(nativeLaunch ? oidcReturnTo(nativeLaunch) : '/today');
         } else if (window.location.pathname === '/auth/callback') {
           authenticatedUser = await manager.signinRedirectCallback(window.location.href);
-          window.history.replaceState({}, '', oidcReturnTo(authenticatedUser));
+          replaceAuthLocation(oidcReturnTo(authenticatedUser));
         } else if (window.location.pathname === '/auth/silent-callback') {
           await manager.signinSilentCallback(window.location.href);
           return;
@@ -287,10 +277,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return;
     }
     if (!manager) return;
-    await manager.signinRedirect({ state: { returnTo: window.location.pathname }, max_age: 900 });
+    await manager.signinRedirect({ state: { returnTo: safeAppReturnTo(window.location.pathname + window.location.search + window.location.hash) }, max_age: 900 });
     if (oidc?.nativeNavigator) {
       const authenticatedUser = await manager.signinRedirectCallback(oidc.nativeNavigator.consumeCallbackUrl());
-      window.history.replaceState({}, '', oidcReturnTo(authenticatedUser, window.location.pathname));
+      replaceAuthLocation(oidcReturnTo(authenticatedUser, window.location.pathname));
       setUser(authenticatedUser);
       setSubject(oidcStorageSubject(authenticatedUser));
       setAccessTokenProvider(async () => authenticatedUser.access_token);
@@ -310,7 +300,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await manager.signinRedirect(freshOidcSigninRequest(window.location.pathname));
     if (oidc?.nativeNavigator) {
       const authenticatedUser = await manager.signinRedirectCallback(oidc.nativeNavigator.consumeCallbackUrl());
-      window.history.replaceState({}, '', oidcReturnTo(authenticatedUser, window.location.pathname));
+      replaceAuthLocation(oidcReturnTo(authenticatedUser, window.location.pathname));
       setUser(authenticatedUser);
       setSubject(oidcStorageSubject(authenticatedUser));
       setAccessTokenProvider(async () => authenticatedUser.access_token);

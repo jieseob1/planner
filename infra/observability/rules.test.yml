@@ -1,0 +1,52 @@
+rule_files:
+  - /etc/prometheus/rules.yml
+evaluation_interval: 1m
+tests:
+  - name: Grafana memory is covered, application-only filtering would fail
+    interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{namespace="nowline-observability",pod="grafana-fixture",container="grafana",instance="fixture"}'
+        values: '95+0x10'
+      - series: 'container_spec_memory_limit_bytes{namespace="nowline-observability",pod="grafana-fixture",container="grafana",instance="fixture"}'
+        values: '100+0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: NowlineContainerMemoryHigh
+        exp_alerts:
+          - exp_labels: {namespace: nowline-observability, pod: grafana-fixture, container: grafana, instance: fixture, severity: warning}
+            exp_annotations:
+              summary: A Nowline container uses over 90 percent of its memory limit.
+  - name: Healthy memory and unlimited containers do not trigger a percentage alert
+    interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{namespace="nowline-observability",pod="grafana-fixture",container="grafana",instance="fixture"}'
+        values: '50+0x10'
+      - series: 'container_spec_memory_limit_bytes{namespace="nowline-observability",pod="grafana-fixture",container="grafana",instance="fixture"}'
+        values: '100+0x10'
+      - series: 'container_memory_working_set_bytes{namespace="nowline-local",pod="unlimited-fixture",container="backend",instance="fixture"}'
+        values: '50+0x10'
+      - series: 'container_spec_memory_limit_bytes{namespace="nowline-local",pod="unlimited-fixture",container="backend",instance="fixture"}'
+        values: '0+0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: NowlineContainerMemoryHigh
+        exp_alerts: []
+  - name: Missing disk telemetry must be visible, not interpreted as a healthy disk
+    interval: 1m
+    input_series: []
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: NowlineObservabilityDiskMetricsMissing
+        exp_alerts:
+          - exp_labels: {namespace: nowline-observability, severity: warning}
+            exp_annotations:
+              summary: PVC capacity telemetry is unavailable; check actual host and VM free disk. No data is not zero usage.
+  - name: Existing disk telemetry does not emit missing-telemetry alert
+    interval: 1m
+    input_series:
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="nowline-observability",persistentvolumeclaim="fixture"}'
+        values: '4096+0x25'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: NowlineObservabilityDiskMetricsMissing
+        exp_alerts: []

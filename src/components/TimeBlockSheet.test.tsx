@@ -12,6 +12,24 @@ const setup = () => {
 };
 afterEach(cleanup);
 describe('TimeBlockSheet existing Todo editing', () => {
+  it('edits an absolute date across year boundaries and derives its weekday', () => {
+    const onSave = vi.fn();
+    render(<TimeBlockSheet tasks={[]} initialTitle="자정 일정" initialMode="event" initialDate="2026-12-31" initialDay="thu" initialStartMinutes={0} initialDurationMinutes={30} minDate="2026-01-01" maxDate="2027-12-31" onSave={onSave} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('일정 날짜'), { target: { value: '2027-01-01' } });
+    fireEvent.submit(screen.getByLabelText('일정 제목').closest('form')!);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ date: '2027-01-01', day: 'fri', startMinutes: 0, durationMinutes: 30 }));
+  });
+  it('rejects a cleared or out-of-bounds absolute date without losing the title', () => {
+    const onSave = vi.fn();
+    render(<TimeBlockSheet tasks={[]} initialTitle="내 입력" initialMode="event" initialDate="2026-09-08" initialDay="tue" initialStartMinutes={1425} initialDurationMinutes={15} minDate="2026-01-01" maxDate="2026-12-31" onSave={onSave} onClose={vi.fn()} />);
+    expect(screen.getByLabelText('종료')).toHaveValue('1440');
+    fireEvent.change(screen.getByLabelText('일정 날짜'), { target: { value: '' } });
+    fireEvent.submit(screen.getByLabelText('일정 제목').closest('form')!);
+    fireEvent.change(screen.getByLabelText('일정 날짜'), { target: { value: '2027-01-01' } });
+    fireEvent.submit(screen.getByLabelText('일정 제목').closest('form')!);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('일정 제목')).toHaveValue('내 입력');
+  });
   it('allows editing a completed Todo and preserves an existing 25-minute block', () => {
     const { onSave } = setup();
     expect(screen.getByLabelText('종료')).toHaveValue('565');

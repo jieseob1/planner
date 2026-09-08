@@ -48,7 +48,7 @@ public class WebPushDeliveryGateway implements PushDeliveryGateway {
                     "url", message.targetPath(),
                     "tag", message.tag()));
             var response = pushService.send(new Notification(
-                    endpoint, p256dh, auth, payload.getBytes(StandardCharsets.UTF_8), 3600));
+                    endpoint, p256dh, auth, payload.getBytes(StandardCharsets.UTF_8), 120));
             int status = response.getStatusLine().getStatusCode();
             if (status >= 200 && status < 300) return Result.DELIVERED;
             if (status == 404 || status == 410) return Result.PERMANENT_FAILURE;

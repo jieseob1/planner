@@ -1,0 +1,7 @@
+.beta-support { margin-top: 24px; padding: 24px; border: 1px solid var(--line, #dde3ed); border-radius: 18px; background: var(--surface, #fff); }
+.beta-support h2 { font-size: 20px; margin: 8px 0; }
+.beta-support p { line-height: 1.65; color: var(--text-2, #475467); }
+.beta-support__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.beta-feedback-modal .field { margin-bottom: 16px; }
+.beta-feedback-modal textarea { width: 100%; box-sizing: border-box; min-height: 100px; resize: vertical; }
+@media (max-width: 680px) { .beta-support { padding: 18px; } .beta-support__actions > * { flex: 1 1 100%; } }

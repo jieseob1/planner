@@ -14,7 +14,7 @@ import { nativePushEnabled } from '../auth/nativePush';
 
 const navItems = [
   { to: '/today', label: '오늘', contextLabel: '오늘 실행', icon: CheckCircle2 },
-  { to: '/planner', label: '일정', contextLabel: '주간 시간표', icon: CalendarDays },
+  { to: '/planner', label: '일정', contextLabel: '주간·월간 일정', icon: CalendarDays },
   { to: '/goals', label: '목표', contextLabel: '기간별 목표', icon: Target },
   { to: '/review', label: '돌아보기', contextLabel: '기록과 회고', icon: Flag }
 ];
@@ -115,6 +115,10 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar__today-footer">
+          {adminAccess.status === 'allowed' && <NavLink to="/admin" aria-label="운영 관리 · 백오피스" className={({ isActive }) => clsx('nav-item', isActive && 'nav-item--active')}>
+            <ShieldCheck size={20} aria-hidden="true" />
+            <span className="nav-item__copy"><strong className="nav-item__label">운영 관리</strong><small>백오피스</small></span>
+          </NavLink>}
           <NavLink
             to="/settings"
             aria-label="설정 · 설정과 연동"

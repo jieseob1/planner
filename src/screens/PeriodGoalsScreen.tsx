@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, ArrowRight, CheckCircle2, Circle, Plus, Target } from 'lucide-react';
+import { Archive, ArrowRight, Plus, Target } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { PeriodSelector } from '../components/PeriodSelector';
 import { PeriodFeedback } from '../components/PeriodFeedback';
 import { PeriodDraftStatus } from '../components/PeriodDraftStatus';
+import { descendantGoalIds, GoalTree } from '../components/GoalTree';
 import { usePeriods } from '../state/PeriodProvider';
 import { usePlanner } from '../state/PlannerProvider';
 import { usePeriodDraft } from '../state/usePeriodDraft';
@@ -21,14 +22,16 @@ export function GoalProgress({ goal }: { goal: PeriodGoal }) {
     <progress max={100} value={progress ?? 0} aria-label={`${goal.title} 목표 달성률`} />
   </div>;
 }
-function GoalEditor({ document, range, onClose }: { document?: PeriodDocument; range: PeriodRange; onClose: () => void }) {
+function GoalEditor({ document, range, parent, onClose }: { document?: PeriodDocument; range: PeriodRange; parent?: PeriodGoal; onClose: () => void }) {
   const periods = usePeriods();
   const planner = usePlanner();
-  const initial: PeriodGoal = document?.goal ?? { ...range, id: `goal-${createIdempotencyKey()}`, title: '', parentId: null, measurement: 'completion', baseline: 0, current: 0, target: 1, unit: '', done: false, note: '', taskIds: [] };
-  const draft = usePeriodDraft(document?.goal?.id ?? 'new-goal', initial, document?.revision ?? 0);
+  const initial: PeriodGoal = document?.goal ?? { ...range, id: `goal-${createIdempotencyKey()}`, title: '', parentId: parent?.id ?? null, measurement: 'completion', baseline: 0, current: 0, target: 1, unit: '', done: false, note: '', taskIds: [] };
+  const draft = usePeriodDraft(document?.goal?.id ?? (parent ? `new-goal-child-${parent.id}` : 'new-goal'), initial, document?.revision ?? 0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notice, setNotice] = useState('');
   const value = draft.value;
+  const activeGoals = periods?.documents.filter(d => !d.deleted && d.goal).map(d => d.goal!) ?? [];
+  const descendants = descendantGoalIds(activeGoals, value.id);
   const submit = (event: FormEvent) => { event.preventDefault(); if (value.title.trim()) void draft.save().then(saved => { if (saved) onClose(); }); };
   const linkTask = (id: string, checked: boolean) => draft.edit({ ...value, taskIds: checked ? [...new Set([...value.taskIds, id])] : value.taskIds.filter(t => t !== id) });
   const addTodo = () => {
@@ -38,7 +41,7 @@ function GoalEditor({ document, range, onClose }: { document?: PeriodDocument; r
     linkTask(id, true); setNotice(existing ? '같은 이름의 기존 할 일을 연결했습니다.' : '시간 미정 할 일을 만들었습니다. 할 일의 서버 저장이 끝나면 목표를 저장해 주세요.');
   };
   const waitingForTask = value.taskIds.some(id => !document?.goal?.taskIds.includes(id)) && planner.saveStatus !== 'saved';
-  return <Modal title={document ? '목표 수정' : '목표 추가'} description="제목과 기간으로 시작하세요. 상위 목표나 할 일 연결은 선택입니다." onClose={() => { if (!draft.busy) onClose(); }}>
+  return <Modal title={document ? '목표 수정' : parent ? '하위 목표 추가' : '목표 추가'} description={parent ? `${parent.title}을 작은 결과로 나눠보세요. 각 목표의 달성률은 독립적으로 관리합니다.` : '제목과 기간으로 시작하세요. 상위 목표나 할 일 연결은 선택입니다.'} onClose={() => { if (!draft.busy) onClose(); }}>
     <form className="period-goal-editor form-grid" onSubmit={submit}>
       <fieldset disabled={draft.busy || draft.conflict}>
         <label className="field"><span>목표 이름</span><input data-autofocus required maxLength={500} value={value.title} onChange={e => draft.edit({ ...value, title: e.target.value })} placeholder="이번 기간에 이루고 싶은 결과" /></label>
@@ -53,8 +56,8 @@ function GoalEditor({ document, range, onClose }: { document?: PeriodDocument; r
           <label className="field"><span>단위</span><input maxLength={40} value={value.unit} onChange={e => draft.edit({ ...value, unit: e.target.value })} placeholder="편, 회, kg…" /></label>
           <p className="period-hint">기준값에서 목표값까지의 변화로 계산합니다. 감소 목표도 설정할 수 있어요.</p>
         </>}
-        <details open={Boolean(document)}><summary>상위 목표 · 할 일 연결 · 메모</summary>
-          <label className="field"><span>상위 목표 (선택)</span><select value={value.parentId ?? ''} onChange={e => draft.edit({ ...value, parentId: e.target.value || null })}><option value="">연결하지 않음</option>{periods?.documents.filter(d => d.goal && !d.deleted && d.goal.id !== value.id).map(d => <option key={d.goal!.id} value={d.goal!.id}>{d.goal!.title} · {periodLabels[d.goal!.period]}</option>)}</select></label>
+        <details open={Boolean(document || parent)}><summary>상위 목표 · 할 일 연결 · 메모</summary>
+          <label className="field"><span>상위 목표 (선택)</span><select aria-label="상위 목표 (선택)" value={value.parentId ?? ''} onChange={e => draft.edit({ ...value, parentId: e.target.value || null })}><option value="">연결하지 않음</option>{activeGoals.filter(goal => goal.id !== value.id && !descendants.has(goal.id)).map(goal => <option key={goal.id} value={goal.id}>{goal.title} · {periodLabels[goal.period]}</option>)}</select></label>
           <label className="field"><span>메모</span><textarea maxLength={4000} value={value.note} onChange={e => draft.edit({ ...value, note: e.target.value })} /></label>
           <div className="period-task-links"><strong>할 일 연결 (선택)</strong><p className="period-hint">할 일을 완료해도 목표 수치는 자동으로 바뀌지 않아요.</p>
             {planner.tasks.map(task => <label key={task.id} className="period-check"><input type="checkbox" checked={value.taskIds.includes(task.id)} onChange={e => linkTask(task.id, e.target.checked)} />{task.title}</label>)}
@@ -80,23 +83,21 @@ export function PeriodGoalsScreen() {
   const [range, setRange] = usePeriodRange(periodRange('week', today));
   const periods = usePeriods();
   const [editor, setEditor] = useState<PeriodDocument | 'new' | null>(null);
+  const [childParent, setChildParent] = useState<PeriodGoal | null>(null);
   const listed = periods?.documents.filter(d => !d.deleted && d.goal?.period === range.period && d.goal.startDate === range.startDate) ?? [];
+  const childPeriod: Record<Period, Period> = { year: 'quarter', quarter: 'month', month: 'week', week: 'day', day: 'day' };
+  const editorRange = childParent ? periodRange(childPeriod[childParent.period], today >= childParent.startDate && today <= childParent.endDate ? today : childParent.startDate) : range;
   return <div className="page period-page">
     <header className="page-header"><div><p className="eyebrow">GOALS</p><h1>기간별 목표</h1><p>어느 기간에서든 시작하세요. 목표 연결은 선택이에요.</p></div><Link className="button button--secondary" to="/plans"><Archive size={16} /> 계획 보관함</Link></header>
     <PeriodFeedback />
     <div className="period-toolbar"><PeriodSelector value={range} today={today} onChange={setRange} /><button type="button" className="button button--primary" disabled={!periods?.ready} onClick={() => setEditor('new')}><Plus size={16} /> 목표 추가</button></div>
     <div className="period-section-title"><h2>이 기간의 목표 <small>{listed.length}</small></h2><Link to={`/review?period=${range.period}&date=${range.startDate}`}>돌아보기 <ArrowRight size={15} /></Link></div>
+    {listed.length > 0 && <p className="goal-tree-note">연결한 상위·하위 목표도 함께 보여드려요. 하위 목표의 완료가 상위 목표의 달성률을 자동으로 바꾸지는 않습니다.</p>}
     <div className="period-goal-list">
-      {listed.map(document => { const goal = document.goal!; const parent = periods?.documents.find(d => !d.deleted && d.goal?.id === goal.parentId)?.goal;
-        return <button key={goal.id} type="button" className="period-goal-row" onClick={() => setEditor(document)} aria-label={`${goal.title} 목표 수정`}>
-          {goalProgress(goal) === 100 ? <CheckCircle2 className="is-complete" size={22} /> : <Circle size={22} />}
-          <span className="period-goal-copy"><strong>{goal.title}</strong><small>{periodLabels[goal.period]} 목표 · {rangeLabel(goal)}</small>{parent && <small>상위 목표: {parent.title}</small>}</span>
-          <GoalProgress goal={goal} /><span className="period-goal-open">수정 <ArrowRight size={16} /></span>
-        </button>;
-      })}
+      <GoalTree documents={periods?.documents ?? []} selectedIds={listed.map(d => d.goal!.id)} onEdit={document => { setChildParent(null); setEditor(document); }} onAddChild={parent => { setChildParent(parent); setEditor('new'); }} />
       {!listed.length && periods?.ready && <div className="period-empty"><Target size={30} /><h2>작은 목표 하나부터 시작해요</h2><p>목표 없이도 오늘의 할 일과 시간표를 사용할 수 있어요.</p><button className="button button--primary" type="button" onClick={() => setEditor('new')}>첫 목표 추가</button></div>}
     </div>
     <details className="period-legacy"><summary>기존 분기 결과와 지표</summary><p>기존 수치 이력과 Todo 연결은 그대로 보존되어 있습니다. 연간 방향 문장을 임의로 새 목표로 바꾸지 않았습니다.</p><Link to="/goals/legacy">기존 분기 결과 관리 열기</Link></details>
-    {editor && <GoalEditor document={editor === 'new' ? undefined : editor} range={range} onClose={() => setEditor(null)} />}
+    {editor && <GoalEditor key={editor === 'new' ? childParent?.id ?? 'new' : editor.goal!.id} document={editor === 'new' ? undefined : editor} range={editorRange} parent={childParent ?? undefined} onClose={() => { setEditor(null); setChildParent(null); }} />}
   </div>;
 }

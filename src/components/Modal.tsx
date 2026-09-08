@@ -33,18 +33,15 @@ export function Modal({ title, description, onClose, children, className = '', e
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCloseRef.current();
-      if (event.key !== 'Tab' || !dialog) return;
-      const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')];
+      if (event.key !== 'Tab' || !dialog || !dialog.contains(document.activeElement)) return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('*')]
+        .filter(element => element.matches('a[href], summary, button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')
+          && !element.closest('[hidden], [inert]') && (!element.closest('details:not([open])') || element.tagName === 'SUMMARY'));
       if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      const index = focusable.indexOf(document.activeElement as HTMLElement);
+      const next = (index + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+      event.preventDefault();
+      focusable[next].focus();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => {

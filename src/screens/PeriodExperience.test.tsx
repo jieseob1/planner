@@ -7,7 +7,7 @@ import { PeriodGoalsScreen } from './PeriodGoalsScreen';
 import { PeriodReviewScreen } from './PeriodReviewScreen';
 import { periodApi } from '../api/periodApi';
 import { PlannerApiError } from '../api/plannerApi';
-import { documentId, emptyReview, periodRange, type PeriodDocument, type PeriodWrite } from '../domain/periods';
+import { documentId, emptyReview, periodRange, type PeriodDocument, type PeriodGoal, type PeriodWrite } from '../domain/periods';
 
 const auth = vi.hoisted(() => ({ subject: 'test:period-ui' }));
 vi.mock('../auth/AuthProvider', () => ({ useAuth: () => auth }));
@@ -30,6 +30,47 @@ beforeEach(() => {
 const view = (route: string) => render(<PeriodProvider><MemoryRouter initialEntries={[route]}><Routes><Route path="/goals" element={<PeriodGoalsScreen />} /><Route path="/review" element={<PeriodReviewScreen />} /></Routes></MemoryRouter></PeriodProvider>);
 
 describe('period goal and reflection experience', () => {
+  it('adds a child directly, persists the link and excludes descendants from parent choices', async () => {
+    const user = userEvent.setup();
+    const parent: PeriodGoal = { ...periodRange('year', '2026-09-08'), id: 'yearly', title: '올해 제품 출시', parentId: null, measurement: 'completion', baseline: 0, current: 0, target: 1, unit: '', done: false, note: '', taskIds: [] };
+    server = [{ goal: parent, review: null, revision: 1, deleted: false, updatedAt: new Date().toISOString() }];
+    const first = view('/goals?period=year&date=2026-09-08');
+    await user.click(await screen.findByRole('button', { name: '올해 제품 출시 하위 목표 추가' }));
+    expect(screen.getByRole('dialog', { name: '하위 목표 추가' })).toBeInTheDocument();
+    expect(screen.getByLabelText('상위 목표 (선택)')).toHaveValue('yearly');
+    expect(screen.getByLabelText('기간', { selector: 'select' })).toHaveValue('quarter');
+    await user.type(screen.getByLabelText('목표 이름'), '베타 피드백 반영');
+    await user.click(screen.getByLabelText('목표를 달성했어요'));
+    await user.click(screen.getByRole('button', { name: '목표 저장' }));
+    await screen.findByRole('button', { name: '베타 피드백 반영 목표 수정' });
+    expect(server.find(d => d.goal?.id !== 'yearly')?.goal).toMatchObject({ parentId: 'yearly', done: true, period: 'quarter', taskIds: [] });
+    expect(server.find(d => d.goal?.id === 'yearly')?.goal?.done).toBe(false);
+    first.unmount();
+    view('/goals?period=year&date=2026-09-08');
+    await screen.findByRole('button', { name: '베타 피드백 반영 목표 수정' });
+    await user.click(screen.getByRole('button', { name: '올해 제품 출시 목표 수정' }));
+    expect(within(screen.getByLabelText('상위 목표 (선택)')).queryByText(/베타 피드백 반영/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('상위 목표 (선택)')).toHaveValue('');
+  });
+
+  it('keeps child drafts separate by parent and lets a child become a standalone goal', async () => {
+    const user = userEvent.setup();
+    const firstGoal: PeriodGoal = { ...periodRange('week', '2026-09-07'), id: 'a', title: '첫 목표', parentId: null, measurement: 'completion', baseline: 0, current: 0, target: 1, unit: '', done: false, note: '', taskIds: [] };
+    server = [firstGoal, { ...firstGoal, id: 'b', title: '다른 목표' }].map(goal => ({ goal, review: null, revision: 1, deleted: false, updatedAt: new Date().toISOString() }));
+    view('/goals?period=week&date=2026-09-07');
+    await user.click(await screen.findByRole('button', { name: '첫 목표 하위 목표 추가' }));
+    await user.type(screen.getByLabelText('목표 이름'), '보관 중인 하위 초안');
+    await user.click(screen.getByRole('button', { name: '닫기' }));
+    await user.click(screen.getByRole('button', { name: '다른 목표 하위 목표 추가' }));
+    expect(screen.getByLabelText('목표 이름')).toHaveValue('');
+    await user.type(screen.getByLabelText('목표 이름'), '독립적인 결과');
+    await user.selectOptions(screen.getByLabelText('상위 목표 (선택)'), '');
+    await user.click(screen.getByRole('button', { name: '목표 저장' }));
+    await waitFor(() => expect(server.find(d => d.goal?.title === '독립적인 결과')?.goal?.parentId).toBeNull());
+    await user.click(screen.getByRole('button', { name: '첫 목표 하위 목표 추가' }));
+    expect(screen.getByLabelText('목표 이름')).toHaveValue('보관 중인 하위 초안');
+  });
+
   it('creates, edits, completes and deletes a title-only goal without requiring a parent or metric', async () => {
     const user = userEvent.setup(); view('/goals?period=week&date=2026-09-07');
     await waitFor(() => expect(screen.getByRole('button', { name: '목표 추가' })).toBeEnabled());

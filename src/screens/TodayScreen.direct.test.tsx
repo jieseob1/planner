@@ -142,6 +142,21 @@ const giveTimelineBounds = (element: HTMLElement) => {
 };
 
 describe('Today direct calendar integration', () => {
+  it('opens the exact date from a notification link, and can return to today', () => {
+    mockedUsePlanner.mockReturnValue(plannerValue(snapshotWith([task()], [block({ date: '2026-09-03', day: 'thu', title: '자정 뒤 일정' })])));
+    render(<MemoryRouter initialEntries={['/today?date=2026-09-03']}><TodayScreen /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('9월 3일');
+    expect(screen.getByRole('button', { name: /자정 뒤 일정.*할 일 시간 블록/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '오늘' }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('9월 2일');
+    expect(screen.queryByRole('button', { name: /자정 뒤 일정.*할 일 시간 블록/ })).not.toBeInTheDocument();
+  });
+
+  it('falls back to today for an invalid notification date', () => {
+    render(<MemoryRouter initialEntries={['/today?date=2026-02-31']}><TodayScreen /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('9월 2일');
+  });
+
   it('opens an unscheduled Todo editor and saves its title without adding a goal', () => {
     const value = plannerValue(snapshotWith([task()]));
     mockedUsePlanner.mockReturnValue(value);

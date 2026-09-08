@@ -45,6 +45,8 @@ export default defineConfig({
     }
   },
   test: {
+    // Operational scripts use node:test and have their own CI invocation.
+    include: ['src/**/*.{test,spec}.{ts,tsx,js,jsx}'],
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',

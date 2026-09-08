@@ -4,6 +4,7 @@ import type { DayKey, Outcome, Task, Subtask } from '../domain/types';
 import { SubtaskEditor } from './SubtaskEditor';
 import { validSubtasks } from '../domain/subtasks';
 import { formatClock, formatMinutes } from '../lib/format';
+import { getDayKeyForDate, isLocalDate } from '../lib/calendarDate';
 import { Modal } from './Modal';
 
 export type TimeBlockMode = 'existing-task' | 'new-task' | 'event';
@@ -15,6 +16,7 @@ export interface TimeBlockEditorValue {
   title: string;
   outcomeId: string | null;
   day: DayKey;
+  date?: string;
   startMinutes: number;
   durationMinutes: number;
   subtasks?: Subtask[];
@@ -28,6 +30,10 @@ interface TimeBlockSheetProps {
   initialTaskId?: string;
   initialTitle?: string;
   initialDay: DayKey;
+  /** Enables absolute-date editing without changing legacy week-only callers. */
+  initialDate?: string;
+  minDate?: string;
+  maxDate?: string;
   initialStartMinutes: number;
   initialDurationMinutes: number;
   initialMode?: TimeBlockMode;
@@ -59,6 +65,9 @@ export function TimeBlockSheet({
   initialTaskId = '',
   initialTitle = '',
   initialDay,
+  initialDate,
+  minDate,
+  maxDate,
   initialStartMinutes,
   initialDurationMinutes,
   initialMode,
@@ -82,6 +91,7 @@ export function TimeBlockSheet({
   const [taskSubtasks, setTaskSubtasks] = useState<Record<string, Subtask[]>>({});
   const [newSubtasks, setNewSubtasks] = useState<Subtask[]>([]);
   const [day, setDay] = useState<DayKey>(initialDay);
+  const [date, setDate] = useState(initialDate ?? '');
   const [startMinutes, setStartMinutes] = useState(initialStartMinutes);
   const [endMinutes, setEndMinutes] = useState(() => Math.min(
     DAY_END_MINUTES,
@@ -127,13 +137,15 @@ export function TimeBlockSheet({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!selectedTitle || endMinutes <= startMinutes || (mode === 'existing-task' && !selectedTask) || (mode !== 'event' && !validSubtasks(subtasks))) return;
+    if (initialDate !== undefined && (!isLocalDate(date) || (minDate && date < minDate) || (maxDate && date > maxDate))) return;
     onSave({
       blockId: initialBlockId,
       mode,
       taskId: mode === 'existing-task' ? taskId : null,
       title: selectedTitle,
       outcomeId: mode !== 'event' ? outcomeId || null : null,
-      day,
+      day: initialDate !== undefined ? getDayKeyForDate(date) : day,
+      ...(initialDate !== undefined ? { date } : {}),
       startMinutes,
       durationMinutes: endMinutes - startMinutes,
       ...(mode !== 'event' ? { subtasks } : {})
@@ -220,7 +232,8 @@ export function TimeBlockSheet({
           </div>
 
         {mode !== 'event' && <SubtaskEditor key={mode === 'existing-task' ? taskId : 'new-task'} value={subtasks} onChange={items => mode === 'existing-task' ? setTaskSubtasks(current => ({ ...current, [taskId]: items })) : setNewSubtasks(items)} />}
-        {days && days.length > 1 && (
+        {initialDate !== undefined && <label className="field"><span className="field-label"><CalendarDays size={16} /> 날짜</span><input type="date" aria-label="일정 날짜" required min={minDate} max={maxDate} value={date} onChange={event => setDate(event.target.value)} /><small className="field-help">다른 주나 달로도 일정을 옮길 수 있어요.</small></label>}
+        {initialDate === undefined && days && days.length > 1 && (
           <div className="field-group">
             <span className="field-label"><CalendarDays size={16} /> 날짜</span>
             <div className="segmented segmented--days time-block-days">

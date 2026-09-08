@@ -80,7 +80,7 @@ public class NotificationService {
         boolean retryable = false;
         boolean supported = false;
         PushDeliveryGateway.Message message = new PushDeliveryGateway.Message(
-                delivery.title(), delivery.body(), delivery.targetPath(), delivery.type());
+                delivery.title(), delivery.body(), delivery.targetPath(), "nowline-" + delivery.deliveryId());
         for (NotificationRepository.Device device : devices) {
             PushDeliveryGateway gateway = gateways.stream()
                     .filter(candidate -> candidate.supports(device.platform()))

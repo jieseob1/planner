@@ -46,6 +46,8 @@ import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
 import { TodayGoalStrip, TodayReview } from '../components/TodayPeriodContext';
+import { useSearchParams } from 'react-router-dom';
+import { isLocalDate } from '../lib/calendarDate';
 
 const DAY_END_MINUTES = 24 * 60;
 const MEMO_STORAGE_KEY = 'goals-to-today.today-memo.v1';
@@ -346,7 +348,15 @@ export function TodayScreen() {
   } = usePlanner();
   const today = getToday(new Date(), timeZone);
   const todayDate = today.isoDate;
-  const [selectedDate, setSelectedDate] = useState(todayDate);
+  const [dateParams, setDateParams] = useSearchParams();
+  const requestedDate = dateParams.get('date');
+  const selectedDate = isLocalDate(requestedDate) ? requestedDate : todayDate;
+  const setSelectedDate = (date: string | ((current: string) => string)) => setDateParams((previous) => {
+    const next = new URLSearchParams(previous);
+    const current = previous.get('date');
+    next.set('date', typeof date === 'function' ? date(isLocalDate(current) ? current : todayDate) : date);
+    return next;
+  });
   const [memo, setMemo] = useState('');
   const [manualMinutes, setManualMinutes] = useState('25');
   const [manualTaskId, setManualTaskId] = useState('');

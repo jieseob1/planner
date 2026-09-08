@@ -11,6 +11,8 @@ import { FocusAlert } from '../components/FocusAlert';
 import { useAuth } from '../auth/AuthProvider';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
 import { formatInstantInTimeZone } from '../lib/calendarDate';
+import { BetaFeedback } from '../components/BetaFeedback';
+import { useAdminAccess } from '../admin/useAdminAccess';
 
 const directionLabels: Record<CalendarDirection, string> = {
   BIDIRECTIONAL: '양방향 — Goals to Today와 Google 변경을 모두 반영',
@@ -38,6 +40,7 @@ const isAbortError = (reason: unknown) => (
 const requiresLogin = (message: string) => /\((401|403)\)|unauthori[sz]ed|forbidden|인증이? 필요|로그인/i.test(message);
 
 export function SettingsScreen() {
+  const adminAccess = useAdminAccess();
   const { reauthenticate } = useAuth();
   const { error: timeZoneError, loading: timeZoneLoading, refreshTimeZone, source: timeZoneSource, timeZone } = useTimeZone();
   const [status, setStatus] = useState<GoogleCalendarStatus | null>(null);
@@ -327,6 +330,7 @@ export function SettingsScreen() {
         )}
       </section>
       <AccountSettingsSections />
+      <BetaFeedback adminAllowed={adminAccess.status === 'allowed'} timeZone={timeZone} />
     </div>
   );
 }

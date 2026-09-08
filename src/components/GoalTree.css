@@ -1,0 +1,31 @@
+.goal-tree-list { list-style: none; margin: 0; padding: 0; }
+.goal-tree-list[hidden] { display: none; }
+.goal-tree-root { display: grid; gap: 12px; }
+.goal-tree-node { min-width: 0; }
+.goal-tree-node .goal-tree-list { border-inline-start: 2px solid #e8ebf3; }
+.goal-tree-card { display: flex; align-items: center; gap: 6px; padding: 12px 14px 12px 10px; border: 1px solid #e2e6ee; border-radius: 12px; background: #fff; }
+.goal-tree-card--context { background: #f8faff; }
+.goal-tree-list .goal-tree-list .goal-tree-card { margin-top: 8px; }
+.goal-tree-toggle, .goal-tree-add, .goal-tree-edit { border: 0; color: #35445e; background: transparent; font: inherit; cursor: pointer; }
+.goal-tree-toggle { display: grid; flex: 0 0 32px; place-items: center; width: 32px; height: 44px; border-radius: 8px; }
+.goal-tree-edit { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 4px; text-align: start; border-radius: 8px; }
+.goal-tree-edit > svg { flex-shrink: 0; }
+.goal-tree-edit .is-complete { color: #257353; }
+.goal-tree-copy { display: grid; gap: 5px; flex: 1; min-width: 0; }
+.goal-tree-copy strong { color: #172033; overflow-wrap: anywhere; font-size: 15px; }
+.goal-tree-copy small { color: #606d82; font-size: 12px; line-height: 1.5; }
+.goal-tree-progress { width: 180px; flex-shrink: 0; }
+.goal-tree-progress strong { overflow-wrap: anywhere; }
+.goal-tree-add { display: flex; align-items: center; gap: 5px; justify-content: center; flex-shrink: 0; min-height: 44px; padding: 8px 10px; color: #3153ba; font-size: 12px; border-radius: 8px; }
+.goal-tree-toggle:hover, .goal-tree-add:hover, .goal-tree-edit:hover { background: #edf1ff; }
+.goal-tree-card button:focus-visible { outline: 3px solid #385cff; outline-offset: 2px; }
+.goal-tree-note { color: #637086; font-size: 13px; line-height: 1.6; margin: -2px 0 16px; }
+@media (max-width: 780px) {
+  .goal-tree-card { flex-wrap: wrap; gap: 2px; padding-right: 8px; }
+  .goal-tree-edit { flex-wrap: wrap; gap: 8px; }
+  .goal-tree-copy { flex-basis: calc(100% - 34px); }
+  .goal-tree-progress { margin-inline-start: 29px; width: min(220px, calc(100% - 29px)); }
+  .goal-tree-open { display: none; }
+  .goal-tree-add { margin-inline-start: auto; }
+  .goal-tree-toggle { flex-basis: 28px; width: 28px; }
+}

@@ -37,6 +37,8 @@ export const operatorDashboards = [
     panel('DB 연결 대기 수', 'hikaricp_connections_pending{job="nowline-backend"}', 'short', '대기가 지속되면 풀 포화 또는 DB 지연을 점검하세요.'),
     panel('DB 연결 획득 타임아웃 · 최근 15분', 'sum by (pod) (increase(hikaricp_connections_timeout_total{job="nowline-backend"}[15m]))'),
     panel('JVM 실행 시간 · 재시작 시 감소', 'process_uptime_seconds{job="nowline-backend"}', 's', '재시작 횟수 지표가 아닙니다.'),
+    panel('컨테이너 메모리 한도 사용률 · 모니터링 포함', 'container_memory_working_set_bytes{job="kind-kubelet",namespace=~"nowline-(local|observability)",container!="",container!="POD"} / on(namespace,pod,container,instance) (container_spec_memory_limit_bytes{job="kind-kubelet",namespace=~"nowline-(local|observability)",container!="",container!="POD"} > 0)', 'percentunit', '80%부터 여유를 확인하고 90% 경보를 조사합니다. Grafana 자체도 포함됩니다. 제한이 없는 컨테이너는 비율을 만들지 않습니다.', '{{pod}} / {{container}}'),
+    panel('컨테이너 실행 시간 · 재시작 시 감소', 'time() - container_start_time_seconds{job="kind-kubelet",namespace=~"nowline-(local|observability)",container!="",container!="POD"}', 's', 'OOM 원인이나 재시작 횟수 자체는 아닙니다. kubectl lastState·이벤트와 함께 확인하세요.', '{{pod}} / {{container}}'),
   ]),
   dashboard('nowline-logs', 'Goals to Today · 중앙 로그', [
     {...panel('로그 유입량 · 레벨별', 'sum by (level) (count_over_time({namespace="nowline-local"}[5m]))', 'short', '최근 5분 로그 수. 원본 로그는 민감 정보 필터를 통과한 것만 수집합니다.', '{{level}}'), datasource: loki},

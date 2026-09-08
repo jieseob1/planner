@@ -69,7 +69,9 @@ export function buildStack() {
     resource: resources('100m', '256Mi', '1', '768Mi'),
     mounts: [mount('config', '/etc/loki', true), mount('data', '/loki')], volumes: [configVolume('nowline-loki'), dataVolume('nowline-loki')]}));
   items.push(workload('grafana', {uid: 472, port: 3000, probePath: '/ops/grafana/api/health',
-    resource: resources('100m', '128Mi', '500m', '384Mi'),
+    // Two real 384 MiB OOM terminations on 2026-09-07. Keep headroom for
+    // dashboard/plugin startup; the namespace remains below its 1/3 GiB budget.
+    resource: resources('250m', '384Mi', '1', '768Mi'),
     env: [{name: 'GF_PATHS_CONFIG', value: '/etc/nowline-grafana/grafana.ini'}, {name: 'GF_SECURITY_SECRET_KEY', valueFrom: {secretKeyRef: {name: 'nowline-grafana-oauth', key: 'session-secret'}}}],
     mounts: [mount('config', '/etc/nowline-grafana', true), mount('data', '/var/lib/grafana'), mount('credentials', '/etc/grafana-secret', true),
       {...mount('provisioning', '/etc/grafana/provisioning/datasources/nowline.yml', true), subPath: 'datasources.yml'}, {...mount('provisioning', '/etc/grafana/provisioning/dashboards/nowline.yml', true), subPath: 'dashboards.yml'}, mount('dashboard', '/var/lib/grafana/dashboards', true)],

@@ -172,7 +172,7 @@ describe('Planner frontend core flows', () => {
     expect(screen.getByText(/시간 미정 목록에 추가했습니다/)).toBeInTheDocument();
     expect(capture).toHaveValue('');
 
-    await openRouteFromNavigation(user, '일정 · 주간 시간표');
+    await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
     expect(screen.getAllByText('배포 체크리스트 확인')).toHaveLength(1);
   });
 
@@ -293,7 +293,7 @@ describe('Planner frontend core flows', () => {
     await user.click(within(firstDialog).getByRole('button', { name: '취소' }));
     expect(screen.queryByRole('dialog', { name: '현재 계획을 초기화할까요?' })).not.toBeInTheDocument();
 
-    await openRouteFromNavigation(user, '일정 · 주간 시간표');
+    await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
     expect(screen.getByText('초기화 전에 남길 작업')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '현재 계획 초기화' }));
@@ -360,7 +360,7 @@ describe('Planner frontend core flows', () => {
     await user.click(within(dialog).getByRole('button', { name: '추가' }));
 
     expect(screen.queryByRole('dialog', { name: '할 일 또는 일정 추가' })).not.toBeInTheDocument();
-    expect(screen.getByText('세금계산서 발행을 07:00에 추가했어요.')).toBeInTheDocument();
+    expect(screen.getByText(/^세금계산서 발행을 \d{4}-\d{2}-\d{2} 07:00에 추가했어요\.$/)).toBeInTheDocument();
   });
 
   it('changes the visible week with the previous and next controls', async () => {
@@ -689,7 +689,7 @@ describe('Planner API synchronization', () => {
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
     expect(screen.getByText('기기 변경을 덮어쓰지 않고 보존했어요')).toBeInTheDocument();
     expect(window.localStorage.getItem(TEST_STORAGE_KEYS.snapshot)).toContain('충돌에서도 지킬 작업');
-    await openRouteFromNavigation(user, '일정 · 주간 시간표');
+    await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
     expect(screen.getByText('충돌에서도 지킬 작업')).toBeInTheDocument();
   });
 
@@ -724,7 +724,7 @@ describe('Planner API synchronization', () => {
     await user.type(screen.getByLabelText('빠른 메모'), '충돌 유도 작업{Enter}');
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
 
-    await openRouteFromNavigation(user, '일정 · 주간 시간표');
+    await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
     await user.click(screen.getByRole('button', { name: '세금계산서 발행 수정' }));
     const editDialog = screen.getByRole('dialog', { name: '할 일 수정' });
     const title = within(editDialog).getByLabelText('할 일');
@@ -814,7 +814,7 @@ describe('Planner API synchronization', () => {
     });
 
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
-    await openRouteFromNavigation(user, '일정 · 주간 시간표');
+    await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
     expect(screen.getByText('초기 조회 중 작성한 작업')).toBeInTheDocument();
     expect(apiMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
   });

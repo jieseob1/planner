@@ -78,6 +78,8 @@ public class AccountService {
         result.put("activePlanner", planner.find(userId).orElse(null));
         result.put("periodDocuments", jdbc.queryForList("SELECT document_id, revision, body, deleted, updated_at FROM period_document WHERE user_id = ?", id(userId)));
         result.put("periodDocumentHistory", jdbc.queryForList("SELECT document_id, revision, body, created_at FROM period_document_history WHERE user_id = ? ORDER BY document_id, revision", id(userId)));
+        result.put("aiReviewSettings", jdbc.queryForList("SELECT consent, include_reflections, weekly_enabled, monthly_enabled, scheduled_time, consent_version, updated_at FROM ai_review_setting WHERE user_id = ?", id(userId)));
+        result.put("aiReviewReports", jdbc.queryForList("SELECT report_id, period, start_date, end_date, version, status, input_snapshot, input_hash, prompt_version, model, report_body, input_tokens, output_tokens, cost_usd, error_code, created_at, completed_at FROM ai_review_report WHERE user_id = ? ORDER BY created_at, version", id(userId)));
 
         List<Map<String, Object>> planExports = new ArrayList<>();
         for (PlanHistory.Summary summary : plans.list(userId)) {

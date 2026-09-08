@@ -68,13 +68,24 @@ public class NotificationRepository {
             String targetPath,
             Instant scheduledFor
     ) {
-        return jdbc.update("""
+        int created = jdbc.update("""
                 INSERT IGNORE INTO notification_delivery (
                     delivery_id, user_id, notification_type, deduplication_key,
                     title, body, target_path, scheduled_for, available_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6))
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, id(UUID.randomUUID()), id(userId), type, deduplicationKey,
-                trim(title, 200), trim(body, 500), trim(targetPath, 500), Timestamp.from(scheduledFor)) == 1;
+                trim(title, 200), trim(body, 500), trim(targetPath, 500),
+                Timestamp.from(scheduledFor), Timestamp.from(scheduledFor));
+        if (created == 1) return true;
+        // Moving a block away and back should not lose its alarm. A delivered/failed/no-device
+        // row is never rearmed, and concurrent generators compete on this conditional update.
+        return jdbc.update("""
+                UPDATE notification_delivery SET status = 'PENDING', attempts = 0, last_error = NULL,
+                    locked_at = NULL, title = ?, body = ?, target_path = ?, available_at = ?
+                WHERE user_id = ? AND deduplication_key = ? AND scheduled_for = ?
+                    AND status = 'SKIPPED' AND last_error = 'reminder-no-longer-current'
+                """, trim(title, 200), trim(body, 500), trim(targetPath, 500), Timestamp.from(scheduledFor),
+                id(userId), deduplicationKey, Timestamp.from(scheduledFor)) == 1;
     }
 
     @Transactional
@@ -82,6 +93,7 @@ public class NotificationRepository {
         List<String> candidates = jdbc.query("""
                 SELECT delivery_id FROM notification_delivery
                 WHERE status = 'PENDING' AND available_at <= CURRENT_TIMESTAMP(6)
+                    AND scheduled_for <= CURRENT_TIMESTAMP(6)
                 ORDER BY available_at, created_at
                 LIMIT 1 FOR UPDATE SKIP LOCKED
                 """, (rs, row) -> rs.getString("delivery_id"));
@@ -94,12 +106,14 @@ public class NotificationRepository {
                 """, deliveryId);
         if (claimed != 1) return Optional.empty();
         return jdbc.query("""
-                SELECT delivery_id, user_id, notification_type, title, body, target_path, attempts
+                SELECT delivery_id, user_id, notification_type, title, body, target_path, attempts,
+                       deduplication_key, scheduled_for
                 FROM notification_delivery WHERE delivery_id = ?
                 """, rs -> rs.next() ? Optional.of(new Delivery(
                 uuid(rs, "delivery_id"), uuid(rs, "user_id"),
                 rs.getString("notification_type"), rs.getString("title"), rs.getString("body"),
-                rs.getString("target_path"), rs.getInt("attempts"))) : Optional.empty(), deliveryId);
+                rs.getString("target_path"), rs.getInt("attempts"), rs.getString("deduplication_key"),
+                rs.getTimestamp("scheduled_for").toInstant())) : Optional.empty(), deliveryId);
     }
 
     public void delivered(UUID deliveryId) {
@@ -155,7 +169,17 @@ public class NotificationRepository {
             String title,
             String body,
             String targetPath,
-            int attempts
+            int attempts,
+            String deduplicationKey,
+            Instant scheduledFor
     ) {
+        public Delivery(UUID deliveryId, UUID userId, String type, String title, String body, String targetPath, int attempts) {
+            this(deliveryId, userId, type, title, body, targetPath, attempts, null, null);
+        }
+
+        public Delivery withContent(String currentTitle, String currentBody, String currentPath) {
+            return new Delivery(deliveryId, userId, type, currentTitle, currentBody, currentPath, attempts,
+                    deduplicationKey, scheduledFor);
+        }
     }
 }

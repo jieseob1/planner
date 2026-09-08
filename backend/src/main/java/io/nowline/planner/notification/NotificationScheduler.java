@@ -73,17 +73,13 @@ public class NotificationScheduler {
                 }
             }
 
+            var tasks = ReminderSchedule.tasks(envelope.snapshot());
             for (PlannerSnapshot.TimeBlock block : envelope.snapshot().timeBlocks()) {
-                if (block.externalOrFalse() || !localNow.toLocalDate().equals(block.date())) continue;
-                Instant start = block.date().atStartOfDay(zone)
-                        .plusMinutes(block.startMinutes()).toInstant();
-                Instant target = start.minus(candidate.preferences().blockReminderMinutes(), java.time.temporal.ChronoUnit.MINUTES);
-                if (due(now, target)) {
+                var reminder = ReminderSchedule.block(block, tasks, candidate.preferences());
+                if (reminder != null && reminder.notStarted(now) && due(now, reminder.target())) {
                     repository.createDelivery(
-                            candidate.userId(), "TIME_BLOCK", "block:" + block.id() + ":" + block.date(),
-                            block.title(),
-                            candidate.preferences().blockReminderMinutes() + "분 뒤 시작합니다.",
-                            "/today", target);
+                            candidate.userId(), "TIME_BLOCK", reminder.key(), reminder.title(), reminder.body(),
+                            reminder.targetPath(), reminder.target());
                 }
             }
         }
@@ -94,7 +90,13 @@ public class NotificationScheduler {
         for (int count = 0; count < 20; count++) {
             NotificationRepository.Delivery delivery = repository.claimDelivery().orElse(null);
             if (delivery == null) return;
-            notifications.dispatch(delivery);
+            // The queue is a hint, not authority: a schedule may be edited or removed while queued/retrying.
+            NotificationRepository.Delivery current = currentDelivery(delivery);
+            if (current == null) {
+                repository.skipped(delivery.deliveryId(), "reminder-no-longer-current");
+            } else {
+                notifications.dispatch(current);
+            }
         }
     }
 
@@ -106,6 +108,33 @@ public class NotificationScheduler {
     private boolean due(Instant now, Instant target) {
         long seconds = Duration.between(target, now).getSeconds();
         return seconds >= -30 && seconds <= 120;
+    }
+
+    private NotificationRepository.Delivery currentDelivery(NotificationRepository.Delivery delivery) {
+        Instant now = clock.instant();
+        if (delivery.scheduledFor() == null || delivery.deduplicationKey() == null
+                || !ReminderSchedule.withinDispatchWindow(now, delivery.scheduledFor())) return null;
+        var envelope = planner.find(delivery.userId()).orElse(null);
+        if (envelope == null) return null;
+        var currentPreferences = preferences.get(delivery.userId());
+        if ("TIME_BLOCK".equals(delivery.type())) {
+            var tasks = ReminderSchedule.tasks(envelope.snapshot());
+            for (var block : envelope.snapshot().timeBlocks()) {
+                var reminder = ReminderSchedule.block(block, tasks, currentPreferences);
+                if (reminder != null && reminder.notStarted(now)
+                        && reminder.key().equals(delivery.deduplicationKey())
+                        && reminder.target().equals(delivery.scheduledFor())) {
+                    return delivery.withContent(reminder.title(), reminder.body(), reminder.targetPath());
+                }
+            }
+        } else if ("DAILY_PLAN".equals(delivery.type()) && currentPreferences.dailyReminderEnabled()) {
+            var localNow = now.atZone(ZoneId.of(currentPreferences.timezone()));
+            Instant target = localNow.toLocalDate().atTime(currentPreferences.dailyReminderTime())
+                    .atZone(localNow.getZone()).toInstant();
+            if (("daily:" + localNow.toLocalDate()).equals(delivery.deduplicationKey())
+                    && target.equals(delivery.scheduledFor())) return delivery;
+        }
+        return null;
     }
 
 }
