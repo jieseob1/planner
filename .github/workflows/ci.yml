@@ -76,6 +76,8 @@ jobs:
       - run: npm run verify:k8s
       - run: node --test scripts/lib/mac-mini-release.check.mjs
       - run: npm run verify:observability
+      - name: Verify headless Colima recovery without touching a real VM
+        run: npm run verify:headless
       - name: Verify beta operations and scheduled backup safety
         run: node --test scripts/beta-operations.test.mjs scripts/scheduled-beta-backup.test.mjs scripts/verify-backup-restore.test.mjs
       - name: Rehearse restore into a disposable MySQL instance

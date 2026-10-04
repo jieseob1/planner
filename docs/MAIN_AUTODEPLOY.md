@@ -36,6 +36,8 @@ Mac mini의 배포 실행기는 GitHub에 outbound 연결하므로 SSH·Kubernet
 
 설치기는 현재 사용자 crontab의 다른 항목을 보존하고 별도 `GOALS_TO_TODAY_RUNNER` 구간에 `@reboot`와 1분 watchdog을 추가합니다. 기존 Tunnel/Colima supervisor와 별도로 작동하며 GUI 로그인에 의존하지 않습니다. 공식 [`runsvc.sh` 서비스 진입점](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application)을 사용합니다.
 
+Colima가 중단된 경우에만 Lima의 `colima` 인스턴스를 점검합니다. `vz driver is running but host agent is not`라는 특정 장애가 확인되면 `${HOME}/.colima/_lima`의 해당 인스턴스만 강제 정지한 뒤 Colima를 재시작합니다. 정상 VM과 다른 인스턴스는 정지하지 않으며, 강제 정지 실패 시 이후 시작도 중단합니다. `npm run verify:headless`는 실제 VM 명령을 모의 실행하는 회귀 테스트이며 CI에서도 실행합니다.
+
 최초 설치: 설치기와 `mac-mini-runner-guard.sh`, `mac-mini-runner-supervisor.mjs`를 서버의 같은 디렉터리에 둔 뒤, 관리자 컴퓨터에서 등록 토큰을 표준입력으로 전달합니다. 토큰 출력이나 파일 저장은 하지 않습니다.
 
 ```bash

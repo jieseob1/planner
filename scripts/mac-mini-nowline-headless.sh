@@ -13,6 +13,18 @@ if [[ ! -x "${COLIMA}" ]]; then
 fi
 
 if ! "${COLIMA}" status >/dev/null 2>&1; then
+  # Lima can leave a VZ instance in Broken state after its host agent exits.
+  # A normal `colima start` cannot clear that state, so the supervisor would
+  # otherwise retry forever while the Kubernetes service stays offline.
+  lima_ctl="${NOWLINE_LIMACTL_BIN:-$(command -v limactl || true)}"
+  colima_lima_home="${HOME}/.colima/_lima"
+  if [[ -x "${lima_ctl}" ]]; then
+    inspection="$(LIMA_HOME="${colima_lima_home}" "${lima_ctl}" list colima 2>&1 || true)"
+    if [[ "${inspection}" == *'vz driver is running but host agent is not'* ]]; then
+      printf 'Clearing broken Colima VZ state before restart.\n' >&2
+      LIMA_HOME="${colima_lima_home}" "${lima_ctl}" stop --force colima
+    fi
+  fi
   "${COLIMA}" start
 fi
 
