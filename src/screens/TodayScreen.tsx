@@ -27,6 +27,7 @@ import { DayTimeline, DAY_TIMELINE_HOUR_HEIGHT, type TimelineCreateInput } from 
 import { Modal } from '../components/Modal';
 import { SaveStatus } from '../components/SaveStatus';
 import { TaskEditorSheet } from '../components/TaskEditorSheet';
+import { TimeBlockSheet, type TimeBlockEditorValue } from '../components/TimeBlockSheet';
 import { SubtaskProgress } from '../components/SubtaskEditor';
 import type { Task, TimeBlock, TimeEntry } from '../domain/types';
 import {
@@ -150,8 +151,11 @@ interface TodoPanelProps {
   runningTaskId: string | null;
   timerPaused: boolean;
   unscheduledTasks: Task[];
+  inboxTasks: Task[];
+  selectedBlocks: TimeBlock[];
   onAddTask: (title: string) => void;
   onComplete: (taskId: string) => void;
+  onPostpone: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDragEnd: () => void;
   onDragStart: (event: DragEvent<HTMLLIElement>, task: Task) => void;
@@ -175,8 +179,11 @@ function TodoPanel({
   runningTaskId,
   timerPaused,
   unscheduledTasks,
+  inboxTasks,
+  selectedBlocks,
   onAddTask,
   onComplete,
+  onPostpone,
   onEdit,
   onDragEnd,
   onDragStart,
@@ -188,6 +195,8 @@ function TodoPanel({
   onStart
 }: TodoPanelProps) {
   const [title, setTitle] = useState('');
+  const [list, setList] = useState<'day' | 'inbox'>('day');
+  const visibleTasks = list === 'day' ? unscheduledTasks : inboxTasks;
   const composingRef = useRef(false);
 
   const saveTask = () => {
@@ -213,10 +222,10 @@ function TodoPanel({
     <div className={mobile ? 'today-direct-todos is-mobile' : 'today-direct-todos'}>
       <header className="today-direct-todos__header">
         <div>
-          <span className="today-direct-kicker">시간 미정</span>
-          <h2>아직 배치하지 않은 할 일</h2>
+          <span className="today-direct-kicker">하나씩, 가볍게</span>
+          <h2>{canRecordManualTime ? '오늘 할 일' : '이 날짜의 할 일'}</h2>
         </div>
-        <strong aria-label={`미배치 할 일 ${unscheduledTasks.length}개`}>{unscheduledTasks.length}</strong>
+        <strong aria-label={`${canRecordManualTime ? '오늘 할 일' : '이 날짜의 할 일'} ${unscheduledTasks.length}개`}>{unscheduledTasks.filter(task => task.status === 'done').length}/{unscheduledTasks.length}</strong>
       </header>
 
       <form className="today-direct-quick-add" onSubmit={submit}>
@@ -229,16 +238,23 @@ function TodoPanel({
           onCompositionStart={() => { composingRef.current = true; }}
           onCompositionEnd={() => { composingRef.current = false; }}
           onKeyDown={handleKeyDown}
-          placeholder="할 일 추가"
+          placeholder="이 날짜에 할 일 추가"
           maxLength={500}
           autoComplete="off"
         />
         <button type="submit" disabled={!title.trim()}>추가</button>
       </form>
 
-      {unscheduledTasks.length > 0 ? (
+      <div className="today-task-filters" aria-label="할 일 목록 선택">
+        <button type="button" aria-pressed={list === 'day'} onClick={() => setList('day')}>선택한 날짜 <span>{unscheduledTasks.length}</span></button>
+        <button type="button" aria-pressed={list === 'inbox'} onClick={() => setList('inbox')}>나중에 <span>{inboxTasks.length}</span></button>
+      </div>
+
+      {visibleTasks.length > 0 ? (
         <ul className="today-direct-todo-list">
-          {unscheduledTasks.map((task) => {
+          {visibleTasks.map((task) => {
+            const taskBlocks = selectedBlocks.filter(block => block.taskId === task.id && !block.external);
+            const isDone = task.status === 'done';
             const isRunning = runningTaskId === task.id;
             const isPaused = isRunning && timerPaused;
             const timerAction = isRunning ? (isPaused ? '계속' : '멈춤') : '시작';
@@ -248,12 +264,12 @@ function TodoPanel({
               <li
                 key={task.id}
                 draggable={!mobile}
-                className={draggingTaskId === task.id ? 'is-dragging' : ''}
+                className={`${draggingTaskId === task.id ? 'is-dragging' : ''}${isDone ? ' is-done' : ''}`}
                 onDragStart={(event) => onDragStart(event, task)}
                 onDragEnd={onDragEnd}
               >
                 <GripVertical className="today-direct-todo__grip" size={16} aria-hidden="true" />
-                <button className="today-direct-todo__check" type="button" aria-label={`${task.title} 완료 처리`} title="완료" onClick={() => onComplete(task.id)}>
+                <button className="today-direct-todo__check" type="button" aria-pressed={isDone} aria-label={`${task.title} ${isDone ? '완료 취소' : '완료 처리'}`} title={isDone ? '완료 취소' : '완료'} onClick={() => onComplete(task.id)}>
                   <Check size={14} aria-hidden="true" />
                 </button>
                 <div className="today-direct-todo__copy">
@@ -263,33 +279,35 @@ function TodoPanel({
                     <SubtaskProgress items={task.subtasks} />
                   </button>
                   <small>
-                    <Clock3 size={13} aria-hidden="true" /> {formatMinutes(task.estimateMinutes)}
-                    {task.carryCount > 0 && <span> · 이월 {task.carryCount}회</span>}
+                    <Clock3 size={13} aria-hidden="true" /> {isDone ? '완료' : taskBlocks.length ? taskBlocks.map(block => `${formatClock(block.startMinutes)}–${formatClock(block.startMinutes + block.durationMinutes)}`).join(' · ') : list === 'inbox' ? '날짜 미정' : `시간 미정 · 예상 ${formatMinutes(task.estimateMinutes)}`}
                   </small>
                 </div>
-                <button className="today-direct-todo__schedule" type="button" aria-label={`${task.title} 다음 빈 시간에 배치`} title="다음 빈 시간에 배치" onClick={() => onScheduleNext(task)}>
-                  <CalendarDays size={15} aria-hidden="true" /><span>배치</span>
+                <div className="today-task-actions">
+                <button className="today-direct-todo__schedule" type="button" disabled={isDone} aria-label={`${task.title} 시간 지정`} onClick={() => onScheduleNext(task)}>
+                  <Clock3 size={15} aria-hidden="true" /><span>{taskBlocks.length ? '시간 수정' : '시간 지정'}</span>
                 </button>
+                <button className="today-direct-todo__schedule" type="button" aria-label={`${task.title} 날짜 변경`} onClick={() => onPostpone(task)}><CalendarDays size={15} /><span>날짜 변경</span></button>
                 <button
                   className="today-direct-todo__start"
                   type="button"
                   aria-label={`${task.title} ${timerLabel}`}
                   title={timerLabel}
-                  disabled={Boolean(runningTaskId && !isRunning)}
+                  disabled={isDone || Boolean(runningTaskId && !isRunning)}
                   onClick={() => onStart(task.id)}
                 >
                   {isRunning && !isPaused ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                   <span>{isRunning ? timerAction : runningTaskId ? timerPaused ? '일시정지 중' : '실행 중' : '시작'}</span>
                 </button>
+                </div>
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="today-direct-todos__empty">모든 할 일의 시간을 정했어요. 새 할 일을 추가하거나 시간표의 빈 곳을 누르세요.</p>
+        <p className="today-direct-todos__empty">{list === 'inbox' ? '날짜가 정해지지 않은 할 일이 없어요.' : '위에 할 일을 적어보세요. 시간은 나중에 정해도 괜찮아요.'}</p>
       )}
 
-      <p className="today-direct-todos__hint">데스크톱에서는 할 일을 시간표로 끌어 원하는 시각에 바로 놓을 수 있습니다.</p>
+      <p className="today-direct-todos__hint">체크하면 완료. 시간을 정하면 같은 할 일이 시간표에도 표시돼요.</p>
 
       {completedTasks.length > 0 && (
         <details className="today-direct-utility">
@@ -336,6 +354,7 @@ export function TodayScreen() {
     timer,
     addTask,
     updateTask,
+    rescheduleTask,
     removeTask,
     startTimer,
     toggleTimer,
@@ -364,20 +383,25 @@ export function TodayScreen() {
   const [notice, setNotice] = useState('');
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
   const [removedBlock, setRemovedBlock] = useState<TimeBlock | null>(null);
-  const [mobileTodosOpen, setMobileTodosOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'tasks' | 'timeline'>('tasks');
+  const [scheduleTask, setScheduleTask] = useState<Task | null>(null);
+  const [scheduleDate, setScheduleDate] = useState(selectedDate);
+  const [scheduleError, setScheduleError] = useState('');
+  const [dateTask, setDateTask] = useState<Task | null>(null);
+  const [targetDate, setTargetDate] = useState(selectedDate);
+  const [dateError, setDateError] = useState('');
+  const [completedNotice, setCompletedNotice] = useState<{ taskId: string; title: string; status: Task['status'] } | null>(null);
   const [finishOpen, setFinishOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const editingTask = tasks.find((task) => task.id === editingTaskId);
   const editTask = (task: Task) => {
     setNotice('');
-    setMobileTodosOpen(false);
     setEditingTaskId(task.id);
   };
   const [evidence, setEvidence] = useState('');
   const isCompact = useCompactLayout();
   const timelineScrollRef = useRef<HTMLDivElement>(null);
-  const mobileTodoSheetRef = useRef<HTMLElement>(null);
-  const mobileTodoTriggerRef = useRef<HTMLButtonElement>(null);
+  const timelineInitializedDate = useRef<string | null>(null);
   const undoTimerRef = useRef<number | null>(null);
   const currentMinute = useCurrentMinute(timeZone);
   const currentMinuteRef = useRef(currentMinute);
@@ -389,7 +413,8 @@ export function TodayScreen() {
     () => new Set(selectedBlocks.flatMap((block) => block.taskId && !block.external ? [block.taskId] : [])),
     [selectedBlocks]
   );
-  const unscheduledTasks = useMemo(() => activeTasks.filter((task) => !scheduledTaskIds.has(task.id)), [activeTasks, scheduledTaskIds]);
+  const unscheduledTasks = useMemo(() => tasks.filter(task => task.status !== 'cancelled' && (task.plannedDate === selectedDate || scheduledTaskIds.has(task.id))), [tasks, selectedDate, scheduledTaskIds]);
+  const inboxTasks = useMemo(() => activeTasks.filter(task => (!task.plannedDate || task.plannedDate === 'later') && !timeBlocks.some(block => block.taskId === task.id && !block.external)), [activeTasks, timeBlocks]);
   const selectedWeekOffset = getWeekOffsetForDate(selectedDate, new Date(), timeZone);
   const selectedWeekDays = getWeekDays(selectedWeekOffset, new Date(), timeZone);
   const selectedDay = getDayKeyForDate(selectedDate);
@@ -405,7 +430,7 @@ export function TodayScreen() {
   useEffect(() => {
     let focusFrame: number | null = null;
     const focusQuickCapture = () => {
-      if (isCompact) setMobileTodosOpen(true);
+      if (isCompact) setMobileView('tasks');
       if (focusFrame !== null) window.cancelAnimationFrame(focusFrame);
       focusFrame = window.requestAnimationFrame(() => {
         document.getElementById('quick-capture')?.focus();
@@ -421,72 +446,14 @@ export function TodayScreen() {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const scrollArea = timelineScrollRef.current;
-      if (!scrollArea) return;
+      if (!scrollArea || scrollArea.clientHeight === 0 || timelineInitializedDate.current === selectedDate) return;
+      timelineInitializedDate.current = selectedDate;
       const targetMinute = selectedDate === todayDate ? currentMinuteRef.current : 8 * 60;
       const targetTop = (targetMinute / 60) * DAY_TIMELINE_HOUR_HEIGHT;
       scrollArea.scrollTop = Math.max(0, Math.min(targetTop - (scrollArea.clientHeight / 2), scrollArea.scrollHeight - scrollArea.clientHeight));
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedDate, todayDate]);
-
-  useEffect(() => {
-    if (!mobileTodosOpen || !isCompact) return undefined;
-    const sheet = mobileTodoSheetRef.current;
-    const closeOnBack = () => setMobileTodosOpen(false);
-    const handleDialogKeys = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        window.history.back();
-        return;
-      }
-      if (event.key !== 'Tab' || !sheet) return;
-      const focusable = Array.from(sheet.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [href], [tabindex]:not([tabindex="-1"])'
-      )).filter((element) => {
-        const closedDetails = element.closest<HTMLDetailsElement>('details:not([open])');
-        if (closedDetails && element !== closedDetails.querySelector(':scope > summary')) return false;
-        return element.getClientRects().length > 0;
-      });
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (!first || !last) {
-        event.preventDefault();
-        sheet.focus();
-      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === sheet)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    const previousBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    window.history.pushState({ ...window.history.state, todayTodosOpen: true }, '');
-    window.addEventListener('popstate', closeOnBack);
-    window.addEventListener('keydown', handleDialogKeys);
-    const frame = window.requestAnimationFrame(() => {
-      sheet?.querySelector<HTMLInputElement>('input')?.focus();
-    });
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.body.style.overflow = previousBodyOverflow;
-      window.removeEventListener('popstate', closeOnBack);
-      window.removeEventListener('keydown', handleDialogKeys);
-      mobileTodoTriggerRef.current?.focus();
-    };
-  }, [isCompact, mobileTodosOpen]);
-
-  useEffect(() => {
-    if (isCompact || !mobileTodosOpen) return;
-    setMobileTodosOpen(false);
-    if (window.history.state?.todayTodosOpen) window.history.back();
-  }, [isCompact, mobileTodosOpen]);
-
-  const closeMobileTodos = () => {
-    if (window.history.state?.todayTodosOpen) window.history.back();
-    else setMobileTodosOpen(false);
-  };
+  }, [selectedDate, todayDate, mobileView, isCompact]);
 
   const showNotice = (message: string) => {
     setNotice(message);
@@ -510,7 +477,7 @@ export function TodayScreen() {
     const durationMinutes = input.range.endMinutes - input.range.startMinutes;
     let taskId: string | null = null;
     if (input.kind === 'todo') {
-      taskId = addTask({ title: input.title, outcomeId: null, estimateMinutes: durationMinutes });
+      taskId = addTask({ title: input.title, outcomeId: null, estimateMinutes: durationMinutes, plannedDate: selectedDate });
       if (!taskId) return false;
     }
     const saved = saveTimeBlock({
@@ -531,6 +498,7 @@ export function TodayScreen() {
     if (rangeConflicts(range)) return false;
     const saved = saveTimeBlock({
       taskId: task.id,
+      taskPatch: { plannedDate: task.plannedDate && task.plannedDate !== 'later' ? task.plannedDate : selectedDate },
       title: task.title,
       day: selectedDay,
       startMinutes: range.startMinutes,
@@ -608,18 +576,38 @@ export function TodayScreen() {
     return startMinutes === undefined ? null : { startMinutes, endMinutes: startMinutes + durationMinutes };
   };
 
-  const scheduleAtNextAvailableTime = (task: Task) => {
-    const range = findAvailableRange(task);
-    if (!range) {
-      showNotice('이 날짜에는 배치할 수 있는 빈 시간이 없습니다.');
-      return false;
-    }
-    return scheduleTaskAt(task, range);
+  const addUnscheduledTask = (title: string) => {
+    const taskId = addTask({ title, outcomeId: null, estimateMinutes: 30, plannedDate: selectedDate });
+    if (taskId) showNotice(`${title.trim()}을 선택한 날짜에 추가했습니다. 시간은 아직 미정입니다.`);
   };
 
-  const addUnscheduledTask = (title: string) => {
-    const taskId = addTask({ title, outcomeId: null, estimateMinutes: 30 });
-    if (taskId) showNotice(`${title.trim()}을 시간 미정 목록에 추가했습니다.`);
+  const completeTask = (taskId: string) => {
+    const task = tasks.find(item => item.id === taskId);
+    if (!task) return;
+    if (timer?.taskId === taskId) { setFinishOpen(true); return; }
+    const status = task.status === 'done' ? 'todo' : 'done';
+    if (updateTask(taskId, { status })) setCompletedNotice({ taskId, title: task.title, status: task.status });
+  };
+
+  const openSchedule = (task: Task) => {
+    const existing = selectedBlocks.some(block => block.taskId === task.id && !block.external);
+    setScheduleDate(!existing && !findAvailableRange(task) && selectedDate === todayDate ? addLocalDateDays(selectedDate, 1) : selectedDate);
+    setScheduleError(''); setScheduleTask(task);
+  };
+  const saveTaskSchedule = (value: TimeBlockEditorValue) => {
+    if (!scheduleTask) return;
+    const saved = saveTimeBlock({ id: value.blockId, taskId: scheduleTask.id, title: value.title,
+      taskPatch: { ...value.taskPatch, plannedDate: value.date ?? selectedDate },
+      day: value.day, date: value.date, startMinutes: value.startMinutes, durationMinutes: value.durationMinutes });
+    if (!saved) { setScheduleError('다른 일정과 겹치거나 저장할 수 없는 값입니다. 시간을 확인해 주세요.'); return; }
+    setScheduleTask(null);
+    showNotice('할 일과 시간표에 같은 일정이 반영됐습니다.');
+  };
+  const moveTaskDate = (date: string | null) => {
+    if (!dateTask) return;
+    if (!rescheduleTask(dateTask.id, selectedDate, date)) { setDateError('옮길 날짜에 겹치는 일정이 있거나 타이머가 실행 중입니다. 시간표를 확인해 주세요.'); return; }
+    setDateTask(null);
+    showNotice(date ? `${dateTask.title}을 ${date}로 옮겼습니다.` : '나중에 목록으로 옮기고 이 날짜의 시간 배치를 해제했습니다.');
   };
 
   const beginTaskDrag = (event: DragEvent<HTMLLIElement>, task: Task) => {
@@ -657,7 +645,7 @@ export function TodayScreen() {
   const todoPanel = (
     <TodoPanel
       activeTasks={activeTasks}
-      completedTasks={tasks.filter((task) => task.status === 'done' || task.status === 'cancelled')}
+      completedTasks={tasks.filter(task => (task.status === 'done' || task.status === 'cancelled') && !unscheduledTasks.some(item => item.id === task.id))}
       canRecordManualTime={selectedDate === todayDate}
       draggingTaskId={draggingTask?.id ?? null}
       mobile={isCompact}
@@ -667,8 +655,11 @@ export function TodayScreen() {
       runningTaskId={timer?.taskId ?? null}
       timerPaused={timer?.paused ?? false}
       unscheduledTasks={unscheduledTasks}
+      inboxTasks={inboxTasks}
+      selectedBlocks={selectedBlocks}
       onAddTask={addUnscheduledTask}
-      onComplete={(taskId) => updateTask(taskId, { status: 'done' })}
+      onComplete={completeTask}
+      onPostpone={task => { setDateTask(task); setTargetDate(selectedDate); setDateError(''); }}
       onEdit={editTask}
       onDragEnd={() => setDraggingTask(null)}
       onDragStart={beginTaskDrag}
@@ -676,7 +667,7 @@ export function TodayScreen() {
       onManualMinutesChange={setManualMinutes}
       onManualTaskChange={setManualTaskId}
       onRecordManualTime={recordManualTime}
-      onScheduleNext={scheduleAtNextAvailableTime}
+      onScheduleNext={openSchedule}
       onStart={startOrToggleTask}
     />
   );
@@ -720,28 +711,19 @@ export function TodayScreen() {
       <TodayGoalStrip date={selectedDate} />
 
       <div className="today-direct-workspace">
-        <section className="today-direct-timeline-column" aria-label={`${formatDateLabel(selectedDate)} 24시간 시간표`}>
+        {isCompact && <div className="today-mobile-views" aria-label="오늘 보기 선택">
+          <button type="button" aria-pressed={mobileView === 'tasks'} onClick={() => setMobileView('tasks')}>할 일 <span>{unscheduledTasks.length}</span></button>
+          <button type="button" aria-pressed={mobileView === 'timeline'} onClick={() => setMobileView('timeline')}>시간표 <span>{selectedBlocks.length}</span></button>
+        </div>}
+        <aside className="today-direct-sidebar" aria-label="선택한 날짜의 할 일" hidden={isCompact && mobileView !== 'tasks'}>{todoPanel}{!isCompact && <TodayReview date={selectedDate} />}</aside>
+        <section className="today-direct-timeline-column" hidden={isCompact && mobileView !== 'timeline'} aria-label={`${formatDateLabel(selectedDate)} 24시간 시간표`}>
           <div className="today-direct-timeline-heading">
             <div>
               <span className="today-direct-kicker">일간 시간표</span>
-              <h2>{selectedDate === todayDate ? '오늘을 시간 위에 놓아보세요' : `${formatDateLabel(selectedDate)} 일정`}</h2>
-              <p>빈 시간을 누르거나 드래그해 바로 만들고, 블록을 움직여 시간을 바꿀 수 있습니다.</p>
+              <h2>언제 할까요?</h2>
+              <p>빈 시간을 눌러 시작·종료를 정하세요. 일정은 눌러 수정할 수 있어요.</p>
             </div>
-            {isCompact ? (
-              <button
-                ref={mobileTodoTriggerRef}
-                type="button"
-                className="today-direct-mobile-todos"
-                aria-label={`시간 미정 할 일 ${unscheduledTasks.length}개 열기`}
-                aria-expanded={mobileTodosOpen}
-                aria-controls="today-mobile-todo-sheet"
-                onClick={() => setMobileTodosOpen(true)}
-              >
-                <CalendarDays aria-hidden="true" /> <span>미배치</span> <strong>{unscheduledTasks.length}</strong>
-              </button>
-            ) : (
-              <span className="today-direct-timeline-heading__count">{selectedBlocks.length}개 일정</span>
-            )}
+            <span className="today-direct-timeline-heading__count">{selectedBlocks.length}개 일정</span>
           </div>
           <DayTimeline
             key={selectedDate}
@@ -755,7 +737,7 @@ export function TodayScreen() {
             timerPaused={timer?.paused ?? false}
             scrollRef={timelineScrollRef}
             tasks={tasks}
-            onCompleteTask={(taskId) => updateTask(taskId, { status: tasks.find((task) => task.id === taskId)?.status === 'done' ? 'todo' : 'done' })}
+            onCompleteTask={completeTask}
             onEditTask={editTask}
             onUpdateTask={updateTask}
             onCreate={createTimelineItem}
@@ -768,34 +750,12 @@ export function TodayScreen() {
           />
         </section>
 
-        {!isCompact && <aside className="today-direct-sidebar" aria-label="미배치 할 일">{todoPanel}<TodayReview date={selectedDate} expanded /></aside>}
       </div>
 
       {isCompact && <TodayReview date={selectedDate} />}
 
-      {isCompact && (
-        <>
-          {mobileTodosOpen && (
-            <div className="today-direct-sheet-layer">
-              <button className="today-direct-sheet-backdrop" type="button" aria-label="할 일 목록 닫기" onClick={closeMobileTodos} />
-              <section
-                ref={mobileTodoSheetRef}
-                id="today-mobile-todo-sheet"
-                className="today-direct-sheet"
-                role="dialog"
-                aria-label="시간 미정 할 일"
-                aria-modal="true"
-                tabIndex={-1}
-              >
-                <header><span>다음 빈 시간에 바로 배치하거나 새 할 일을 추가하세요.</span><button type="button" aria-label="할 일 목록 닫기" onClick={closeMobileTodos}><X /></button></header>
-                {todoPanel}
-              </section>
-            </div>
-          )}
-        </>
-      )}
-
       {removedBlock && <div className="today-direct-snackbar" role="status"><span>시간표에서 제거했습니다.</span><button type="button" onClick={undoRemoveBlock}>실행 취소</button></div>}
+      {completedNotice && <div className="today-direct-snackbar" role="status"><span>{completedNotice.title} · {completedNotice.status === 'done' ? '다시 열었습니다' : '완료했습니다'}</span><button type="button" onClick={() => { updateTask(completedNotice.taskId, { status: completedNotice.status }); setCompletedNotice(null); }}>완료 실행 취소</button><button type="button" aria-label="완료 안내 닫기" onClick={() => setCompletedNotice(null)}><X size={16} /></button></div>}
       {notice && <div className="toast" role="status"><Check size={15} /> {notice}</div>}
       {manualNotice && (
         <div className="toast toast--action" role="status"><span><TimerReset size={16} /> {manualNotice.label}</span><button type="button" onClick={() => { removeTimeEntry(manualNotice.entryId); setManualNotice(null); }}>실행 취소</button></div>
@@ -803,6 +763,8 @@ export function TodayScreen() {
 
       {editingTask && (
         <TaskEditorSheet key={editingTask.id} task={editingTask} outcomes={outcomes}
+          contextual onSchedule={() => { setEditingTaskId(null); openSchedule(editingTask); }}
+          onChangeDate={() => { setEditingTaskId(null); setDateTask(editingTask); setTargetDate(selectedDate); setDateError(''); }}
           blockCount={timeBlocks.filter((block) => block.taskId === editingTask.id).length}
           entryCount={timeEntries.filter((entry) => entry.taskId === editingTask.id).length}
           onSave={(input) => {
@@ -817,6 +779,27 @@ export function TodayScreen() {
           }}
           onClose={() => setEditingTaskId(null)} />
       )}
+
+      {scheduleTask && <TimeBlockSheet tasks={tasks.filter(task => task.id === scheduleTask.id)} outcomes={outcomes}
+        taskOnly
+        initialTaskId={scheduleTask.id} initialBlockId={selectedBlocks.find(block => block.taskId === scheduleTask.id && !block.external)?.id}
+        initialDay={getDayKeyForDate(scheduleDate)} initialDate={scheduleDate}
+        initialStartMinutes={selectedBlocks.find(block => block.taskId === scheduleTask.id && !block.external)?.startMinutes ?? (scheduleDate === selectedDate ? findAvailableRange(scheduleTask)?.startMinutes : null) ?? 9 * 60}
+        initialDurationMinutes={selectedBlocks.find(block => block.taskId === scheduleTask.id && !block.external)?.durationMinutes ?? Math.min(scheduleTask.estimateMinutes, 120)}
+        error={scheduleError} onSave={saveTaskSchedule} onClose={() => setScheduleTask(null)} />}
+
+      {dateTask && <Modal title="언제 할 일인가요?" description={`${dateTask.title} · 이 날짜의 시간 블록도 함께 옮깁니다. 다른 날짜의 블록과 실행 기록은 유지됩니다.`} onClose={() => setDateTask(null)} className="task-date-sheet">
+        <div className="task-date-shortcuts">
+          <button type="button" onClick={() => moveTaskDate(addLocalDateDays(selectedDate, 1))}>내일로 미루기</button>
+          <button type="button" onClick={() => { const day = parseLocalDate(selectedDate)?.getDay() ?? 0; moveTaskDate(addLocalDateDays(selectedDate, day === 1 ? 7 : (8 - day) % 7)); }}>다음 월요일</button>
+          <button type="button" onClick={() => moveTaskDate(null)}>나중에 · 시간 해제</button>
+        </div>
+        <form onSubmit={event => { event.preventDefault(); moveTaskDate(targetDate); }}>
+          <label className="field"><span className="field-label">날짜 선택</span><input aria-label="할 일 날짜" type="date" value={targetDate} onChange={event => setTargetDate(event.target.value)} required /></label>
+          {dateError && <p className="form-error" role="alert">{dateError}</p>}
+          <div className="modal__actions"><button className="button button--secondary" type="button" onClick={() => setDateTask(null)}>취소</button><button className="button button--primary" type="submit">이 날짜로 이동</button></div>
+        </form>
+      </Modal>}
 
       {finishOpen && timer && runningTask && (
         <Modal title="이번 실행을 정리할까요?" description={`타이머 ${formatTimer(elapsed)}의 결과를 기록합니다.`} onClose={() => setFinishOpen(false)} className="finish-modal finish-panel">

@@ -109,6 +109,31 @@ class PlannerApiIT {
             .build();
 
     @Test
+    void taskDatesSurviveRoundTripsRejectInvalidDatesAndGuardLegacyClients() throws Exception {
+        String access = token("task-date-" + UUID.randomUUID(), TEST_ISSUER, List.of(TEST_AUDIENCE), 900);
+        var source = PlannerFixtures.snapshot();
+        var tasks = new ArrayList<>(source.tasks());
+        var task = tasks.getFirst();
+        tasks.set(0, new PlannerSnapshot.Task(task.id(), task.title(), task.outcomeId(), task.estimateMinutes(), task.status(), task.pinned(), task.carryCount(), task.note(), task.completedAt(), task.subtasks(), "2026-10-04"));
+        var dated = new PlannerSnapshot(source.version(), source.plan(), source.plannerWeekOffset(), tasks, source.timeBlocks(), source.timeEntries(), source.outcomes(), source.timer(), source.review());
+        var created = put(access, "date-create", null, "*", dated);
+        assertThat(created.statusCode()).as(created.body()).isEqualTo(201);
+        var read = objectMapper.readValue(authenticatedGet("/api/v1/planner", access).body(), PlannerEnvelope.class);
+        assertThat(read.snapshot().tasks().getFirst().plannedDate()).isEqualTo("2026-10-04");
+        String etag = created.headers().firstValue("ETag").orElseThrow();
+        assertThat(put(access, "date-legacy", etag, null, source).statusCode()).isEqualTo(400);
+        String json = objectMapper.writeValueAsString(dated);
+        var invalid = objectMapper.readValue(json.replace("2026-10-04", "2026-02-30"), PlannerSnapshot.class);
+        assertThat(put(access, "date-invalid", etag, null, invalid).statusCode()).isEqualTo(400);
+        tasks.set(0, new PlannerSnapshot.Task(task.id(), task.title(), task.outcomeId(), task.estimateMinutes(), task.status(), task.pinned(), task.carryCount(), task.note(), task.completedAt(), task.subtasks(), "later"));
+        var later = new PlannerSnapshot(source.version(), source.plan(), source.plannerWeekOffset(), tasks, source.timeBlocks(), source.timeEntries(), source.outcomes(), source.timer(), source.review());
+        var moved = put(access, "date-later", etag, null, later);
+        assertThat(moved.statusCode()).as(moved.body()).isEqualTo(200);
+        assertThat(objectMapper.readValue(authenticatedGet("/api/v1/planner", access).body(), PlannerEnvelope.class).snapshot().tasks().getFirst().plannedDate()).isEqualTo("later");
+        assertThat(authenticatedGet("/api/v1/account/export", access).body()).contains("plannedDate", "later");
+    }
+
+    @Test
     void subtaskCrudSurvivesRoundTripsRejectsInvalidOrLegacyLossAndRemainsAccountScoped() throws Exception {
         String subject = "subtasks-" + UUID.randomUUID();
         String access = token(subject, TEST_ISSUER, List.of(TEST_AUDIENCE), 900);

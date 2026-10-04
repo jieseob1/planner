@@ -26,9 +26,10 @@ it('adds, edits, completes, reorders and undoes deletion without completing the 
   fireEvent.click(screen.getByRole('button', { name: '마지막 삭제 취소' }));
   expect(screen.getByLabelText('원인 찾기 완료')).toBeChecked();
   fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
-  expect(save).toHaveBeenCalledWith(expect.objectContaining({ status: 'todo', subtasks: [
+  expect(save).toHaveBeenCalledWith(expect.objectContaining({ subtasks: [
     expect.objectContaining({ title: '회귀 테스트', done: false }), expect.objectContaining({ title: '원인 찾기', done: true })
   ] }));
+  expect(save).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'done' }));
 });
 
 it('does not submit the parent form or append during Korean composition', () => {

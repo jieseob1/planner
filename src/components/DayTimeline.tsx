@@ -1006,7 +1006,7 @@ export function DayTimeline({
               const isConflict = pointerDraft?.block?.id === block.id && Boolean(draftConflict);
               const kindClass = block.external ? 'is-google' : block.taskId ? 'is-todo' : 'is-event';
               const isCompact = range.endMinutes - range.startMinutes <= 30;
-              const compactClass = isCompact ? ' is-compact' : '';
+              const compactClass = isCompact ? ' is-compact' : range.endMinutes - range.startMinutes > 60 ? ' is-tall' : '';
               const wrapperClass = `today-direct-block-wrap ${kindClass}${compactClass}${isConflict ? ' is-conflict' : ''}`;
               const lane = lanesByBlockId.get(block.id) ?? { index: 0, count: 1 };
               const laneStyle = {

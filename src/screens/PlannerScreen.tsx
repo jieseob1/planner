@@ -370,7 +370,7 @@ export function PlannerScreen() {
       date,
       weekOffset,
       incrementCarryCount: placementDraft?.explicitCarryover === true,
-      ...(value.mode === 'existing-task' ? { taskPatch: { title: value.title, outcomeId: value.outcomeId, subtasks: value.subtasks } } : {})
+      ...(value.mode === 'existing-task' ? { taskPatch: value.taskPatch ?? {} } : {})
     })) {
       if (value.mode === 'new-task' && taskId) removeTask(taskId);
       setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시간을 바꿔주세요.');

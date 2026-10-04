@@ -3,6 +3,7 @@ import { Modal } from './Modal';
 import type { Outcome, Task, UpdateTaskInput } from '../domain/types';
 import { SubtaskEditor } from './SubtaskEditor';
 import { validSubtasks } from '../domain/subtasks';
+import { sameSyncValue } from '../state/mergeSnapshots';
 
 interface TaskEditorSheetProps {
   task: Task;
@@ -12,9 +13,13 @@ interface TaskEditorSheetProps {
   onSave: (input: UpdateTaskInput) => boolean;
   onDelete: () => boolean;
   onClose: () => void;
+  contextual?: boolean;
+  onSchedule?: () => void;
+  onChangeDate?: () => void;
 }
 
-export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave, onDelete, onClose }: TaskEditorSheetProps) {
+export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave, onDelete, onClose, contextual, onSchedule, onChangeDate }: TaskEditorSheetProps) {
+  const original = useRef(task);
   const [title, setTitle] = useState(task.title);
   const [outcomeId, setOutcomeId] = useState(task.outcomeId ?? '');
   const [estimate, setEstimate] = useState(String(task.estimateMinutes));
@@ -27,7 +32,19 @@ export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (composing.current) return;
-    if (!validSubtasks(subtasks) || !onSave({ title, outcomeId: outcomeId || null, estimateMinutes: Number(estimate), status, note, subtasks })) {
+    const draft: UpdateTaskInput = { title, outcomeId: outcomeId || null, estimateMinutes: Number(estimate), status, note, subtasks };
+    const patch: UpdateTaskInput = {};
+    for (const key of Object.keys(draft) as (keyof UpdateTaskInput)[]) {
+      const before = key === 'note' ? original.current.note ?? '' : key === 'subtasks' ? original.current.subtasks ?? [] : original.current[key];
+      if (sameSyncValue(draft[key], before)) continue;
+      const latest = key === 'note' ? task.note ?? '' : key === 'subtasks' ? task.subtasks ?? [] : task[key];
+      if (!sameSyncValue(latest, before) && !sameSyncValue(latest, draft[key])) {
+        setError('다른 기기에서 같은 항목을 수정했습니다. 입력은 보존됐습니다. 취소하고 최신 내용을 확인한 뒤 다시 수정해 주세요.');
+        return;
+      }
+      Object.assign(patch, { [key]: draft[key] });
+    }
+    if (!validSubtasks(subtasks) || !onSave(patch)) {
       setError('저장하지 못했습니다. 입력 내용과 동기화 상태를 확인해 주세요.');
       return;
     }
@@ -35,7 +52,7 @@ export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave
   };
 
   return (
-    <Modal title={confirmDelete ? '할 일을 삭제할까요?' : '할 일 수정'} onClose={onClose}
+    <Modal title={confirmDelete ? '할 일을 삭제할까요?' : '할 일 수정'} onClose={onClose} className={contextual ? 'task-context-panel' : ''}
       description={confirmDelete ? '삭제할 범위를 확인해 주세요.' : '목표 없이도 사용할 수 있습니다. 제목 변경은 연결된 시간표에도 반영됩니다.'}>
       {confirmDelete ? (
         <div className="task-editor-delete">
@@ -53,6 +70,10 @@ export function TaskEditorSheet({ task, outcomes, blockCount, entryCount, onSave
         </div>
       ) : (
         <form className="task-editor-form" onSubmit={submit} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}>
+          {(onSchedule || onChangeDate) && <div className="task-detail-shortcuts">
+            {onSchedule && <button className="button button--secondary" type="button" onClick={onSchedule}>시간 지정</button>}
+            {onChangeDate && <button className="button button--secondary" type="button" onClick={onChangeDate}>날짜 변경</button>}
+          </div>}
           <label className="field"><span className="field-label">할 일 제목</span><input data-autofocus value={title} onChange={(event) => setTitle(event.target.value)} maxLength={500} required /></label>
           <SubtaskEditor value={subtasks} onChange={setSubtasks} />
           <label className="field"><span className="field-label">목표 연결 <small>선택</small></span><select aria-label="목표 연결" value={outcomeId} onChange={(event) => setOutcomeId(event.target.value)}>

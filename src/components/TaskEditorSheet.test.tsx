@@ -17,7 +17,7 @@ describe('TaskEditorSheet', () => {
     fireEvent.change(screen.getByLabelText('상태'), { target: { value: 'todo' } });
     fireEvent.change(screen.getByLabelText('메모'), { target: { value: '메모 수정' } });
     fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
-    expect(onSave).toHaveBeenCalledWith({ title: '새 제목', outcomeId: null, estimateMinutes: 37, status: 'todo', note: '메모 수정', subtasks: [] });
+    expect(onSave).toHaveBeenCalledWith({ title: '새 제목', status: 'todo', note: '메모 수정' });
     expect(onClose).toHaveBeenCalledOnce();
   });
   it('keeps a failed edit open and does not claim success', () => {
@@ -36,5 +36,25 @@ describe('TaskEditorSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: '할 일 삭제' }));
     fireEvent.click(screen.getByRole('button', { name: '할 일과 연결 기록 삭제' }));
     expect(onDelete).toHaveBeenCalledOnce();
+  });
+  it('does not overwrite a remote field the user did not edit', () => {
+    const onSave = vi.fn(() => true);
+    const props = { outcomes: [], blockCount: 0, entryCount: 0, onSave, onDelete: () => true, onClose: () => {} };
+    const view = render(<TaskEditorSheet {...props} task={task} />);
+    fireEvent.change(screen.getByLabelText('할 일 제목'), { target: { value: 'my title' } });
+    view.rerender(<TaskEditorSheet {...props} task={{ ...task, note: 'remote note' }} />);
+    fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
+    expect(onSave).toHaveBeenCalledWith({ title: 'my title' });
+  });
+  it('keeps the draft open when another device changed the same field', () => {
+    const onSave = vi.fn(() => true);
+    const props = { outcomes: [], blockCount: 0, entryCount: 0, onSave, onDelete: () => true, onClose: () => {} };
+    const view = render(<TaskEditorSheet {...props} task={task} />);
+    fireEvent.change(screen.getByLabelText('할 일 제목'), { target: { value: 'my title' } });
+    view.rerender(<TaskEditorSheet {...props} task={{ ...task, title: 'remote title' }} />);
+    fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('다른 기기');
+    expect(screen.getByLabelText('할 일 제목')).toHaveValue('my title');
   });
 });

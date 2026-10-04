@@ -8,9 +8,9 @@ const currentPlan = (timeZone?: string, now = new Date()): PlanContext => {
 
   return {
     year,
-    annualDirection: '',
+    annualDirection: '나의 할 일과 일정',
     quarter,
-    quarterFocus: '',
+    quarterFocus: '할 일과 일정 관리',
     quarterEndDate: quarterEnd.toISOString().slice(0, 10)
   };
 };

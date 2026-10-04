@@ -12,6 +12,25 @@ const setup = () => {
 };
 afterEach(cleanup);
 describe('TimeBlockSheet existing Todo editing', () => {
+  it('does not overwrite remote task fields when only changing the time', () => {
+    const onSave = vi.fn();
+    const props = { initialTaskId: task.id, initialDay: 'mon' as const, initialStartMinutes: 540, initialDurationMinutes: 30, onSave, onClose: vi.fn() };
+    const view = render(<TimeBlockSheet {...props} tasks={[task]} />);
+    view.rerender(<TimeBlockSheet {...props} tasks={[{ ...task, title: '다른 기기의 제목', note: '원격 메모' }]} />);
+    fireEvent.submit(screen.getByLabelText('할 일 제목').closest('form')!);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: '다른 기기의 제목', taskPatch: {} }));
+  });
+  it('preserves a conflicting title draft instead of silently overwriting the remote title', () => {
+    const onSave = vi.fn();
+    const props = { initialTaskId: task.id, initialDay: 'mon' as const, initialStartMinutes: 540, initialDurationMinutes: 30, onSave, onClose: vi.fn() };
+    const view = render(<TimeBlockSheet {...props} tasks={[task]} />);
+    fireEvent.change(screen.getByLabelText('할 일 제목'), { target: { value: '내 초안' } });
+    view.rerender(<TimeBlockSheet {...props} tasks={[{ ...task, title: '원격 제목' }]} />);
+    fireEvent.submit(screen.getByLabelText('할 일 제목').closest('form')!);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('할 일 제목')).toHaveValue('내 초안');
+    expect(screen.getByRole('alert')).toHaveTextContent('다른 기기');
+  });
   it('edits an absolute date across year boundaries and derives its weekday', () => {
     const onSave = vi.fn();
     render(<TimeBlockSheet tasks={[]} initialTitle="자정 일정" initialMode="event" initialDate="2026-12-31" initialDay="thu" initialStartMinutes={0} initialDurationMinutes={30} minDate="2026-01-01" maxDate="2027-12-31" onSave={onSave} onClose={vi.fn()} />);

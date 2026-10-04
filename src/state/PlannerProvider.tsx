@@ -51,12 +51,14 @@ import {
 } from '../lib/timeBlocks';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
 import { plannerSaveProblem, type PlannerSaveProblem } from './saveProblem';
+import { mergeSnapshots } from './mergeSnapshots';
 
 const LEGACY_STORAGE_KEY = 'planner.mvp.snapshot.v1';
 const LEGACY_SYNC_METADATA_KEY = 'planner.mvp.sync.v1';
 const LEGACY_CONFLICT_BACKUP_KEY = 'planner.mvp.last-conflict.v1';
 const LEGACY_ACTIVE_PLAN_ABSENT_KEY = 'nowline.active-plan.absent.v1';
 const SERVER_SYNC_DELAY_MS = 350;
+export const SERVER_REFRESH_INTERVAL_MS = 1_000;
 const TIME_BLOCK_UNDO_WINDOW_MS = 10_000;
 const toApiDecimal = (value: number) => Number(value.toFixed(6));
 
@@ -76,8 +78,9 @@ export interface SyncConflict {
   base: PlannerSnapshot | null;
   local: PlannerSnapshot;
   server: PlannerSnapshot;
-  serverRevision: number;
-  serverEtag: string;
+  serverRevision: number | null;
+  serverEtag: string | null;
+  serverMissing?: boolean;
   detectedAt: string;
 }
 
@@ -93,11 +96,12 @@ export interface PlannerContextValue extends PlannerSnapshot {
   syncConflict: SyncConflict | null;
   resolveConflict: (
     strategy: 'local' | 'server' | 'merge',
-    choices?: Partial<Record<SnapshotSection, 'local' | 'server'>>
+    choices?: Record<string, 'local' | 'server'>
   ) => void;
   quickCapture: (title: string) => void;
   addTask: (input: AddTaskInput) => string;
   updateTask: (taskId: string, input: UpdateTaskInput) => boolean;
+  rescheduleTask: (taskId: string, fromDate: string, toDate: string | null) => boolean;
   removeTask: (taskId: string) => boolean;
   savePlan: (input: SavePlanInput) => void;
   updatePlan: (plan: PlanContext) => boolean;
@@ -185,11 +189,11 @@ const normalizePlanContext = (value: unknown, fallback: PlanContext): PlanContex
     year: typeof value.year === 'number' && Number.isFinite(value.year)
       ? Math.trunc(value.year)
       : fallback.year,
-    annualDirection: typeof value.annualDirection === 'string'
+    annualDirection: typeof value.annualDirection === 'string' && value.annualDirection.trim()
       ? value.annualDirection
       : fallback.annualDirection,
     quarter,
-    quarterFocus: typeof value.quarterFocus === 'string'
+    quarterFocus: typeof value.quarterFocus === 'string' && value.quarterFocus.trim()
       ? value.quarterFocus
       : fallback.quarterFocus,
     quarterEndDate: typeof value.quarterEndDate === 'string'
@@ -804,8 +808,8 @@ export const applyOnboardingPayload = (
     ...base,
     plan: {
       ...base.plan,
-      annualDirection: hasOutcome ? outcomeTitle : base.plan.annualDirection,
-      quarterFocus: hasOutcome ? outcomeTitle : base.plan.quarterFocus
+      annualDirection: hasOutcome ? outcomeTitle : base.plan.annualDirection.trim() || '나의 할 일과 일정',
+      quarterFocus: hasOutcome ? outcomeTitle : base.plan.quarterFocus.trim() || '할 일과 일정 관리'
     },
     outcomes: hasOutcome ? [outcome, ...base.outcomes] : base.outcomes,
     tasks: hasTask ? [task, ...base.tasks] : base.tasks,
@@ -862,6 +866,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   const pendingWriteRef = useRef<PendingWrite | null>(null);
   const removedTimeBlocksRef = useRef(new Map<string, RemovedTimeBlock>());
   const resetEpochRef = useRef(0);
+  const retryStateRef = useRef({ failures: 0, after: 0 });
 
   const markServerReady = useCallback(() => {
     serverReadyRef.current = true;
@@ -870,18 +875,20 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
 
   const markConflict = useCallback((
     serverSnapshot?: PlannerSnapshot,
-    serverRevision?: number,
-    serverEtag?: string
+    serverRevision?: number | null,
+    serverEtag?: string | null,
+    serverMissing = false
   ) => {
     conflictRef.current = true;
     dirtyRef.current = true;
-    if (serverSnapshot && serverRevision !== undefined && serverEtag) {
+    if (serverSnapshot && serverRevision !== undefined && serverEtag !== undefined) {
       const conflict: SyncConflict = {
         base: parseSnapshot(acknowledgedSnapshotRef.current, new Date(), timeZoneRef.current),
         local: structuredClone(snapshotRef.current),
         server: structuredClone(serverSnapshot),
         serverRevision,
         serverEtag,
+        serverMissing,
         detectedAt: new Date().toISOString()
       };
       setSyncConflict(conflict);
@@ -929,6 +936,21 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     setSaveStatus(localStored && metadataStored ? 'saved' : 'storage-error');
   }, [acknowledgeSnapshot, storageKeys]);
 
+  const acceptMissingServer = useCallback(() => {
+    // A remote reset/closed plan is not a request to upload the old cached aggregate again.
+    const empty = createEmptySnapshot(timeZoneRef.current);
+    snapshotRef.current = empty; setSnapshot(empty);
+    hasActivePlanRef.current = false; setHasActivePlan(false);
+    hasStoredSnapshotRef.current = false;
+    revisionRef.current = null; etagRef.current = null; acknowledgedSnapshotRef.current = null;
+    dirtyRef.current = false; conflictRef.current = false; pendingWriteRef.current = null;
+    removedTimeBlocksRef.current.clear(); setSyncConflict(null); setSaveProblem(null);
+    window.localStorage.setItem(storageKeys.activePlanAbsent, '1');
+    window.localStorage.removeItem(storageKeys.syncMetadata);
+    window.localStorage.removeItem(storageKeys.snapshot);
+    setSaveStatus('saved');
+  }, [storageKeys]);
+
   const updateSnapshot = useCallback((updater: (current: PlannerSnapshot) => PlannerSnapshot) => {
     const current = snapshotRef.current;
     const updated = updater(current);
@@ -964,6 +986,24 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     }
     return next;
   }, [storageKeys, timeZone]);
+
+  const mergeServerChanges = useCallback((server: PlannerSnapshot, revision: number, etag: string) => {
+    const base = parseSnapshot(acknowledgedSnapshotRef.current, new Date(), timeZoneRef.current);
+    if (!base) return false; // No common ancestor: require an explicit choice.
+    const merged = mergeSnapshots(base, snapshotRef.current, server);
+    if (merged.conflicts.length) return false;
+    const next = normalizePlannerSnapshot(merged.snapshot, new Date(), timeZoneRef.current);
+    const serverKey = serializeSnapshot(server);
+    const stored = acknowledgeSnapshot(revision, etag, serverKey);
+    snapshotRef.current = next;
+    setSnapshot(next);
+    pendingWriteRef.current = null;
+    dirtyRef.current = serializeSnapshot(next) !== serverKey;
+    const localStored = writeLocalSnapshot(storageKeys, next);
+    setSaveProblem(null);
+    setSaveStatus(!stored || !localStored ? 'storage-error' : dirtyRef.current ? 'saving' : 'saved');
+    return true;
+  }, [acknowledgeSnapshot, storageKeys]);
 
   const syncNow = useCallback(async () => {
     if (
@@ -1006,6 +1046,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       );
       if (requestEpoch !== resetEpochRef.current) return;
       pendingWriteRef.current = null;
+      retryStateRef.current = { failures: 0, after: 0 };
       conflictRef.current = false;
       const metadataStored = acknowledgeSnapshot(
         result.aggregate.revision,
@@ -1029,17 +1070,22 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         pendingWriteRef.current = null;
         try {
           const latest = await plannerApi.get(null);
+          if (requestEpoch !== resetEpochRef.current) return;
           if (latest.kind === 'found') {
-            markConflict(
-              normalizePlannerSnapshot(latest.aggregate.snapshot, new Date(), timeZoneRef.current),
-              latest.aggregate.revision,
-              latest.etag
-            );
+            const server = normalizePlannerSnapshot(latest.aggregate.snapshot, new Date(), timeZoneRef.current);
+            if (mergeServerChanges(server, latest.aggregate.revision, latest.etag)) scheduleFollowUp = dirtyRef.current;
+            else markConflict(server, latest.aggregate.revision, latest.etag);
+          } else if (latest.kind === 'missing') {
+            markConflict(createEmptySnapshot(timeZoneRef.current), null, null, true);
           } else {
-            markConflict();
+            setSaveStatus(onlineRef.current ? 'retry' : 'offline');
           }
         } catch {
-          markConflict();
+          // A failed conflict read is not a resolved conflict. Retry once online
+          // instead of trapping a preserved draft behind an empty comparison.
+          const failures = retryStateRef.current.failures + 1;
+          retryStateRef.current = { failures, after: Date.now() + Math.min(30_000, 1_000 * 2 ** Math.min(failures - 1, 5)) };
+          setSaveStatus(onlineRef.current ? 'retry' : 'offline');
         }
       } else if (rejectedSave) {
         // A rejected write is still dirty and stays in account-scoped local storage.
@@ -1047,19 +1093,21 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         setSaveProblem(rejectedSave);
         setSaveStatus('validation-error');
       } else {
+        const failures = retryStateRef.current.failures + 1;
+        retryStateRef.current = { failures, after: Date.now() + Math.min(30_000, 1_000 * 2 ** Math.min(failures - 1, 5)) };
         setSaveStatus(onlineRef.current ? 'retry' : 'offline');
       }
     } finally {
       requestInFlightRef.current = false;
       if (scheduleFollowUp) setSyncPulse((value) => value + 1);
     }
-  }, [acknowledgeSnapshot, markConflict, storageKeys]);
+  }, [acknowledgeSnapshot, markConflict, mergeServerChanges, storageKeys]);
 
   const initializeFromServer = useCallback(async () => {
-    if (!onlineRef.current || requestInFlightRef.current || conflictRef.current) return;
+    if (!onlineRef.current || requestInFlightRef.current || conflictRef.current || resettingRef.current) return;
     requestInFlightRef.current = true;
     const requestEpoch = resetEpochRef.current;
-    setSaveStatus('checking');
+    if (!serverReadyRef.current) setSaveStatus('checking');
     const startedAtLocalChange = localChangeCountRef.current;
     const localSnapshotKeyAtStart = serializeSnapshot(snapshotRef.current);
     const canUseCachedEtag = acknowledgedSnapshotRef.current === localSnapshotKeyAtStart
@@ -1070,6 +1118,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     try {
       const result = await plannerApi.get(canUseCachedEtag ? etagRef.current : null);
       if (requestEpoch !== resetEpochRef.current) return;
+      retryStateRef.current = { failures: 0, after: 0 };
       handshakeComplete = true;
       const changedWhileLoading = localChangeCountRef.current !== startedAtLocalChange;
       if (result.kind === 'not-modified') {
@@ -1084,6 +1133,12 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
           setSaveStatus('saved');
         }
       } else if (result.kind === 'missing') {
+        if (revisionRef.current !== null) {
+          const hasPendingChanges = dirtyRef.current;
+          markConflict(createEmptySnapshot(timeZoneRef.current), null, null, true);
+          if (!hasPendingChanges) acceptMissingServer();
+          return;
+        }
         revisionRef.current = null;
         etagRef.current = null;
         acknowledgedSnapshotRef.current = null;
@@ -1127,9 +1182,9 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
           dirtyRef.current = true;
           shouldSyncAfterHandshake = true;
           setSaveStatus(onlineRef.current ? 'saving' : 'offline');
+        } else if (mergeServerChanges(serverSnapshot, result.aggregate.revision, result.etag)) {
+          shouldSyncAfterHandshake = dirtyRef.current;
         } else {
-          revisionRef.current = result.aggregate.revision;
-          etagRef.current = result.etag;
           markConflict(serverSnapshot, result.aggregate.revision, result.etag);
         }
       }
@@ -1138,6 +1193,8 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       if (error instanceof PlannerConflictError) {
         markConflict();
       } else {
+        const failures = retryStateRef.current.failures + 1;
+        retryStateRef.current = { failures, after: Date.now() + Math.min(30_000, 1_000 * 2 ** Math.min(failures - 1, 5)) };
         setSaveStatus(onlineRef.current ? 'retry' : 'offline');
       }
     } finally {
@@ -1152,10 +1209,11 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     }
 
     if (shouldSyncAfterHandshake) void syncNow();
-  }, [markConflict, markServerReady, replaceWithServerSnapshot, syncNow]);
+  }, [acceptMissingServer, markConflict, markServerReady, mergeServerChanges, replaceWithServerSnapshot, syncNow]);
 
   const retrySync = useCallback(() => {
     if (!onlineRef.current || conflictRef.current) return;
+    retryStateRef.current = { failures: 0, after: 0 };
     if (serverReadyRef.current) void syncNow();
     else void initializeFromServer();
   }, [initializeFromServer, syncNow]);
@@ -1201,10 +1259,12 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
 
   const resolveConflict = useCallback((
     strategy: 'local' | 'server' | 'merge',
-    choices: Partial<Record<SnapshotSection, 'local' | 'server'>> = {}
+    choices: Record<string, 'local' | 'server'> = {}
   ) => {
     if (!syncConflict) return;
     if (strategy === 'server') {
+      if (syncConflict.serverMissing) { acceptMissingServer(); return; }
+      if (syncConflict.serverRevision === null || syncConflict.serverEtag === null) return;
       replaceWithServerSnapshot(
         syncConflict.server,
         syncConflict.serverRevision,
@@ -1215,6 +1275,13 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
 
     let resolved = structuredClone(syncConflict.local);
     if (strategy === 'merge') {
+      if (syncConflict.serverMissing) return;
+      const granular = syncConflict.base && mergeSnapshots(syncConflict.base, syncConflict.local, syncConflict.server, choices);
+      if (granular && granular.conflicts.length === 0) {
+        resolved = normalizePlannerSnapshot(granular.snapshot, new Date(), timeZone);
+      } else if (granular) {
+        return; // All overlapping decisions/references must be resolved before a write.
+      } else {
       resolved = structuredClone(syncConflict.server);
       const target = resolved as unknown as Record<string, unknown>;
       const local = syncConflict.local as unknown as Record<string, unknown>;
@@ -1227,10 +1294,17 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         syncConflict.server
       ), new Date(), timeZone);
       removedTimeBlocksRef.current.clear();
+      }
     }
 
     const serverSnapshotKey = serializeSnapshot(syncConflict.server);
-    acknowledgeSnapshot(syncConflict.serverRevision, syncConflict.serverEtag, serverSnapshotKey);
+    if (syncConflict.serverMissing) {
+      revisionRef.current = null; etagRef.current = null; acknowledgedSnapshotRef.current = null;
+      window.localStorage.removeItem(storageKeys.syncMetadata);
+    } else {
+      if (syncConflict.serverRevision === null || syncConflict.serverEtag === null) return;
+      acknowledgeSnapshot(syncConflict.serverRevision, syncConflict.serverEtag, serverSnapshotKey);
+    }
     snapshotRef.current = resolved;
     setSnapshot(resolved);
     writeLocalSnapshot(storageKeys, resolved);
@@ -1240,7 +1314,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     setSyncConflict(null);
     setSaveStatus(dirtyRef.current ? (onlineRef.current ? 'saving' : 'offline') : 'saved');
     if (dirtyRef.current) setSyncPulse((value) => value + 1);
-  }, [acknowledgeSnapshot, replaceWithServerSnapshot, storageKeys, syncConflict, timeZone]);
+  }, [acceptMissingServer, acknowledgeSnapshot, replaceWithServerSnapshot, storageKeys, syncConflict, timeZone]);
 
   useEffect(() => {
     if (previousTimeZoneRef.current === timeZone) return;
@@ -1261,6 +1335,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   useEffect(() => {
     const goOnline = () => {
       onlineRef.current = true;
+      retryStateRef.current = { failures: 0, after: 0 };
       setIsOnline(true);
       if (conflictRef.current) return;
       if (serverReadyRef.current) void syncNow();
@@ -1284,6 +1359,24 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
   }, [initializeFromServer]);
 
   useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'hidden' || !onlineRef.current || conflictRef.current || resettingRef.current || Date.now() < retryStateRef.current.after) return;
+      if (dirtyRef.current && serverReadyRef.current) {
+        // Validation errors need user correction; transient failures are safe to retry.
+        if (!saveProblem) void syncNow();
+      } else void initializeFromServer();
+    };
+    const handle = window.setInterval(refresh, SERVER_REFRESH_INTERVAL_MS);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(handle);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [initializeFromServer, saveProblem, syncNow]);
+
+  useEffect(() => {
     if (
       !serverReady
       || !isOnline
@@ -1297,6 +1390,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
 
   const addTask = useCallback((input: AddTaskInput): string => {
     if (input.subtasks && !validSubtasks(input.subtasks)) return '';
+    if (input.plannedDate !== undefined && input.plannedDate !== 'later' && !isLocalDate(input.plannedDate)) return '';
     const title = input.title.trim();
     const estimateMinutes = Math.round(input.estimateMinutes);
     if (!title || title.length > 500 || !Number.isFinite(estimateMinutes) || estimateMinutes <= 0 || estimateMinutes > 10_080) return '';
@@ -1315,7 +1409,8 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
         status: 'todo',
         pinned: false,
         carryCount: 0,
-        ...(input.subtasks ? { subtasks: cleanSubtasks(input.subtasks) } : {})
+        ...(input.subtasks ? { subtasks: cleanSubtasks(input.subtasks) } : {}),
+        ...(input.plannedDate ? { plannedDate: input.plannedDate } : {})
       };
       added = true;
       return { ...current, tasks: [task, ...current.tasks] };
@@ -1329,6 +1424,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
 
   const updateTask = useCallback((taskId: string, input: UpdateTaskInput): boolean => {
     if (input.subtasks && !validSubtasks(input.subtasks)) return false;
+    if (input.plannedDate !== undefined && input.plannedDate !== 'later' && !isLocalDate(input.plannedDate)) return false;
     let updated = false;
     updateSnapshot((current) => {
       const existing = current.tasks.find((task) => task.id === taskId);
@@ -1372,6 +1468,25 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     });
     return updated;
   }, [updateSnapshot]);
+
+  const rescheduleTask = useCallback((taskId: string, fromDate: string, toDate: string | null): boolean => {
+    if (!isLocalDate(fromDate) || (toDate !== null && !isLocalDate(toDate))) return false;
+    let saved = false;
+    updateSnapshot(current => {
+      if (!current.tasks.some(task => task.id === taskId) || current.timer?.taskId === taskId) return current;
+      const moving = current.timeBlocks.filter(block => block.taskId === taskId && block.date === fromDate && !block.external);
+      const movingIds = new Set(moving.map(block => block.id));
+      const remaining = current.timeBlocks.filter(block => !movingIds.has(block.id));
+      const relocated = toDate === null ? [] : moving.map(block => ({ ...block, date: toDate,
+        day: getDayKeyForDate(toDate), weekOffset: getWeekOffsetForDate(toDate, new Date(), timeZone) }));
+      if (relocated.some(block => findTimeBlockConflict(remaining.filter(other => other.date === toDate), block))) return current;
+      saved = true;
+      return { ...current,
+        tasks: current.tasks.map(task => task.id === taskId ? { ...task, plannedDate: toDate ?? 'later', carryCount: toDate && toDate > fromDate ? Math.min(10000, task.carryCount + 1) : task.carryCount } : task),
+        timeBlocks: [...remaining, ...relocated] };
+    });
+    return saved;
+  }, [timeZone, updateSnapshot]);
 
   const removeTask = useCallback((taskId: string): boolean => {
     let removed = false;
@@ -1549,6 +1664,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
 
   const saveTimeBlock = useCallback((input: SaveTimeBlockInput): boolean => {
     if (input.taskPatch?.subtasks && !validSubtasks(input.taskPatch.subtasks)) return false;
+    if (input.taskPatch?.plannedDate !== undefined && input.taskPatch.plannedDate !== 'later' && !isLocalDate(input.taskPatch.plannedDate)) return false;
     let saved = false;
     updateSnapshot((current) => {
       const task = input.taskId === null
@@ -1606,6 +1722,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
       );
       const updatedTasks = task && input.taskPatch
         ? current.tasks.map((item) => item.id === task.id ? { ...item, title, outcomeId,
+            ...(input.taskPatch?.plannedDate ? { plannedDate: input.taskPatch.plannedDate } : {}),
             ...(input.taskPatch?.subtasks ? { subtasks: cleanSubtasks(input.taskPatch.subtasks) } : {}) } : item)
         : current.tasks;
       const updatedBlocks = task && input.taskPatch
@@ -1953,6 +2070,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     quickCapture,
     addTask,
     updateTask,
+    rescheduleTask,
     removeTask,
     savePlan,
     updatePlan,
@@ -1991,6 +2109,7 @@ function ScopedPlannerProvider({ children, subject }: ScopedPlannerProviderProps
     quickCapture,
     addTask,
     updateTask,
+    rescheduleTask,
     removeTask,
     savePlan,
     updatePlan,

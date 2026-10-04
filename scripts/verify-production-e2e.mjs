@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { startFakeGoogleCalendar } from './lib/fake-google-calendar.mjs';
+import { exercisePlannerSync } from './lib/planner-sync-journey.mjs';
 
 const repositoryRoot = new URL('..', import.meta.url).pathname;
 const projectName = `nowline-production-e2e-${process.pid}`;
@@ -214,7 +215,8 @@ const exerciseSubtasks = async (page, frontendUrl) => {
   await assertNoDocumentOverflow(page, 'Subtask editor 320px');
   await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '변경 저장', exact: true }).click(), 'Mobile subtask edit');
   await page.setViewportSize(previousViewport);
-  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: `${title} 다음 빈 시간에 배치`, exact: true }).click(), 'Subtask parent schedule');
+  await page.getByRole('button', { name: `${title} 시간 지정`, exact: true }).click();
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '시간 저장', exact: true }).click(), 'Subtask parent schedule');
   await page.getByRole('button', { name: new RegExp(`^${title},`) }).click();
   if (await page.getByLabel('하위 할 일 1 제목', { exact: true }).inputValue() !== '모바일 회귀 테스트') fail('Timetable does not share task subtasks');
   await page.getByRole('button', { name: '하위 할 일 2 삭제', exact: true }).click();
@@ -408,7 +410,7 @@ const exerciseTodoCrud = async (page, frontendUrl, mobile) => {
   const title = `CRUD ${prefix} ${randomUUID().slice(0, 8)}`;
   let edited = `${title} 수정됨`;
   const openTodos = async () => {
-    if (mobile) await page.getByRole('button', { name: /시간 미정 할 일 \d+개 열기/ }).click();
+    if (mobile) await page.getByRole('button', { name: /^할 일 \d+$/ }).click();
   };
   await page.goto(`${frontendUrl}/today`);
   await waitForPlannerSaved(page);
@@ -443,7 +445,6 @@ const exerciseTodoCrud = async (page, frontendUrl, mobile) => {
   await editor.getByLabel('상태', { exact: true }).selectOption('done');
   await activateAndWaitForPlannerSave(page, editor.getByRole('button', { name: '변경 저장' }), `${prefix} CRUD complete`);
   await openTodos();
-  await page.getByText(/완료·취소한 할 일 \(/).click();
   await page.getByRole('button', { name: `${edited} 수정`, exact: true }).click();
   editor = page.getByRole('dialog', { name: '할 일 수정', exact: true });
   await editor.getByLabel('상태', { exact: true }).selectOption('todo');
@@ -478,7 +479,6 @@ const exerciseTodoCrud = async (page, frontendUrl, mobile) => {
   await waitForPlannerSaved(page);
   await openTodos();
   if (await page.getByRole('button', { name: `${edited} 수정`, exact: true }).count() !== 0) fail('Deleted Todo returned after reload');
-  if (mobile) await page.getByRole('button', { name: '할 일 목록 닫기' }).last().click();
   console.log(`${prefix} server-backed Todo create/edit/reload/cancel/complete/reopen/delete passed`);
 };
 
@@ -496,6 +496,11 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '운영 E2E');
   await exerciseTodoCrud(page, frontendUrl, false);
+  captureState.allowedHttpStatusConsole.add(412);
+  await exercisePlannerSync(browser, page, frontendUrl);
+  captureState.allowedHttpStatusConsole.delete(412);
+  await page.goto(`${frontendUrl}/today`);
+  await waitForPlannerSaved(page);
 
   const timerTaskTitle = '운영 E2E 타이머 기록';
   await page.getByLabel('빠른 메모').fill(timerTaskTitle);
@@ -605,15 +610,12 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   captureState.allowedHttpStatusConsole.add(412);
   await context.setOffline(false);
   captureState.allowExpectedOfflineErrors = false;
-  await page.getByText('서버 저장 충돌').waitFor({ timeout: 20_000 });
-  await activateByKeyboard(page, page.getByRole('button', { name: '변경 비교' }));
-  await page.getByRole('heading', { name: '기기와 서버의 변경을 비교합니다' }).waitFor({ timeout: 20_000 });
+  await waitForPlannerSaved(page);
+  if (await page.getByText('서버 저장 충돌', { exact: true }).count()) fail('Disjoint offline edits must merge without user intervention');
+  const mergedResponse = await expectResponse(await fetch(`${backendUrl}/api/v1/planner`, { headers: authHeaders }), 200, 'automatic merge read');
+  const merged = (await mergedResponse.json()).snapshot;
+  if (merged.plan.quarterFocus !== '서버에서 동시에 변경한 분기 결과' || !merged.tasks.some(task => task.title === '오프라인에서 보존할 다음 행동')) fail('Automatic merge lost a local or server edit');
   captureState.allowedHttpStatusConsole.delete(412);
-  await activateAndWaitForPlannerSave(
-    page,
-    page.getByRole('button', { name: '선택 항목 병합' }),
-    'Conflict merge'
-  );
 
   await page.goto(`${frontendUrl}/plans`);
   await page.getByRole('heading', { name: '연간·분기 계획' }).waitFor();
@@ -708,8 +710,8 @@ const exerciseMobile = async (frontendUrl) => {
   captureState.allowedHttpStatusConsole.delete(404);
   await completeOnboarding(page, '모바일 E2E');
   await exerciseTodoCrud(page, frontendUrl, true);
-  await page.getByRole('button', { name: /시간 미정 할 일 \d+개 열기/ }).click();
-  const mobileTodoSheet = page.getByRole('dialog', { name: '시간 미정 할 일' });
+  await page.getByRole('button', { name: /^할 일 \d+$/ }).click();
+  const mobileTodoSheet = page.getByRole('complementary', { name: '선택한 날짜의 할 일' });
   await mobileTodoSheet.waitFor();
   await mobileTodoSheet.getByLabel('빠른 메모').fill('모바일에서 추가한 다음 행동');
   await runAndWaitForPlannerSave(
@@ -717,7 +719,7 @@ const exerciseMobile = async (frontendUrl) => {
     () => mobileTodoSheet.getByRole('button', { name: '추가', exact: true }).click(),
     'Mobile quick capture'
   );
-  await page.getByText('모바일에서 추가한 다음 행동을 시간 미정 목록에 추가했습니다.').waitFor();
+  await page.getByText('모바일에서 추가한 다음 행동을 선택한 날짜에 추가했습니다. 시간은 아직 미정입니다.').waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Today');
   await assertVisibleTargets(page, 'Mobile Today');
 

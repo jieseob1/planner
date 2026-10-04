@@ -20,6 +20,7 @@ import { PeriodProvider } from './state/PeriodProvider';
 import { PeriodGoalsScreen } from './screens/PeriodGoalsScreen';
 import { PeriodReviewScreen } from './screens/PeriodReviewScreen';
 import './styles/periods.css';
+import './styles/today-usability.css';
 
 function RequireActivePlan({ children }: { children: ReactNode }) {
   const { hasActivePlan, plannerReady } = usePlanner();

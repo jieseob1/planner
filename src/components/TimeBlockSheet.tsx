@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, CalendarClock, CalendarDays, Check, Clock3, ListChecks, Plus, Trash2 } from 'lucide-react';
 import type { DayKey, Outcome, Task, Subtask } from '../domain/types';
 import { SubtaskEditor } from './SubtaskEditor';
@@ -20,9 +20,11 @@ export interface TimeBlockEditorValue {
   startMinutes: number;
   durationMinutes: number;
   subtasks?: Subtask[];
+  taskPatch?: Partial<Pick<Task, 'title' | 'outcomeId' | 'subtasks'>>;
 }
 
 interface TimeBlockSheetProps {
+  taskOnly?: boolean;
   tasks: Task[];
   outcomes?: Outcome[];
   days?: Array<{ key: DayKey; short: string; date: string }>;
@@ -58,6 +60,7 @@ const minimumDuration = (minutes: number) => Math.max(SLOT_MINUTES, minutes);
 const includeExactTime = (options: number[], value: number) => [...new Set([...options, value])].sort((a, b) => a - b);
 
 export function TimeBlockSheet({
+  taskOnly = false,
   tasks,
   outcomes = [],
   days,
@@ -90,6 +93,8 @@ export function TimeBlockSheet({
   const [outcomeId, setOutcomeId] = useState((initialMode ?? fallbackMode) === 'existing-task' ? firstTask?.outcomeId ?? '' : '');
   const [taskSubtasks, setTaskSubtasks] = useState<Record<string, Subtask[]>>({});
   const [newSubtasks, setNewSubtasks] = useState<Subtask[]>([]);
+  const originalTasks = useRef(new Map(tasks.map(task => [task.id, task])));
+  const [draftError, setDraftError] = useState('');
   const [day, setDay] = useState<DayKey>(initialDay);
   const [date, setDate] = useState(initialDate ?? '');
   const [startMinutes, setStartMinutes] = useState(initialStartMinutes);
@@ -100,7 +105,9 @@ export function TimeBlockSheet({
 
   const selectedTask = tasks.find((task) => task.id === taskId);
   const subtasks = mode === 'existing-task' ? taskSubtasks[taskId] ?? selectedTask?.subtasks ?? [] : newSubtasks;
-  const selectedTitle = title.trim();
+  const originalTask = originalTasks.current.get(taskId);
+  const titleChanged = title.trim() !== (originalTask?.title ?? '');
+  const selectedTitle = mode === 'existing-task' && !titleChanged ? selectedTask?.title ?? title.trim() : title.trim();
   const endOptions = useMemo(
     () => includeExactTime(buildTimes(startMinutes + SLOT_MINUTES, DAY_END_MINUTES), endMinutes),
     [startMinutes, endMinutes]
@@ -110,6 +117,8 @@ export function TimeBlockSheet({
     setTaskId(nextTaskId);
     const nextTask = tasks.find((task) => task.id === nextTaskId);
     if (!nextTask) return;
+    originalTasks.current.set(nextTaskId, nextTask);
+    setDraftError('');
     setTitle(nextTask.title);
     setOutcomeId(nextTask.outcomeId ?? '');
     setEndMinutes(Math.min(DAY_END_MINUTES, startMinutes + minimumDuration(nextTask.estimateMinutes)));
@@ -138,29 +147,44 @@ export function TimeBlockSheet({
     event.preventDefault();
     if (!selectedTitle || endMinutes <= startMinutes || (mode === 'existing-task' && !selectedTask) || (mode !== 'event' && !validSubtasks(subtasks))) return;
     if (initialDate !== undefined && (!isLocalDate(date) || (minDate && date < minDate) || (maxDate && date > maxDate))) return;
+    const taskPatch: TimeBlockEditorValue['taskPatch'] = {};
+    if (mode === 'existing-task' && selectedTask && originalTask) {
+      const outcomeChanged = (outcomeId || null) !== (originalTask.outcomeId ?? null);
+      const subtasksChanged = JSON.stringify(subtasks) !== JSON.stringify(originalTask.subtasks ?? []);
+      if ((titleChanged && selectedTask.title !== originalTask.title && selectedTask.title !== selectedTitle)
+        || (outcomeChanged && selectedTask.outcomeId !== originalTask.outcomeId && (selectedTask.outcomeId ?? null) !== (outcomeId || null))
+        || (subtasksChanged && JSON.stringify(selectedTask.subtasks ?? []) !== JSON.stringify(originalTask.subtasks ?? []) && JSON.stringify(selectedTask.subtasks ?? []) !== JSON.stringify(subtasks))) {
+        setDraftError('수정 중인 항목이 다른 기기에서도 변경됐습니다. 입력은 유지됩니다. 최신 내용을 확인한 뒤 다시 열어 주세요.');
+        return;
+      }
+      if (titleChanged) taskPatch.title = selectedTitle;
+      if (outcomeChanged) taskPatch.outcomeId = outcomeId || null;
+      if (subtasksChanged) taskPatch.subtasks = subtasks;
+    }
     onSave({
       blockId: initialBlockId,
       mode,
       taskId: mode === 'existing-task' ? taskId : null,
       title: selectedTitle,
-      outcomeId: mode !== 'event' ? outcomeId || null : null,
+      outcomeId: mode === 'existing-task' && taskPatch.outcomeId === undefined ? selectedTask?.outcomeId ?? null : mode !== 'event' ? outcomeId || null : null,
       day: initialDate !== undefined ? getDayKeyForDate(date) : day,
       ...(initialDate !== undefined ? { date } : {}),
       startMinutes,
       durationMinutes: endMinutes - startMinutes,
-      ...(mode !== 'event' ? { subtasks } : {})
+      ...(mode !== 'event' ? { subtasks } : {}),
+      ...(mode === 'existing-task' ? { taskPatch } : {})
     });
   };
 
   return (
     <Modal
-      title={initialBlockId ? '일정 수정' : '할 일 또는 일정 추가'}
-      description="목표가 없어도 새 할 일이나 일정부터 바로 만들 수 있습니다."
+      title={taskOnly ? initialBlockId ? '시간 수정' : '시간 지정' : initialBlockId ? '일정 수정' : '할 일 또는 일정 추가'}
+      description={taskOnly ? '시작과 종료 시간을 정한 뒤 저장하세요. 같은 할 일이 목록과 시간표에 연결됩니다.' : '목표가 없어도 새 할 일이나 일정부터 바로 만들 수 있습니다.'}
       onClose={onClose}
       className="time-block-sheet"
     >
       <form className="time-block-form" onSubmit={submit}>
-        <div className="entry-mode" aria-label="등록할 항목 종류">
+        {!taskOnly && <div className="entry-mode" aria-label="등록할 항목 종류">
           <button
             type="button"
             className={mode === 'existing-task' ? 'is-selected' : ''}
@@ -186,9 +210,10 @@ export function TimeBlockSheet({
           >
             <CalendarClock size={16} /> 일정만
           </button>
-        </div>
+        </div>}
 
-        {mode === 'existing-task' ? (
+        {taskOnly && <strong className="task-only-title">{selectedTask?.title}</strong>}
+        {mode === 'existing-task' && !taskOnly ? (
           <label className="field time-block-form__task">
             <span className="field-label"><ListChecks size={16} /> 할 일 선택</span>
             <select
@@ -205,6 +230,8 @@ export function TimeBlockSheet({
             </select>
           </label>
         ) : null}
+          <details className="time-block-extra" open={taskOnly ? undefined : true}>
+          {taskOnly && <summary>제목·목표·하위 할 일 수정 <small>선택</small></summary>}
           <div className="time-block-form__details">
             <label className="field">
               <span className="field-label">{mode === 'existing-task' ? '할 일 제목' : mode === 'new-task' ? '새 할 일' : '일정 제목'}</span>
@@ -232,6 +259,7 @@ export function TimeBlockSheet({
           </div>
 
         {mode !== 'event' && <SubtaskEditor key={mode === 'existing-task' ? taskId : 'new-task'} value={subtasks} onChange={items => mode === 'existing-task' ? setTaskSubtasks(current => ({ ...current, [taskId]: items })) : setNewSubtasks(items)} />}
+          </details>
         {initialDate !== undefined && <label className="field"><span className="field-label"><CalendarDays size={16} /> 날짜</span><input type="date" aria-label="일정 날짜" required min={minDate} max={maxDate} value={date} onChange={event => setDate(event.target.value)} /><small className="field-help">다른 주나 달로도 일정을 옮길 수 있어요.</small></label>}
         {initialDate === undefined && days && days.length > 1 && (
           <div className="field-group">
@@ -256,7 +284,7 @@ export function TimeBlockSheet({
         <div className="time-block-form__times" aria-label="시간 범위">
           <label className="field">
             <span className="field-label"><Clock3 size={16} /> 시작</span>
-            <select aria-label="시작" value={startMinutes} onChange={(event) => updateStart(Number(event.target.value))}>
+            <select data-autofocus={taskOnly || undefined} aria-label="시작" value={startMinutes} onChange={(event) => updateStart(Number(event.target.value))}>
               {includeExactTime(startOptions, startMinutes).map((time) => <option key={time} value={time}>{formatClock(time)}</option>)}
             </select>
           </label>
@@ -293,7 +321,7 @@ export function TimeBlockSheet({
           </span>
         </div>
 
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {(draftError || error) && <p className="form-error" role="alert">{draftError || error}</p>}
 
         <div className="modal__actions time-block-actions">
           {initialBlockId && onDelete && (
@@ -304,7 +332,7 @@ export function TimeBlockSheet({
           <span className="time-block-actions__spacer" />
           <button className="button button--secondary" type="button" onClick={onClose}>취소</button>
           <button className="button button--primary" type="submit" disabled={!selectedTitle || (mode !== 'event' && !validSubtasks(subtasks))}>
-            <Check size={16} /> {initialBlockId ? '변경 저장' : '추가'}
+            <Check size={16} /> {taskOnly ? '시간 저장' : initialBlockId ? '변경 저장' : '추가'}
           </button>
         </div>
       </form>

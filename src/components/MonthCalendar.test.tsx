@@ -134,7 +134,7 @@ describe('Planner monthly editing integration', () => {
     await user.click(screen.getByRole('button', { name: '독립 할 일 일정에 배치' }));
     expect(screen.getByLabelText('일정 날짜')).toHaveValue('2026-09-25');
     fireEvent.submit(screen.getByLabelText('할 일 제목').closest('form')!);
-    expect(state.planner.saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({ date: '2026-09-25', taskId: 't', taskPatch: { title: '독립 할 일', outcomeId: null, subtasks: [] } }));
+    expect(state.planner.saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({ date: '2026-09-25', taskId: 't', taskPatch: {} }));
   });
   it('leaves the existing weekly weekday editor available', async () => {
     const user = userEvent.setup(); view();

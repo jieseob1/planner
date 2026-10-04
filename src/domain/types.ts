@@ -17,6 +17,8 @@ export interface Task {
   /** Actual check-off instant; absent on legacy tasks and cleared on reopening. */
   completedAt?: string;
   subtasks?: Subtask[];
+  /** Primary task-list date; 'later' is an explicit inbox assignment. Legacy absence stays in inbox. */
+  plannedDate?: string;
 }
 
 export interface TimeBlock {
@@ -112,6 +114,7 @@ export interface AddTaskInput {
   outcomeId: string | null;
   estimateMinutes: number;
   subtasks?: Subtask[];
+  plannedDate?: string;
 }
 
 export interface UpdateTaskInput {
@@ -122,6 +125,7 @@ export interface UpdateTaskInput {
   pinned?: boolean;
   note?: string;
   subtasks?: Subtask[];
+  plannedDate?: string;
 }
 
 export interface SaveTimeBlockInput {
@@ -137,7 +141,7 @@ export interface SaveTimeBlockInput {
   /** Set only by the explicit Review -> next-week carryover flow. */
   incrementCarryCount?: boolean;
   /** Explicit linked-Todo changes, committed atomically with the block after validation. */
-  taskPatch?: Pick<UpdateTaskInput, 'title' | 'outcomeId' | 'subtasks'>;
+  taskPatch?: Pick<UpdateTaskInput, 'title' | 'outcomeId' | 'subtasks' | 'plannedDate'>;
 }
 
 export interface SavePlanInput {

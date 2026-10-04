@@ -169,7 +169,7 @@ describe('Planner frontend core flows', () => {
     const capture = screen.getByLabelText('빠른 메모');
     await user.type(capture, '배포 체크리스트 확인{Enter}');
 
-    expect(screen.getByText(/시간 미정 목록에 추가했습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/선택한 날짜에 추가했습니다/)).toBeInTheDocument();
     expect(capture).toHaveValue('');
 
     await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
@@ -191,8 +191,11 @@ describe('Planner frontend core flows', () => {
 
   it('places a Todo immediately when it is dropped on the calendar', () => {
     renderRoute('/today');
+    const quickInput = screen.getByPlaceholderText('이 날짜에 할 일 추가');
+    fireEvent.change(quickInput, { target: { value: '드래그할 새 할 일' } });
+    fireEvent.keyDown(quickInput, { key: 'Enter' });
 
-    const taskRow = screen.getByText('기술 글 3편 초안', { selector: '.today-direct-todo__copy span' }).closest('li');
+    const taskRow = screen.getByText('드래그할 새 할 일', { selector: '.today-direct-todo__copy span' }).closest('li');
     expect(taskRow).not.toBeNull();
     expect(taskRow).toHaveAttribute('draggable', 'true');
 
@@ -220,9 +223,10 @@ describe('Planner frontend core flows', () => {
     fireEvent(timeline, drop);
 
     expect(screen.getByRole('button', {
-      name: /기술 글 3편 초안, 15:00부터 15:40까지, 할 일 시간 블록/
+      name: /드래그할 새 할 일, 15:00부터 15:30까지, 할 일 시간 블록/
     })).toBeInTheDocument();
-    expect(screen.queryByText('기술 글 3편 초안', { selector: '.today-direct-todo__copy span' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^선택한 날짜/ }));
+    expect(screen.getByText('드래그할 새 할 일', { selector: '.today-direct-todo__copy span' })).toBeInTheDocument();
   });
 
   it('creates a brand-new Todo while making a time block', async () => {
@@ -670,6 +674,9 @@ describe('Planner API synchronization', () => {
     const apiMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'GET') return snapshotResponse(serverSnapshot, 7);
       if (init?.method === 'PUT') {
+        const submitted = JSON.parse(String(init.body)) as PlannerSnapshot;
+        const created = submitted.tasks.find(task => task.title === '충돌에서도 지킬 작업');
+        if (created && !serverSnapshot.tasks.some(task => task.id === created.id)) serverSnapshot.tasks.unshift({ ...created, title: '다른 기기의 제목' });
         return new Response(JSON.stringify({
           type: 'https://goalstotoday.com/problems/revision-conflict',
           title: 'Revision conflict',
@@ -704,6 +711,9 @@ describe('Planner API synchronization', () => {
         putCount += 1;
         if (putCount === 1) {
           serverRevision = 8;
+          const submitted = JSON.parse(String(init?.body)) as PlannerSnapshot;
+          const created = submitted.tasks.find(task => task.title === '충돌 유도 작업');
+          if (created) serverSnapshot.tasks.unshift({ ...created, title: '다른 기기의 제목' });
           return new Response(JSON.stringify({
             type: 'https://goalstotoday.com/problems/revision-conflict',
             title: 'Revision conflict',
@@ -759,6 +769,9 @@ describe('Planner API synchronization', () => {
       if (method === 'PUT') {
         putCount += 1;
         if (putCount === 1) {
+          const submitted = JSON.parse(String(init?.body)) as PlannerSnapshot;
+          const created = submitted.tasks.find(task => task.title === '초기화할 충돌 작업');
+          if (created) serverSnapshot.tasks.unshift({ ...created, title: '다른 기기의 제목' });
           return new Response(JSON.stringify({
             title: 'Revision conflict',
             status: 412,

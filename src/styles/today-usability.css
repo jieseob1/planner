@@ -1,0 +1,65 @@
+/* Task-first day workspace. Keep the list and calendar as two views of one task. */
+.today-direct-workspace { grid-template-columns: minmax(340px, .85fr) minmax(0, 1.15fr); }
+.today-direct-todos { gap: 18px; padding: 24px 20px; }
+.today-direct-todos__header h2 { font-size: 22px; }
+.today-direct-quick-add { border-radius: 8px; background: #f8f9fc; }
+.today-direct-quick-add input { min-height: 42px; font-size: 15px; background: transparent; }
+.today-direct-quick-add button { min-height: 42px; font-size: 13px; }
+.today-task-filters, .today-mobile-views { display: flex; gap: 4px; padding: 4px; border-radius: 9px; background: #f1f3f7; }
+.today-task-filters button, .today-mobile-views button { flex: 1; min-height: 44px; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); font: inherit; font-size: 13px; font-weight: 600; }
+.today-task-filters button[aria-pressed="true"], .today-mobile-views button[aria-pressed="true"] { background: white; color: var(--accent); box-shadow: 0 1px 4px #15233a12; }
+.today-task-filters span, .today-mobile-views span { margin-left: 5px; font-size: 12px; }
+.today-direct-todo-list { gap: 0; }
+.today-direct-todo-list li { grid-template-columns: 12px 36px minmax(0, 1fr); gap: 8px; padding: 15px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
+.today-direct-todo-list li:hover { box-shadow: none; }
+.today-direct-todo__check { min-width: 36px; min-height: 36px; }
+.today-direct-todo__check svg { opacity: 0; }
+.today-direct-todo__check:hover svg, .today-direct-todo__check:focus-visible svg, .today-direct-todo__check[aria-pressed="true"] svg { opacity: 1; }
+.today-direct-todo__check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: white; }
+.today-direct-todo__edit { font-size: 15px; line-height: 1.55; align-items: flex-start; flex-wrap: wrap; }
+.today-direct-todo__edit > span { white-space: normal; overflow-wrap: anywhere; }
+.today-direct-todo__copy small { font-size: 12px; line-height: 1.5; flex-wrap: wrap; overflow-wrap: anywhere; }
+.today-direct-todo-list .is-done .today-direct-todo__edit > span { color: var(--text-3); text-decoration: line-through; }
+.today-task-actions { grid-column: 3; display: flex; gap: 6px; flex-wrap: wrap; }
+.today-task-actions button { min-height: 36px; padding: 5px 8px; font-size: 11px; border-color: transparent; background: #f6f7fa; }
+.today-task-actions button span { display: inline; }
+.today-direct-todos__hint, .today-direct-todos__empty { font-size: 13px; line-height: 1.65; }
+.today-direct-timeline-heading p { font-size: 12px; line-height: 1.5; }
+.today-direct-block-wrap.is-tall .today-direct-block { align-content: start; padding-top: 8px; }
+.today-direct-block-wrap.is-tall .today-direct-block strong { font-size: 15px; line-height: 1.4; }
+.today-direct-block-wrap.is-tall .today-direct-block__time { font-size: 12px; line-height: 1.4; }
+.today-direct-timeline-column[hidden], .today-direct-sidebar[hidden] { display: none; }
+.task-date-shortcuts { display: grid; gap: 8px; margin-bottom: 24px; }
+.task-date-shortcuts button { min-height: 48px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: white; color: var(--text-1); text-align: left; font: inherit; }
+.task-date-shortcuts button:hover { color: var(--accent); border-color: var(--accent); }
+.task-detail-shortcuts { display: flex; gap: 8px; }
+.task-only-title { font-size: 18px; line-height: 1.6; overflow-wrap: anywhere; }
+.time-block-extra > summary { cursor: pointer; font-size: 13px; color: var(--text-3); min-height: 44px; padding: 12px 0; }
+.time-block-extra[open] { display: grid; gap: 16px; }
+.conflict-value { display: block; max-width: 100%; overflow-wrap: anywhere; color: var(--text-3); line-height: 1.6; }
+.today-direct-snackbar { max-width: calc(100vw - 32px); gap: 12px; }
+.today-direct-snackbar > span { min-width: 0; overflow-wrap: anywhere; }
+.today-direct-snackbar button { flex-shrink: 0; min-height: 44px; }
+@media (min-width: 1180px) {
+  .app-shell--today .today-direct-workspace { grid-template-columns: minmax(380px, .85fr) minmax(420px, 1.15fr); }
+}
+@media (min-width: 801px) {
+  .modal-backdrop:has(.task-context-panel) { justify-content: flex-end; padding: 12px; background: #172b4d33; }
+  .task-context-panel { width: min(440px, 100%); height: calc(100dvh - 24px); max-height: none; border-radius: 12px; }
+}
+@media (max-width: 800px) {
+  .today-direct-quick-add input, .today-direct-quick-add button,
+  .modal .field input, .modal .field select { min-height: 44px; }
+  .today-mobile-views { margin: 12px; }
+  .today-direct-sidebar { border-right: 0; overflow: visible; }
+  .today-direct-todos { padding: 16px; }
+  .today-direct-todo-list li { grid-template-columns: 44px minmax(0, 1fr); padding: 14px 0; }
+  .today-direct-todo__grip { display: none; }
+  .today-direct-todo__check { width: 44px; min-height: 44px; }
+  .today-task-actions { grid-column: 2; }
+  .today-task-actions button { min-height: 44px; padding-inline: 10px; font-size: 12px; }
+  .today-direct-todo__edit { min-height: 44px; }
+  .today-direct-header h1 { font-size: clamp(14px, 4vw, 18px); }
+  .task-context-panel, .task-date-sheet { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .today-direct-snackbar { left: 12px; right: 12px; transform: none; bottom: calc(82px + env(safe-area-inset-bottom)); width: auto; flex-wrap: wrap; }
+}

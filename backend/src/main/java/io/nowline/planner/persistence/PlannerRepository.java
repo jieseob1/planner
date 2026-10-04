@@ -123,7 +123,7 @@ public class PlannerRepository {
                 (org.springframework.jdbc.core.RowCallbackHandler) rs -> subtasks.computeIfAbsent(rs.getString("task_id"), ignored -> new ArrayList<>())
                         .add(new PlannerSnapshot.Subtask(rs.getString("subtask_id"), rs.getString("title"), rs.getBoolean("done"))), id(userId));
         List<PlannerSnapshot.Task> tasks = jdbc.query("""
-                        SELECT task_id, title, outcome_id, estimate_minutes, status, pinned, carry_count, note, completed_at
+                        SELECT task_id, title, outcome_id, estimate_minutes, status, pinned, carry_count, note, completed_at, planned_date
                         FROM planner_task WHERE user_id = ? ORDER BY sort_order
                         """,
                 (rs, row) -> new PlannerSnapshot.Task(
@@ -136,7 +136,8 @@ public class PlannerRepository {
                         rs.getInt("carry_count"),
                         rs.getString("note"),
                         instant(rs.getTimestamp("completed_at")),
-                        subtasks.containsKey(rs.getString("task_id")) ? List.copyOf(subtasks.get(rs.getString("task_id"))) : null
+                        subtasks.containsKey(rs.getString("task_id")) ? List.copyOf(subtasks.get(rs.getString("task_id"))) : null,
+                        rs.getString("planned_date")
                 ), id(userId));
 
         List<PlannerSnapshot.TimeBlock> blocks = jdbc.query("""
@@ -375,8 +376,8 @@ public class PlannerRepository {
         batch("""
                         INSERT INTO planner_task (
                             user_id, task_id, sort_order, title, outcome_id, estimate_minutes,
-                            status, pinned, carry_count, note, completed_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            status, pinned, carry_count, note, completed_at, planned_date
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, tasks, (statement, item) -> {
             PlannerSnapshot.Task value = item.value();
             statement.setString(1, id(userId));
@@ -390,6 +391,7 @@ public class PlannerRepository {
             statement.setInt(9, value.carryCount());
             statement.setString(10, value.note());
             statement.setTimestamp(11, timestamp(value.completedAt()));
+            statement.setString(12, value.plannedDate());
         });
         record Child(String taskId, int position, PlannerSnapshot.Subtask item) {}
         List<Child> children = new ArrayList<>();

@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -50,13 +51,17 @@ public record PlannerSnapshot(
             @Min(0) @Max(10_000) int carryCount,
             @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 4_000) String note,
             @JsonInclude(JsonInclude.Include.NON_NULL) Instant completedAt,
-            @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 100) List<@Valid @NotNull Subtask> subtasks
+            @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 100) List<@Valid @NotNull Subtask> subtasks,
+            @JsonInclude(JsonInclude.Include.NON_NULL) @Pattern(regexp = "later|[0-9]{4}-[0-9]{2}-[0-9]{2}") String plannedDate
     ) {
         public Task(String id, String title, String outcomeId, int estimateMinutes, TaskStatus status, boolean pinned, int carryCount, String note) {
-            this(id, title, outcomeId, estimateMinutes, status, pinned, carryCount, note, null, null);
+            this(id, title, outcomeId, estimateMinutes, status, pinned, carryCount, note, null, null, null);
         }
         public Task(String id, String title, String outcomeId, int estimateMinutes, TaskStatus status, boolean pinned, int carryCount, String note, Instant completedAt) {
-            this(id, title, outcomeId, estimateMinutes, status, pinned, carryCount, note, completedAt, null);
+            this(id, title, outcomeId, estimateMinutes, status, pinned, carryCount, note, completedAt, null, null);
+        }
+        public Task(String id, String title, String outcomeId, int estimateMinutes, TaskStatus status, boolean pinned, int carryCount, String note, Instant completedAt, List<Subtask> subtasks) {
+            this(id, title, outcomeId, estimateMinutes, status, pinned, carryCount, note, completedAt, subtasks, null);
         }
         public List<Subtask> subtasksOrEmpty() { return subtasks == null ? List.of() : subtasks; }
     }

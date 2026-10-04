@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEmptySnapshot } from '../data/empty';
@@ -23,6 +23,7 @@ const task = (patch: Partial<Task> = {}): Task => ({
   status: 'todo',
   pinned: false,
   carryCount: 0,
+  plannedDate: TODAY,
   ...patch
 });
 
@@ -52,6 +53,7 @@ const plannerValue = (snapshot: PlannerSnapshot, overrides: Record<string, unkno
   quickCapture: vi.fn(),
   addTask: vi.fn(() => 'task-created'),
   updateTask: vi.fn(() => true),
+  rescheduleTask: vi.fn(() => true),
   removeTask: vi.fn(() => true),
   savePlan: vi.fn(),
   updatePlan: vi.fn(() => true),
@@ -164,11 +166,11 @@ describe('Today direct calendar integration', () => {
     fireEvent.click(screen.getByRole('button', { name: '집중 작업 수정' }));
     fireEvent.change(screen.getByLabelText('할 일 제목'), { target: { value: '수정한 작업' } });
     fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
-    expect(value.updateTask).toHaveBeenCalledWith('task-one', expect.objectContaining({ title: '수정한 작업', outcomeId: null }));
+    expect(value.updateTask).toHaveBeenCalledWith('task-one', { title: '수정한 작업' });
   });
 
   it('allows reopening and deleting completed Todos from the folded list', () => {
-    const value = plannerValue(snapshotWith([task({ status: 'done' })]));
+    const value = plannerValue(snapshotWith([task({ status: 'done', plannedDate: 'later' })]));
     mockedUsePlanner.mockReturnValue(value);
     renderToday();
     fireEvent.click(screen.getByText('완료·취소한 할 일 (1)'));
@@ -195,12 +197,12 @@ describe('Today direct calendar integration', () => {
     vi.unstubAllGlobals();
   });
 
-  it('places the full 24-hour timeline before the desktop Todo panel in DOM order', () => {
+  it('places the Todo entry before the full 24-hour timeline in DOM order', () => {
     const { container } = renderToday();
     const timeline = screen.getByRole('region', { name: /24시간 시간표/ });
-    const todoPanel = screen.getByRole('complementary', { name: '미배치 할 일' });
+    const todoPanel = screen.getByRole('complementary', { name: '선택한 날짜의 할 일' });
 
-    expect(timeline.compareDocumentPosition(todoPanel) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(todoPanel.compareDocumentPosition(timeline) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
     expect(container.querySelectorAll('.today-direct-hour')).toHaveLength(25);
     expect(timelineGrid()).toBeInTheDocument();
@@ -211,18 +213,19 @@ describe('Today direct calendar integration', () => {
     mockedUsePlanner.mockReturnValue(plannerValue(snapshotWith(), { addTask }));
     renderToday();
 
-    const title = screen.getByPlaceholderText('할 일 추가');
+    const title = screen.getByPlaceholderText('이 날짜에 할 일 추가');
     fireEvent.change(title, { target: { value: '세금계산서 확인' } });
     fireEvent.submit(title.closest('form') as HTMLFormElement);
 
     expect(addTask).toHaveBeenCalledWith({
       title: '세금계산서 확인',
       outcomeId: null,
-      estimateMinutes: 30
+      estimateMinutes: 30,
+      plannedDate: TODAY
     });
   });
 
-  it('keeps a 25-minute estimate when placing a Todo in the next empty time', () => {
+  it('prefills the next available time and waits for explicit save, preserving a 25-minute estimate', () => {
     const estimatedTask = task({ estimateMinutes: 25 });
     const saveTimeBlock = vi.fn((_input: SaveTimeBlockInput) => true);
     mockedUsePlanner.mockReturnValue(plannerValue(
@@ -231,7 +234,11 @@ describe('Today direct calendar integration', () => {
     ));
     renderToday();
 
-    fireEvent.click(screen.getByRole('button', { name: '집중 작업 다음 빈 시간에 배치' }));
+    fireEvent.click(screen.getByRole('button', { name: '집중 작업 시간 지정' }));
+    expect(screen.getByLabelText('시작')).toHaveValue('720');
+    expect(screen.getByLabelText('종료')).toHaveValue('745');
+    expect(saveTimeBlock).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '시간 저장' }));
 
     expect(saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({
       taskId: estimatedTask.id,
@@ -249,10 +256,11 @@ describe('Today direct calendar integration', () => {
     ));
     renderToday();
 
-    fireEvent.click(screen.getByRole('button', { name: '집중 작업 다음 빈 시간에 배치' }));
+    fireEvent.click(screen.getByRole('button', { name: '집중 작업 시간 지정' }));
 
     expect(saveTimeBlock).not.toHaveBeenCalled();
-    expect(screen.getByText('이 날짜에는 배치할 수 있는 빈 시간이 없습니다.')).toBeInTheDocument();
+    expect(screen.getByLabelText('일정 날짜')).toHaveValue('2026-09-03');
+    expect(screen.getByLabelText('시작')).toHaveValue('540');
   });
 
   it('does not send a 15-minute Todo into the past after 23:45 today', () => {
@@ -264,10 +272,10 @@ describe('Today direct calendar integration', () => {
     ));
     renderToday();
 
-    fireEvent.click(screen.getByRole('button', { name: '집중 작업 다음 빈 시간에 배치' }));
+    fireEvent.click(screen.getByRole('button', { name: '집중 작업 시간 지정' }));
 
     expect(saveTimeBlock).not.toHaveBeenCalled();
-    expect(screen.getByText('이 날짜에는 배치할 수 있는 빈 시간이 없습니다.')).toBeInTheDocument();
+    expect(screen.getByLabelText('일정 날짜')).toHaveValue('2026-09-03');
   });
 
   it('checks every earlier start on another date after trying 09:00 and later first', () => {
@@ -275,7 +283,7 @@ describe('Today direct calendar integration', () => {
     const nextDate = '2026-09-03';
     mockedUsePlanner.mockReturnValue(plannerValue(
       snapshotWith(
-        [task()],
+        [task({ plannedDate: nextDate })],
         [
           block({ id: 'before-gap', taskId: null, title: '오전 앞 일정', day: 'thu', date: nextDate, startMinutes: 0, durationMinutes: 525 }),
           block({ id: 'after-gap', taskId: null, title: '오전 뒤 일정', day: 'thu', date: nextDate, startMinutes: 555, durationMinutes: 885 })
@@ -286,7 +294,9 @@ describe('Today direct calendar integration', () => {
     renderToday();
 
     fireEvent.click(screen.getByRole('button', { name: '다음 날짜' }));
-    fireEvent.click(screen.getByRole('button', { name: '집중 작업 다음 빈 시간에 배치' }));
+    fireEvent.click(screen.getByRole('button', { name: '집중 작업 시간 지정' }));
+    expect(screen.getByLabelText('시작')).toHaveValue('525');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '시간 저장' }));
 
     expect(saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({
       taskId: 'task-one',
@@ -301,7 +311,7 @@ describe('Today direct calendar integration', () => {
     mockedUsePlanner.mockReturnValue(plannerValue(snapshotWith(), { addTask }));
     renderToday();
 
-    const title = screen.getByPlaceholderText('할 일 추가');
+    const title = screen.getByPlaceholderText('이 날짜에 할 일 추가');
     fireEvent.compositionStart(title);
     fireEvent.change(title, { target: { value: '한글 입력' } });
     fireEvent.submit(title.closest('form') as HTMLFormElement);
@@ -500,55 +510,41 @@ describe('Today direct calendar integration', () => {
     expect(screen.queryByRole('button', { name: '실행 취소' })).not.toBeInTheDocument();
   });
 
-  it('opens unscheduled Todos as a mobile bottom sheet and closes on Escape or popstate', () => {
+  it('opens the task list by default on mobile and switches without losing the quick-add draft', () => {
     installMatchMedia(true);
     mockedUsePlanner.mockReturnValue(plannerValue(snapshotWith([task()])));
-    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
     renderToday();
-
-    const trigger = screen.getByRole('button', { name: /시간 미정 할 일/ });
-    expect(screen.queryByRole('dialog', { name: '시간 미정 할 일' })).not.toBeInTheDocument();
-    fireEvent.click(trigger);
-    expect(screen.getByRole('dialog', { name: '시간 미정 할 일' })).toHaveAttribute('aria-modal', 'true');
-
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(back).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('dialog', { name: '시간 미정 할 일' })).not.toBeInTheDocument();
-
-    fireEvent.click(trigger);
-    expect(screen.getByRole('dialog', { name: '시간 미정 할 일' })).toBeInTheDocument();
-    act(() => window.dispatchEvent(new PopStateEvent('popstate')));
-    expect(screen.queryByRole('dialog', { name: '시간 미정 할 일' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('빠른 메모'), { target: { value: '입력 중' } });
+    expect(screen.queryByRole('region', { name: /24시간 시간표/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^시간표/ }));
+    expect(screen.getByRole('region', { name: /24시간 시간표/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^할 일 / }));
+    expect(screen.getByLabelText('빠른 메모')).toHaveValue('입력 중');
   });
 
-  it('opens the mobile Todo sheet and focuses its input for global quick capture', async () => {
+  it('switches to the mobile task list and focuses the input for global quick capture', async () => {
     installMatchMedia(true);
     mockedUsePlanner.mockReturnValue(plannerValue(snapshotWith([task()])));
     renderToday();
-
+    fireEvent.click(screen.getByRole('button', { name: /^시간표/ }));
     act(() => window.dispatchEvent(new Event(QUICK_CAPTURE_EVENT)));
 
-    expect(screen.getByRole('dialog', { name: '시간 미정 할 일' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /24시간 시간표/ })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('빠른 메모')).toHaveFocus());
   });
 
-  it('closes and cleans up the mobile Todo sheet when viewport rotation exits compact layout', () => {
+  it('reveals both views on desktop after rotation without a modal or scroll lock', () => {
     const changeLayout = installMutableMatchMedia(true);
     mockedUsePlanner.mockReturnValue(plannerValue(snapshotWith([task()])));
-    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     renderToday();
 
-    fireEvent.click(screen.getByRole('button', { name: /시간 미정 할 일/ }));
-    expect(screen.getByRole('dialog', { name: '시간 미정 할 일' })).toBeInTheDocument();
-    expect(document.body.style.overflow).toBe('hidden');
+    fireEvent.click(screen.getByRole('button', { name: /^시간표/ }));
 
     act(() => changeLayout(false));
 
-    expect(screen.queryByRole('dialog', { name: '시간 미정 할 일' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: '선택한 날짜의 할 일' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /24시간 시간표/ })).toBeInTheDocument();
     expect(document.body.style.overflow).toBe('');
-    expect(back).toHaveBeenCalledOnce();
   });
 
   it('renders the current-time line only for today', () => {
