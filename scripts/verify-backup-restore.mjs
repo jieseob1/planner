@@ -147,7 +147,10 @@ export async function rehearse({ file, latest = false, home = homedir(), expecte
     return command('docker', args, { env: commandEnv, timeout: Math.min(30_000, remaining), ...options });
   };
   const cleanup = args => command('docker', args, { env: commandEnv, timeout: 30_000 });
-  const mysql = sql => run(['exec', '-i', '--env', 'MYSQL_PWD', name, 'mysql', '--user=root', '--batch', '--skip-column-names', '--default-character-set=utf8mb4', '--local-infile=0'], { input: sql });
+  // The official entrypoint opens a temporary socket-only server while it
+  // initializes, then restarts MySQL. Only loopback TCP identifies the final
+  // server, preventing imports from racing that temporary-server shutdown.
+  const mysql = sql => run(['exec', '-i', '--env', 'MYSQL_PWD', name, 'mysql', '--protocol=TCP', '--host=127.0.0.1', '--user=root', '--batch', '--skip-column-names', '--default-character-set=utf8mb4', '--local-infile=0'], { input: sql });
   const tabular = text => text.trim() ? text.trim().split('\n').map(line => line.split('\t')) : [];
   let phase = 'container-start';
   let created = false;
@@ -229,7 +232,12 @@ async function selfTest() {
     const bad = join(directory, 'incomplete.sql.gz');
     await writeFile(bad, gzipSync(fixtureSql.replace('CREATE TABLE keycloak.DATABASECHANGELOG (ID INT PRIMARY KEY); INSERT INTO keycloak.DATABASECHANGELOG VALUES(1);', '-- identity migration table intentionally missing')), { mode: 0o600 });
     let rejected = false;
-    try { await rehearse({ file: bad }); } catch (error) { rejected = /schema-check/.test(error.message); }
+    try { await rehearse({ file: bad }); } catch (error) {
+      // A startup/import/cleanup failure is not proof that schema validation
+      // rejected the negative fixture. Preserve its safe phase diagnostic.
+      if (!/schema-check/.test(error.message)) throw error;
+      rejected = true;
+    }
     if (!rejected) throw new Error('Incomplete Keycloak dump must fail the real restore control.');
     console.log('isolated backup restore controls passed: both schemas, exact counts, foreign keys, integrity and incomplete identity schema rejected');
   } finally { await rm(directory, { recursive: true, force: true }); }

@@ -91,7 +91,11 @@ function mocks({ countFailure = false, cleanupUnavailable = false } = {}) {
     }
     if (args[0] === 'rm') { assert.deepEqual(args, ['rm', '--force', 'c'.repeat(64)]); return 'c'.repeat(64); }
     const sql = options.input;
-    if (sql === 'SELECT 1;') return '1\n';
+    if (sql === 'SELECT 1;') {
+      assert(args.includes('--protocol=TCP'), 'Socket-only initialization server must not satisfy readiness');
+      assert(args.includes('--host=127.0.0.1'), 'Readiness stays inside the network-isolated fixture');
+      return '1\n';
+    }
     if (sql.includes('information_schema.TABLES')) return tableRows.map(row => row.join('\t')).join('\n');
     if (sql.includes('WHERE success = 0')) return '0';
     if (sql.includes("WHERE NAME = 'nowline'")) return '1';
