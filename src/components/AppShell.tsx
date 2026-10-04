@@ -29,7 +29,7 @@ export function AppShell() {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState('');
-  const isToday = pathname === '/today';
+  const isToday = pathname === '/today' || pathname === '/planner';
   const currentNavItem = navItems.find((item) => item.to === pathname || pathname.startsWith(`${item.to}/`))
     ?? (pathname === '/admin' ? { contextLabel: '운영 관리' }
       : pathname === '/settings' ? { contextLabel: '설정과 연동' }

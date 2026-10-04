@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import type { DayKey, Task, TimeBlock, UpdateTaskInput } from '../domain/types';
 import { SubtaskEditor, SubtaskProgress } from './SubtaskEditor';
+import { Modal } from './Modal';
 import { validSubtasks } from '../domain/subtasks';
 import {
   createDefaultRange,
@@ -52,7 +53,7 @@ import {
 import { isLocalDate } from '../lib/calendarDate';
 import { formatClock, formatMinutes } from '../lib/format';
 
-export const DAY_TIMELINE_HOUR_HEIGHT = 64;
+export const DAY_TIMELINE_HOUR_HEIGHT = 96;
 const DAY_TIMELINE_HEIGHT = DAY_TIMELINE_HOUR_HEIGHT * 24;
 const POINTER_MOVE_THRESHOLD = 5;
 const TOUCH_SCROLL_THRESHOLD = 8;
@@ -68,7 +69,8 @@ export interface TimelineCreateInput {
   title: string;
 }
 
-interface DayTimelineProps {
+export interface DayTimelineProps {
+  layout?: 'day' | 'week';
   blocks: TimeBlock[];
   currentMinute: number | null;
   date: string;
@@ -120,6 +122,8 @@ interface InlineDraft {
   kind: TimelineCreateKind;
   range: DayMinuteRange;
   title: string;
+  start: string;
+  end: string;
 }
 
 interface ConflictPreview {
@@ -413,6 +417,7 @@ function BlockActionPanel({
 }
 
 export function DayTimeline({
+  layout = 'day',
   blocks,
   currentMinute,
   date,
@@ -449,7 +454,7 @@ export function DayTimeline({
   const [dropRange, setDropRange] = useState<DayMinuteRange | null>(null);
   const [feedback, setFeedback] = useState('');
   const [placementTime, setPlacementTime] = useState('09:00');
-  const [keyboardCreateTime, setKeyboardCreateTime] = useState('09:00');
+  const [keyboardCreateTime, setKeyboardCreateTime] = useState(() => formatClock(Math.min(1425, snapMinutes(currentMinute ?? 540, 'ceil'))));
 
   const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
   const lanesByBlockId = useMemo(() => getTimelineLanePlacements(blocks.map((block) => ({
@@ -499,7 +504,7 @@ export function DayTimeline({
     };
     window.addEventListener('pointerdown', cancelOutside);
     return () => window.removeEventListener('pointerdown', cancelOutside);
-  }, [inlineDraft]);
+  }, [Boolean(inlineDraft)]);
 
   useEffect(() => {
     const focusTarget = focusAfterCreateRef.current;
@@ -567,14 +572,23 @@ export function DayTimeline({
     }
     setFeedback('');
     inlineComposingRef.current = false;
-    setInlineDraft({ kind: 'todo', range, title: '' });
+    setInlineDraft({ kind: 'todo', range, title: '', start: formatClock(range.startMinutes), end: formatClock(range.endMinutes) });
   };
 
   const saveInline = () => {
     if (!inlineDraft?.title.trim()) return;
-    const conflict = conflictForRange(inlineDraft.range);
+    const startMinutes = parseClockInput(inlineDraft.start);
+    const endMinutes = parseClockInput(inlineDraft.end, true);
+    if (startMinutes === null || endMinutes === null || startMinutes >= DAY_END_MINUTES
+      || endMinutes - startMinutes < MIN_BLOCK_DURATION_MINUTES
+      || startMinutes % TIMELINE_SNAP_MINUTES || endMinutes % TIMELINE_SNAP_MINUTES) {
+      setFeedback('시작·종료를 15분 단위로 입력하세요. 종료는 시작보다 15분 이상 늦어야 합니다. 자정은 24:00입니다.');
+      return;
+    }
+    const range = { startMinutes, endMinutes };
+    const conflict = conflictForRange(range);
     if (conflict) return setFeedback(`${conflictMessage(conflict)} — 저장하지 않았습니다.`);
-    const input = { ...inlineDraft, title: inlineDraft.title.trim() };
+    const input: TimelineCreateInput = { kind: inlineDraft.kind, range, title: inlineDraft.title.trim() };
     if (!onCreate(input)) return setFeedback('시간이 겹쳐 저장하지 못했습니다.');
     focusAfterCreateRef.current = { startMinutes: input.range.startMinutes, title: input.title };
     setInlineDraft(null);
@@ -628,7 +642,7 @@ export function DayTimeline({
   const beginGridPointer = (event: PointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary || event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (target.closest('.today-direct-block-wrap, .today-direct-compact-touch-target, .today-direct-inline-editor, .today-direct-block-panel-layer')) return;
+    if (target.closest('.today-direct-block-wrap, .today-direct-compact-touch-target, .timeline-create-modal, .today-direct-block-panel-layer')) return;
     beginCreatePointer(event, event.currentTarget);
   };
 
@@ -927,15 +941,19 @@ export function DayTimeline({
   const draftConflict = pointerDraft?.block
     ? conflictForRange(pointerDraft.range, pointerDraft.block.id)
     : pointerDraft ? conflictForRange(pointerDraft.range) : null;
-  const previewRange = inlineDraft?.range ?? dropRange ?? (pointerDraft?.mode === 'create' ? pointerDraft.range : null);
+  const inlineStart = inlineDraft ? parseClockInput(inlineDraft.start) : null;
+  const inlineEnd = inlineDraft ? parseClockInput(inlineDraft.end, true) : null;
+  const inlineRange = inlineStart !== null && inlineEnd !== null && inlineEnd - inlineStart >= MIN_BLOCK_DURATION_MINUTES
+    && inlineStart % TIMELINE_SNAP_MINUTES === 0 && inlineEnd % TIMELINE_SNAP_MINUTES === 0
+    ? { startMinutes: inlineStart, endMinutes: inlineEnd } : null;
+  const previewRange = inlineDraft ? inlineRange : dropRange ?? (pointerDraft?.mode === 'create' ? pointerDraft.range : null);
   const previewConflict = previewRange ? conflictForRange(previewRange) : null;
 
   return (
-    <div className="today-direct-timeline">
-      <div className="today-direct-timeline__instructions" id="today-direct-instructions">
-        <span><GripHorizontal aria-hidden="true" /> 블록 본문을 드래그해 이동</span>
-        <span><GripHorizontal aria-hidden="true" /> {mobile ? '블록을 누른 뒤 15분 단위 조정' : '위·아래 핸들로 15분 단위 조정'}</span>
-        <span><LockKeyhole aria-hidden="true" /> Google 일정은 읽기 전용</span>
+    <div className={`today-direct-timeline${layout === 'week' ? ' is-week-column' : ''}`}>
+      <div className="today-direct-timeline__instructions" id={`today-direct-instructions-${date}`}>
+        <span><GripHorizontal aria-hidden="true" /> {mobile ? '눌러 수정 · 15분 단위 조절' : '드래그로 이동 · 15분 단위 조절'}</span>
+        <span><LockKeyhole aria-hidden="true" /> Google 읽기 전용</span>
         {draggingTask && (
           <form className="today-direct-placement-mode" onSubmit={submitPlacementTime}>
             <span aria-live="polite"><Calendar aria-hidden="true" /><strong>{draggingTask.title}</strong> 배치할 빈 시간을 선택하세요.</span>
@@ -970,13 +988,13 @@ export function DayTimeline({
           </form>
         )}
       </div>
-      <div className="today-direct-scroll" ref={scrollRef}>
+      <div className="today-direct-scroll" ref={layout === 'week' ? undefined : scrollRef}>
         <div
           className={`today-direct-grid${pointerDraft ? ' is-interacting' : ''}${draggingTask ? ' is-placing-task' : ''}`}
           ref={gridRef}
           data-day={day}
           style={{ height: `${DAY_TIMELINE_HEIGHT}px` }}
-          aria-describedby="today-direct-instructions"
+          aria-describedby={layout === 'day' ? `today-direct-instructions-${date}` : undefined}
           aria-label="00시부터 24시까지 15분 단위 시간표. 빈 시간을 누르거나 드래그해 일정을 만듭니다."
           onPointerDown={beginGridPointer}
           onPointerMove={handlePointerMove}
@@ -1108,20 +1126,21 @@ export function DayTimeline({
           )}
 
           {inlineDraft && (
+            <Modal title="새 일정" description={`${date} · 제목과 시작·종료 시간을 정하세요.`} onClose={() => setInlineDraft(null)} className="timeline-create-modal">
             <form
-              className="today-direct-inline-editor"
+              className="timeline-create-form"
               ref={inlineEditorRef}
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!inlineComposingRef.current) saveInline();
               }}
-              style={{ top: `${Math.min(DAY_TIMELINE_HEIGHT - 82, getBlockGeometry(inlineDraft.range, DAY_TIMELINE_HEIGHT).topPx)}px` }}
             >
               <select value={inlineDraft.kind} onChange={(event) => setInlineDraft((current) => current ? { ...current, kind: event.target.value as TimelineCreateKind } : current)} aria-label="생성 유형">
                 <option value="todo">할 일</option><option value="event">독립 일정</option>
               </select>
               <input
                 ref={inlineInputRef}
+                data-autofocus
                 value={inlineDraft.title}
                 onChange={(event) => setInlineDraft((current) => current ? { ...current, title: event.target.value } : current)}
                 onCompositionStart={() => { inlineComposingRef.current = true; }}
@@ -1130,11 +1149,21 @@ export function DayTimeline({
                 placeholder="무엇을 할까요?"
                 aria-label="새 일정 제목"
                 autoComplete="off"
+                maxLength={500}
               />
-              <time>{describeRange(inlineDraft.range)}</time>
-              <button type="submit" disabled={!inlineDraft.title.trim()} aria-label="새 일정 저장"><Check /></button>
-              <button type="button" aria-label="새 일정 취소" onClick={() => setInlineDraft(null)}><X /></button>
+              <time>{inlineRange ? describeRange(inlineRange) : '시작·종료 시간을 확인해 주세요'}</time>
+              <div className="timeline-create-times">
+                <label>시작<input aria-label="새 일정 시작 시간" inputMode="numeric" placeholder="09:00" value={inlineDraft.start} onChange={event => setInlineDraft(current => current ? { ...current, start: event.target.value } : current)} /></label>
+                <label>종료<input aria-label="새 일정 종료 시간" inputMode="numeric" placeholder="10:00" value={inlineDraft.end} onChange={event => setInlineDraft(current => current ? { ...current, end: event.target.value } : current)} /></label>
+              </div>
+              <p className="field-help">15분 단위 · 자정에 끝나는 일정은 24:00으로 입력하세요.</p>
+              {feedback && <p className="form-error" role="alert">{feedback}</p>}
+              <div className="modal__actions">
+                <button type="button" className="button button--secondary" aria-label="새 일정 취소" onClick={() => setInlineDraft(null)}>취소</button>
+                <button type="submit" className="button button--primary" disabled={!inlineDraft.title.trim()} aria-label="새 일정 저장"><Check />저장</button>
+              </div>
             </form>
+            </Modal>
           )}
 
           {currentMinute !== null && currentMinute >= 0 && currentMinute <= DAY_END_MINUTES && (
@@ -1155,7 +1184,7 @@ export function DayTimeline({
       <div className="today-direct-timeline__legend" aria-label="일정 구분">
         <span><i className="is-todo" />할 일 블록</span><span><i className="is-event" />독립 일정</span><span><LockKeyhole />Google 읽기 전용</span>
       </div>
-      <p className="today-direct-live-feedback" role={feedback.includes('겹') ? 'alert' : 'status'} aria-live="polite">{feedback}</p>
+      {!inlineDraft && <p className="today-direct-live-feedback" role={feedback.includes('겹') ? 'alert' : 'status'} aria-live="polite">{feedback}</p>}
 
       {mobilePickerBlocks.length > 0 && (
         <Suspense fallback={(

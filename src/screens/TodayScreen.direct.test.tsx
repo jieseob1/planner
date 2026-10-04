@@ -5,6 +5,7 @@ import { createEmptySnapshot } from '../data/empty';
 import type { PlannerSnapshot, SaveTimeBlockInput, Task, TimeBlock } from '../domain/types';
 import { usePlanner } from '../state/PlannerProvider';
 import { TodayScreen } from './TodayScreen';
+import { PlannerScreen } from './PlannerScreen';
 import { QUICK_CAPTURE_EVENT } from '../lib/quickCapture';
 
 vi.mock('../state/PlannerProvider', () => ({ usePlanner: vi.fn() }));
@@ -144,6 +145,100 @@ const giveTimelineBounds = (element: HTMLElement) => {
 };
 
 describe('Today direct calendar integration', () => {
+  it('uses a seven-column time calendar as the default desktop Planner, not the old goal matrix', () => {
+    render(<MemoryRouter><PlannerScreen /></MemoryRouter>);
+    expect(document.querySelectorAll('.planning-week-body .today-direct-grid')).toHaveLength(7);
+    expect(screen.getByRole('button', { name: '주간' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('table', { name: '목표 결과별 7일 시간표' })).not.toBeInTheDocument();
+  });
+
+  it('creates on the clicked week column even when a different date is selected', () => {
+    const value = plannerValue(snapshotWith()); mockedUsePlanner.mockReturnValue(value);
+    render(<MemoryRouter><PlannerScreen /></MemoryRouter>);
+    const grid = document.querySelector('[data-day="tue"]') as HTMLElement; giveTimelineBounds(grid);
+    const pointer = { button: 0, clientY: 640, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+    fireEvent.pointerDown(grid, pointer); fireEvent.pointerUp(grid, pointer);
+    fireEvent.change(screen.getByLabelText('새 일정 제목'), { target: { value: '화요일 공부' } });
+    fireEvent.change(screen.getByLabelText('새 일정 시작 시간'), { target: { value: '18:00' } });
+    fireEvent.change(screen.getByLabelText('새 일정 종료 시간'), { target: { value: '20:00' } });
+    fireEvent.click(screen.getByRole('button', { name: '새 일정 저장' }));
+    expect(value.addTask).toHaveBeenCalledWith(expect.objectContaining({ title: '화요일 공부', plannedDate: '2026-09-01' }));
+    expect(value.saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({ date: '2026-09-01', day: 'tue', startMinutes: 1080, durationMinutes: 120 }));
+  });
+
+  it('keeps the original date when resizing a block in another week column', () => {
+    const value = plannerValue(snapshotWith([task()], [block({ date: '2026-09-01', day: 'tue' })])); mockedUsePlanner.mockReturnValue(value);
+    render(<MemoryRouter><PlannerScreen /></MemoryRouter>);
+    fireEvent.keyDown(screen.getByRole('button', { name: /집중 작업.*할 일 시간 블록/ }), { key: 'Enter' });
+    fireEvent.change(screen.getByLabelText('종료 시간'), { target: { value: '11:00' } });
+    fireEvent.click(screen.getByRole('button', { name: '변경 저장' }));
+    expect(value.saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({ id: 'block-one', date: '2026-09-01', day: 'tue', startMinutes: 600, durationMinutes: 60 }));
+  });
+
+  it('preserves quick-entry drafts and the selected date when switching all calendar views', () => {
+    render(<MemoryRouter initialEntries={['/planner?date=2026-09-03']}><PlannerScreen /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('빠른 메모'), { target: { value: '작성 중인 할 일' } });
+    fireEvent.click(screen.getByRole('button', { name: '월간' }));
+    expect(screen.getByRole('region', { name: '월간 일정표' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '일간' }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('9월 3일');
+    expect(screen.getByLabelText('빠른 메모')).toHaveValue('작성 중인 할 일');
+  });
+
+  it('creates an independent monthly event on its exact selected date', () => {
+    const value = plannerValue(snapshotWith()); mockedUsePlanner.mockReturnValue(value);
+    render(<MemoryRouter initialEntries={['/planner?view=month&date=2026-09-03']}><PlannerScreen /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: '2026년 9월 25일 일정 추가' }));
+    fireEvent.change(screen.getByLabelText('일정 제목'), { target: { value: '월간 독립 일정' } });
+    fireEvent.change(screen.getByLabelText('시작', { exact: true }), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('종료', { exact: true }), { target: { value: '30' } });
+    fireEvent.submit(screen.getByLabelText('일정 제목').closest('form')!);
+    expect(value.saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({ date: '2026-09-25', day: 'fri', title: '월간 독립 일정', taskId: null, startMinutes: 0, durationMinutes: 30 }));
+    expect(value.addTask).not.toHaveBeenCalled();
+  });
+
+  it('starts mobile Planner with the same task-first daily controls', () => {
+    installMatchMedia(true); render(<MemoryRouter><PlannerScreen /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: '일간', hidden: true })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /^시간표/ }));
+    expect(screen.getByRole('button', { name: '일간' })).toBeInTheDocument();
+  });
+
+  it('adds into the active later list and preserves the draft if creation is rejected', () => {
+    const value = plannerValue(snapshotWith()); mockedUsePlanner.mockReturnValue(value); renderToday();
+    fireEvent.click(screen.getByRole('button', { name: /^나중에/ }));
+    const input = screen.getByPlaceholderText('나중에 할 일 추가');
+    fireEvent.change(input, { target: { value: '나중에 공부' } }); fireEvent.keyDown(input, { key: 'Enter' });
+    expect(value.addTask).toHaveBeenCalledWith(expect.objectContaining({ title: '나중에 공부', plannedDate: 'later' }));
+    vi.mocked(value.addTask).mockReturnValueOnce('');
+    fireEvent.change(input, { target: { value: '사라지면 안 되는 초안' } }); fireEvent.keyDown(input, { key: 'Enter' });
+    expect(input).toHaveValue('사라지면 안 되는 초안');
+  });
+
+  it('preserves an independently changed remote time while saving a local monthly title edit', () => {
+    const original = block({ taskId: null, title: '독립 일정' });
+    const value = plannerValue(snapshotWith([], [original])); mockedUsePlanner.mockReturnValue(value);
+    const ui = render(<MemoryRouter initialEntries={['/planner?view=month&date=2026-09-02']}><PlannerScreen /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: '2026년 9월 2일 10:00 독립 일정 일정 수정' }));
+    fireEvent.change(screen.getByLabelText('일정 제목'), { target: { value: '이 기기의 새 제목' } });
+    mockedUsePlanner.mockReturnValue({ ...value, timeBlocks: [{ ...original, startMinutes: 720 }] });
+    ui.rerender(<MemoryRouter><PlannerScreen /></MemoryRouter>);
+    fireEvent.submit(screen.getByLabelText('일정 제목').closest('form')!);
+    expect(value.saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({ id: original.id, title: '이 기기의 새 제목', startMinutes: 720, durationMinutes: 30 }));
+  });
+
+  it('retains the month editor when another device changes the same time range', () => {
+    const original = block({ taskId: null, title: '독립 일정' });
+    const value = plannerValue(snapshotWith([], [original])); mockedUsePlanner.mockReturnValue(value);
+    const ui = render(<MemoryRouter initialEntries={['/planner?view=month&date=2026-09-02']}><PlannerScreen /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: '2026년 9월 2일 10:00 독립 일정 일정 수정' }));
+    fireEvent.change(screen.getByLabelText('시작', { exact: true }), { target: { value: '660' } });
+    mockedUsePlanner.mockReturnValue({ ...value, timeBlocks: [{ ...original, startMinutes: 720 }] });
+    ui.rerender(<MemoryRouter><PlannerScreen /></MemoryRouter>);
+    fireEvent.submit(screen.getByLabelText('일정 제목').closest('form')!);
+    expect(screen.getByRole('alert')).toHaveTextContent('다른 기기에서 같은 일정의 시간이 바뀌었습니다');
+    expect(screen.getByLabelText('시작', { exact: true })).toHaveValue('660'); expect(value.saveTimeBlock).not.toHaveBeenCalled();
+  });
   it('opens the exact date from a notification link, and can return to today', () => {
     mockedUsePlanner.mockReturnValue(plannerValue(snapshotWith([task()], [block({ date: '2026-09-03', day: 'thu', title: '자정 뒤 일정' })])));
     render(<MemoryRouter initialEntries={['/today?date=2026-09-03']}><TodayScreen /></MemoryRouter>);
@@ -276,6 +371,15 @@ describe('Today direct calendar integration', () => {
 
     expect(saveTimeBlock).not.toHaveBeenCalled();
     expect(screen.getByLabelText('일정 날짜')).toHaveValue('2026-09-03');
+  });
+
+  it('shows the destination date after scheduling late at night instead of hiding the saved item', () => {
+    vi.setSystemTime(new Date('2026-09-02T23:50:00.000Z'));
+    const value = plannerValue(snapshotWith([task()])); mockedUsePlanner.mockReturnValue(value); renderToday();
+    fireEvent.click(screen.getByRole('button', { name: '집중 작업 시간 지정' }));
+    fireEvent.click(screen.getByRole('button', { name: '시간 저장' }));
+    expect(value.saveTimeBlock).toHaveBeenCalledWith(expect.objectContaining({ date: '2026-09-03' }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('9월 3일');
   });
 
   it('checks every earlier start on another date after trying 09:00 and later first', () => {

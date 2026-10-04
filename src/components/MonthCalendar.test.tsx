@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { calendarMonthDates, MonthCalendar, shiftCalendarMonth } from './MonthCalendar';
-import { PlannerScreen } from '../screens/PlannerScreen';
+import { GoalPlannerScreen as PlannerScreen } from '../screens/PlannerScreen';
 import { getDayKeyForDate } from '../lib/calendarDate';
 import type { SaveTimeBlockInput, Task, TimeBlock } from '../domain/types';
 

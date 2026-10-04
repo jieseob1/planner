@@ -11,7 +11,7 @@ import { buildSlots, isSlotInPast, OnboardingScreen } from './OnboardingScreen';
 import { buildPlanDraftSnapshot, PlansScreen, validatePlanDraft } from './PlansScreen';
 import { getReviewWeekPeriod, ReviewScreen } from './ReviewScreen';
 import { TodayScreen } from './TodayScreen';
-import { PlannerScreen } from './PlannerScreen';
+import { GoalPlannerScreen as PlannerScreen } from './PlannerScreen';
 
 vi.mock('../state/PlannerProvider', () => ({ usePlanner: vi.fn() }));
 vi.mock('../api/planHistoryApi', () => ({

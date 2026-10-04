@@ -24,10 +24,12 @@ import {
   X
 } from 'lucide-react';
 import { DayTimeline, DAY_TIMELINE_HOUR_HEIGHT, type TimelineCreateInput } from '../components/DayTimeline';
+import { WeekTimeline } from '../components/WeekTimeline';
+import { MonthCalendar, shiftCalendarMonth } from '../components/MonthCalendar';
 import { Modal } from '../components/Modal';
 import { SaveStatus } from '../components/SaveStatus';
 import { TaskEditorSheet } from '../components/TaskEditorSheet';
-import { TimeBlockSheet, type TimeBlockEditorValue } from '../components/TimeBlockSheet';
+import { TimeBlockSheet, type TimeBlockEditorValue, type TimeBlockMode } from '../components/TimeBlockSheet';
 import { SubtaskProgress } from '../components/SubtaskEditor';
 import type { Task, TimeBlock, TimeEntry } from '../domain/types';
 import {
@@ -153,7 +155,7 @@ interface TodoPanelProps {
   unscheduledTasks: Task[];
   inboxTasks: Task[];
   selectedBlocks: TimeBlock[];
-  onAddTask: (title: string) => void;
+  onAddTask: (title: string, later: boolean) => boolean;
   onComplete: (taskId: string) => void;
   onPostpone: (task: Task) => void;
   onEdit: (task: Task) => void;
@@ -201,8 +203,7 @@ function TodoPanel({
 
   const saveTask = () => {
     if (!title.trim()) return;
-    onAddTask(title);
-    setTitle('');
+    if (onAddTask(title, list === 'inbox')) setTitle('');
   };
 
   const submit = (event: FormEvent) => {
@@ -238,7 +239,7 @@ function TodoPanel({
           onCompositionStart={() => { composingRef.current = true; }}
           onCompositionEnd={() => { composingRef.current = false; }}
           onKeyDown={handleKeyDown}
-          placeholder="이 날짜에 할 일 추가"
+          placeholder={list === 'inbox' ? '나중에 할 일 추가' : '이 날짜에 할 일 추가'}
           maxLength={500}
           autoComplete="off"
         />
@@ -344,11 +345,12 @@ function TodoPanel({
   );
 }
 
-export function TodayScreen() {
+export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) {
   const { timeZone } = useTimeZone();
   const {
     tasks,
     outcomes,
+    plannerWeekOffset,
     timeBlocks,
     timeEntries,
     timer,
@@ -369,11 +371,19 @@ export function TodayScreen() {
   const todayDate = today.isoDate;
   const [dateParams, setDateParams] = useSearchParams();
   const requestedDate = dateParams.get('date');
-  const selectedDate = isLocalDate(requestedDate) ? requestedDate : todayDate;
+  const defaultDate = mode === 'planner' && plannerWeekOffset ? getWeekDays(plannerWeekOffset, new Date(), timeZone)[0].isoDate : todayDate;
+  const selectedDate = isLocalDate(requestedDate) ? requestedDate : defaultDate;
+  const isCompact = useCompactLayout();
+  const requestedView = dateParams.get('view');
+  const calendarView = requestedView === 'day' || requestedView === 'week' || requestedView === 'month'
+    ? requestedView : mode === 'planner' && !isCompact ? 'week' : 'day';
+  const setCalendarView = (view: 'day' | 'week' | 'month') => setDateParams(previous => {
+    const next = new URLSearchParams(previous); next.set('view', view); return next;
+  });
   const setSelectedDate = (date: string | ((current: string) => string)) => setDateParams((previous) => {
     const next = new URLSearchParams(previous);
     const current = previous.get('date');
-    next.set('date', typeof date === 'function' ? date(isLocalDate(current) ? current : todayDate) : date);
+    next.set('date', typeof date === 'function' ? date(isLocalDate(current) ? current : defaultDate) : date);
     return next;
   });
   const [memo, setMemo] = useState('');
@@ -387,6 +397,8 @@ export function TodayScreen() {
   const [scheduleTask, setScheduleTask] = useState<Task | null>(null);
   const [scheduleDate, setScheduleDate] = useState(selectedDate);
   const [scheduleError, setScheduleError] = useState('');
+  const [calendarDraft, setCalendarDraft] = useState<{ date: string; block?: TimeBlock; mode: TimeBlockMode } | null>(null);
+  const [calendarError, setCalendarError] = useState('');
   const [dateTask, setDateTask] = useState<Task | null>(null);
   const [targetDate, setTargetDate] = useState(selectedDate);
   const [dateError, setDateError] = useState('');
@@ -399,7 +411,6 @@ export function TodayScreen() {
     setEditingTaskId(task.id);
   };
   const [evidence, setEvidence] = useState('');
-  const isCompact = useCompactLayout();
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const timelineInitializedDate = useRef<string | null>(null);
   const undoTimerRef = useRef<number | null>(null);
@@ -446,71 +457,71 @@ export function TodayScreen() {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const scrollArea = timelineScrollRef.current;
-      if (!scrollArea || scrollArea.clientHeight === 0 || timelineInitializedDate.current === selectedDate) return;
-      timelineInitializedDate.current = selectedDate;
-      const targetMinute = selectedDate === todayDate ? currentMinuteRef.current : 8 * 60;
+      const initializationKey = `${calendarView}:${calendarView === 'week' ? selectedWeekDays[0].isoDate : selectedDate}`;
+      if (!scrollArea || scrollArea.clientHeight === 0 || timelineInitializedDate.current === initializationKey) return;
+      timelineInitializedDate.current = initializationKey;
+      const targetMinute = selectedDate === todayDate ? currentMinuteRef.current : selectedBlocks[0]?.startMinutes ?? 8 * 60;
       const targetTop = (targetMinute / 60) * DAY_TIMELINE_HOUR_HEIGHT;
       scrollArea.scrollTop = Math.max(0, Math.min(targetTop - (scrollArea.clientHeight / 2), scrollArea.scrollHeight - scrollArea.clientHeight));
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedDate, todayDate, mobileView, isCompact]);
+  }, [selectedDate, todayDate, mobileView, isCompact, calendarView]);
 
   const showNotice = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice((current) => current === message ? '' : current), 3600);
   };
 
-  const comparableBlocks = selectedBlocks.map((block) => ({ ...block, day: selectedDay, weekOffset: selectedWeekOffset }));
-  const rangeConflicts = (range: DayMinuteRange, ignoreBlockId?: string) => findTimeBlockConflict(
-    comparableBlocks,
+  const rangeConflicts = (range: DayMinuteRange, ignoreBlockId?: string, date = selectedDate) => findTimeBlockConflict(
+    getBlocksForDate(timeBlocks, date).map(block => ({ ...block, day: getDayKeyForDate(date), weekOffset: getWeekOffsetForDate(date, new Date(), timeZone) })),
     {
-      day: selectedDay,
+      day: getDayKeyForDate(date),
       startMinutes: range.startMinutes,
       durationMinutes: range.endMinutes - range.startMinutes,
-      weekOffset: selectedWeekOffset
+      weekOffset: getWeekOffsetForDate(date, new Date(), timeZone)
     },
     { ignoreBlockId }
   );
 
-  const createTimelineItem = (input: TimelineCreateInput) => {
-    if (!input.title.trim() || rangeConflicts(input.range)) return false;
+  const createTimelineItem = (input: TimelineCreateInput, date = selectedDate) => {
+    if (!input.title.trim() || rangeConflicts(input.range, undefined, date)) return false;
     const durationMinutes = input.range.endMinutes - input.range.startMinutes;
     let taskId: string | null = null;
     if (input.kind === 'todo') {
-      taskId = addTask({ title: input.title, outcomeId: null, estimateMinutes: durationMinutes, plannedDate: selectedDate });
+      taskId = addTask({ title: input.title, outcomeId: null, estimateMinutes: durationMinutes, plannedDate: date });
       if (!taskId) return false;
     }
     const saved = saveTimeBlock({
       taskId,
       title: input.title,
-      day: selectedDay,
+      day: getDayKeyForDate(date),
       startMinutes: input.range.startMinutes,
       durationMinutes,
-      date: selectedDate,
-      weekOffset: selectedWeekOffset
+      date,
+      weekOffset: getWeekOffsetForDate(date, new Date(), timeZone)
     });
     if (!saved && taskId) removeTask(taskId);
-    if (saved) showNotice(`${formatClock(input.range.startMinutes)}–${formatClock(input.range.endMinutes)}에 ${input.title.trim()}을 추가했습니다.`);
+    if (saved) { setSelectedDate(date); showNotice(`${formatClock(input.range.startMinutes)}–${formatClock(input.range.endMinutes)}에 ${input.title.trim()}을 추가했습니다.`); }
     return saved;
   };
 
-  const scheduleTaskAt = (task: Task, range: DayMinuteRange) => {
-    if (rangeConflicts(range)) return false;
+  const scheduleTaskAt = (task: Task, range: DayMinuteRange, date = selectedDate) => {
+    if (rangeConflicts(range, undefined, date)) return false;
     const saved = saveTimeBlock({
       taskId: task.id,
-      taskPatch: { plannedDate: task.plannedDate && task.plannedDate !== 'later' ? task.plannedDate : selectedDate },
+      taskPatch: { plannedDate: task.plannedDate && task.plannedDate !== 'later' ? task.plannedDate : date },
       title: task.title,
-      day: selectedDay,
+      day: getDayKeyForDate(date),
       startMinutes: range.startMinutes,
       durationMinutes: range.endMinutes - range.startMinutes,
-      date: selectedDate,
-      weekOffset: selectedWeekOffset
+      date,
+      weekOffset: getWeekOffsetForDate(date, new Date(), timeZone)
     });
-    if (saved) showNotice(`${task.title}을 ${formatClock(range.startMinutes)}에 배치했습니다.`);
+    if (saved) { setSelectedDate(date); showNotice(`${task.title}을 ${formatClock(range.startMinutes)}에 배치했습니다.`); }
     return saved;
   };
 
-  const updateBlockRange = (block: TimeBlock, range: DayMinuteRange, date = selectedDate, title = block.title) => {
+  const updateBlockRange = (block: TimeBlock, range: DayMinuteRange, date = block.date, title = block.title) => {
     if (block.external) return false;
     const nextTitle = title.trim();
     const saved = saveTimeBlock({
@@ -576,9 +587,11 @@ export function TodayScreen() {
     return startMinutes === undefined ? null : { startMinutes, endMinutes: startMinutes + durationMinutes };
   };
 
-  const addUnscheduledTask = (title: string) => {
-    const taskId = addTask({ title, outcomeId: null, estimateMinutes: 30, plannedDate: selectedDate });
-    if (taskId) showNotice(`${title.trim()}을 선택한 날짜에 추가했습니다. 시간은 아직 미정입니다.`);
+  const addUnscheduledTask = (title: string, later = false) => {
+    const taskId = addTask({ title, outcomeId: null, estimateMinutes: 30, plannedDate: later ? 'later' : selectedDate });
+    if (taskId) showNotice(later ? `${title.trim()}을 나중에 목록에 추가했습니다.` : `${title.trim()}을 선택한 날짜에 추가했습니다. 시간은 아직 미정입니다.`);
+    else showNotice('추가하지 못했습니다. 입력은 유지되며 저장 상태를 확인해야 합니다.');
+    return Boolean(taskId);
   };
 
   const completeTask = (taskId: string) => {
@@ -601,6 +614,7 @@ export function TodayScreen() {
       day: value.day, date: value.date, startMinutes: value.startMinutes, durationMinutes: value.durationMinutes });
     if (!saved) { setScheduleError('다른 일정과 겹치거나 저장할 수 없는 값입니다. 시간을 확인해 주세요.'); return; }
     setScheduleTask(null);
+    setSelectedDate(value.date ?? selectedDate);
     showNotice('할 일과 시간표에 같은 일정이 반영됐습니다.');
   };
   const moveTaskDate = (date: string | null) => {
@@ -642,6 +656,64 @@ export function TodayScreen() {
     setEvidence('');
   };
 
+  const openCalendarEditor = (date: string, block?: TimeBlock) => {
+    if (block?.external) return;
+    setCalendarError('');
+    setCalendarDraft({ date, block, mode: block?.taskId ? 'existing-task' : block || calendarView === 'month' ? 'event' : 'new-task' });
+  };
+
+  const saveCalendarEditor = (value: TimeBlockEditorValue) => {
+    if (!calendarDraft) return;
+    let date = value.date ?? calendarDraft.date;
+    let startMinutes = value.startMinutes;
+    let durationMinutes = value.durationMinutes;
+    let title = value.title;
+    const original = calendarDraft.block;
+    if (original) {
+      const current = timeBlocks.find(block => block.id === original.id);
+      if (!current || current.external) { setCalendarError('다른 기기에서 이 일정을 삭제하거나 변경했습니다. 입력은 유지됩니다.'); return; }
+      const rangeChanged = date !== original.date || startMinutes !== original.startMinutes || durationMinutes !== original.durationMinutes;
+      const remoteRangeChanged = current.date !== original.date || current.startMinutes !== original.startMinutes || current.durationMinutes !== original.durationMinutes;
+      if (rangeChanged && remoteRangeChanged && (current.date !== date || current.startMinutes !== startMinutes || current.durationMinutes !== durationMinutes)) {
+        setCalendarError('다른 기기에서 같은 일정의 시간이 바뀌었습니다. 입력은 유지되며 최신 시간을 확인해야 합니다.'); return;
+      }
+      if (!rangeChanged) { date = current.date; startMinutes = current.startMinutes; durationMinutes = current.durationMinutes; }
+      if (!original.taskId) {
+        if (title !== original.title && current.title !== original.title && title !== current.title) {
+          setCalendarError('다른 기기에서 같은 제목을 바꿨습니다. 입력은 유지됩니다.'); return;
+        }
+        if (title === original.title) title = current.title;
+      }
+    }
+    const range = { startMinutes, endMinutes: startMinutes + durationMinutes };
+    const conflict = rangeConflicts(range, value.blockId, date);
+    if (conflict) { setCalendarError(`${conflict.title}과 시간이 겹칩니다. 다른 시간을 선택하세요.`); return; }
+    let taskId = value.taskId;
+    if (value.mode === 'new-task') {
+      taskId = addTask({ title: value.title, outcomeId: value.outcomeId, estimateMinutes: value.durationMinutes, plannedDate: date, subtasks: value.subtasks });
+      if (!taskId) { setCalendarError('할 일을 만들지 못했습니다. 입력 내용을 확인하세요.'); return; }
+    }
+    const linkedTask = tasks.find(task => task.id === taskId);
+    const saved = saveTimeBlock({ id: value.blockId, taskId, title, date, day: getDayKeyForDate(date), startMinutes,
+      durationMinutes, weekOffset: getWeekOffsetForDate(date, new Date(), timeZone),
+      ...(taskId ? { taskPatch: { ...value.taskPatch, ...(!linkedTask?.plannedDate || linkedTask.plannedDate === 'later' ? { plannedDate: date } : {}) } } : {}) });
+    if (!saved) {
+      if (value.mode === 'new-task' && taskId) removeTask(taskId);
+      setCalendarError('저장하지 못했습니다. 일정과 동기화 상태를 확인하세요.'); return;
+    }
+    setCalendarDraft(null); setSelectedDate(date); showNotice('할 일과 달력에 반영했습니다.');
+  };
+
+  const navigateCalendar = (direction: number) => setSelectedDate(date => calendarView === 'month'
+    ? shiftCalendarMonth(date, direction) : addLocalDateDays(date, direction * (calendarView === 'week' ? 7 : 1)));
+
+  const timelineActions = {
+    draggingTask, mobile: isCompact, runningTaskId: timer?.taskId ?? null, timerPaused: timer?.paused ?? false,
+    scrollRef: timelineScrollRef, tasks, onCompleteTask: completeTask, onEditTask: editTask, onUpdateTask: updateTask,
+    onCreate: createTimelineItem, onDragTaskEnd: () => setDraggingTask(null), onRemoveBlock: removeBlockFromSchedule,
+    onScheduleTask: scheduleTaskAt, onScheduleTaskAgain: beginTaskPlacement, onStartTask: startOrToggleTask, onUpdateBlock: updateBlockRange
+  };
+
   const todoPanel = (
     <TodoPanel
       activeTasks={activeTasks}
@@ -673,29 +745,29 @@ export function TodayScreen() {
   );
 
   return (
-    <div className="today-direct-page">
+    <div className={`today-direct-page planning-workspace is-${calendarView}-view`}>
       <header className="today-direct-header">
         <div className="today-direct-header__date">
-          <span className="today-direct-kicker">TODAY</span>
-          <h1>{formatDateLabel(selectedDate)}</h1>
+          <span className="today-direct-kicker">할 일과 시간 계획</span>
+          <h1>{calendarView === 'week' ? `${selectedWeekDays[0].month}월 ${selectedWeekDays[0].date}일 – ${selectedWeekDays[6].month}월 ${selectedWeekDays[6].date}일` : formatDateLabel(selectedDate)}</h1>
         </div>
         <div className="today-direct-header__controls">
-          <button type="button" aria-label="이전 날짜" onClick={() => setSelectedDate((date) => addLocalDateDays(date, -1))}><ChevronLeft /></button>
+          <button type="button" aria-label={calendarView === 'day' ? '이전 날짜' : calendarView === 'week' ? '이전 주' : '이전 달'} onClick={() => navigateCalendar(-1)}><ChevronLeft /></button>
           <button type="button" onClick={() => setSelectedDate(todayDate)} disabled={selectedDate === todayDate}>오늘</button>
-          <button type="button" aria-label="다음 날짜" onClick={() => setSelectedDate((date) => addLocalDateDays(date, 1))}><ChevronRight /></button>
+          <button type="button" aria-label={calendarView === 'day' ? '다음 날짜' : calendarView === 'week' ? '다음 주' : '다음 달'} onClick={() => navigateCalendar(1)}><ChevronRight /></button>
         </div>
         <div className="today-direct-header__status">
           <span>{plannedMinutes > 0 ? `${formatMinutes(plannedMinutes)} 계획` : '계획 없음'}</span>
           <span>기록 {formatTimer(loggedSeconds)}</span>
           <SaveStatus />
         </div>
-        <nav className="today-direct-week" aria-label="선택한 주">
+        {calendarView === 'day' && <nav className="today-direct-week" aria-label="선택한 주">
           {selectedWeekDays.map((day) => (
             <button key={day.isoDate} type="button" className={day.isoDate === selectedDate ? 'is-selected' : day.isoDate === todayDate ? 'is-today' : ''} aria-current={day.isoDate === selectedDate ? 'date' : undefined} onClick={() => setSelectedDate(day.isoDate)}>
               <small>{day.short}</small><strong>{day.date}</strong>
             </button>
           ))}
-        </nav>
+        </nav>}
       </header>
 
       {timer && runningTask && (
@@ -708,51 +780,48 @@ export function TodayScreen() {
         </section>
       )}
 
-      <TodayGoalStrip date={selectedDate} />
-
       <div className="today-direct-workspace">
         {isCompact && <div className="today-mobile-views" aria-label="오늘 보기 선택">
           <button type="button" aria-pressed={mobileView === 'tasks'} onClick={() => setMobileView('tasks')}>할 일 <span>{unscheduledTasks.length}</span></button>
           <button type="button" aria-pressed={mobileView === 'timeline'} onClick={() => setMobileView('timeline')}>시간표 <span>{selectedBlocks.length}</span></button>
         </div>}
-        <aside className="today-direct-sidebar" aria-label="선택한 날짜의 할 일" hidden={isCompact && mobileView !== 'tasks'}>{todoPanel}{!isCompact && <TodayReview date={selectedDate} />}</aside>
+        <aside className="today-direct-sidebar" aria-label="선택한 날짜의 할 일" hidden={isCompact && mobileView !== 'tasks'}>{todoPanel}
+          <details className="planning-goals"><summary>목표와 하루 마무리</summary><TodayGoalStrip date={selectedDate} /><TodayReview date={selectedDate} /></details>
+        </aside>
         <section className="today-direct-timeline-column" hidden={isCompact && mobileView !== 'timeline'} aria-label={`${formatDateLabel(selectedDate)} 24시간 시간표`}>
           <div className="today-direct-timeline-heading">
             <div>
-              <span className="today-direct-kicker">일간 시간표</span>
-              <h2>언제 할까요?</h2>
-              <p>빈 시간을 눌러 시작·종료를 정하세요. 일정은 눌러 수정할 수 있어요.</p>
+              <h2>{calendarView === 'day' ? '일간 시간표' : calendarView === 'week' ? '주간 시간표' : '월간 일정'}</h2>
+              <p>빈 시간을 누르면 추가, 일정을 누르면 수정합니다.</p>
             </div>
-            <span className="today-direct-timeline-heading__count">{selectedBlocks.length}개 일정</span>
+            <div className="planning-calendar-tools">
+              <div className="planning-view-switch" role="group" aria-label="일정 보기 방식">
+                {(['day', 'week', 'month'] as const).map((view, index) => <button key={view} type="button" aria-pressed={calendarView === view} onClick={() => setCalendarView(view)}>{['일간', '주간', '월간'][index]}</button>)}
+              </div>
+              <button type="button" className="planning-add-event" onClick={() => openCalendarEditor(selectedDate)}><Plus size={18} />일정 추가</button>
+            </div>
           </div>
-          <DayTimeline
+          {calendarView === 'day' ? <DayTimeline
+            {...timelineActions}
             key={selectedDate}
             blocks={selectedBlocks}
             currentMinute={selectedDate === todayDate ? currentMinute : null}
             date={selectedDate}
             day={selectedDay}
-            draggingTask={draggingTask}
-            mobile={isCompact}
-            runningTaskId={timer?.taskId ?? null}
-            timerPaused={timer?.paused ?? false}
-            scrollRef={timelineScrollRef}
-            tasks={tasks}
-            onCompleteTask={completeTask}
-            onEditTask={editTask}
-            onUpdateTask={updateTask}
-            onCreate={createTimelineItem}
-            onDragTaskEnd={() => setDraggingTask(null)}
-            onRemoveBlock={removeBlockFromSchedule}
-            onScheduleTask={scheduleTaskAt}
-            onScheduleTaskAgain={beginTaskPlacement}
-            onStartTask={startOrToggleTask}
-            onUpdateBlock={updateBlockRange}
-          />
+          /> : calendarView === 'week' ? <WeekTimeline {...timelineActions} blocks={timeBlocks} currentMinute={currentMinute}
+            days={selectedWeekDays} selectedDate={selectedDate} todayDate={todayDate} onSelectDate={setSelectedDate} />
+            : <div className="planning-month-scroll"><MonthCalendar navigation={false} key={selectedDate.slice(0, 7)} today={todayDate} initialDate={selectedDate} blocks={timeBlocks}
+              onSelectDate={setSelectedDate} onAdd={date => openCalendarEditor(date)} onEdit={block => openCalendarEditor(block.date, block)} /></div>}
         </section>
 
       </div>
 
-      {isCompact && <TodayReview date={selectedDate} />}
+      {calendarDraft && <TimeBlockSheet key={calendarDraft.block?.id ?? calendarDraft.date} tasks={tasks} outcomes={outcomes}
+        initialDate={calendarDraft.date} initialDay={getDayKeyForDate(calendarDraft.date)} initialBlockId={calendarDraft.block?.id}
+        initialTaskId={calendarDraft.block?.taskId ?? undefined} initialTitle={calendarDraft.block?.title} initialMode={calendarDraft.mode}
+        initialStartMinutes={calendarDraft.block?.startMinutes ?? Math.min(1425, calendarDraft.date === todayDate ? Math.ceil(currentMinute / 15) * 15 : 540)}
+        initialDurationMinutes={calendarDraft.block?.durationMinutes ?? 30} error={calendarError} onSave={saveCalendarEditor} onClose={() => setCalendarDraft(null)}
+        onDelete={calendarDraft.block ? () => { removeBlockFromSchedule(calendarDraft.block!); setCalendarDraft(null); } : undefined} />}
 
       {removedBlock && <div className="today-direct-snackbar" role="status"><span>시간표에서 제거했습니다.</span><button type="button" onClick={undoRemoveBlock}>실행 취소</button></div>}
       {completedNotice && <div className="today-direct-snackbar" role="status"><span>{completedNotice.title} · {completedNotice.status === 'done' ? '다시 열었습니다' : '완료했습니다'}</span><button type="button" onClick={() => { updateTask(completedNotice.taskId, { status: completedNotice.status }); setCompletedNotice(null); }}>완료 실행 취소</button><button type="button" aria-label="완료 안내 닫기" onClick={() => setCompletedNotice(null)}><X size={16} /></button></div>}

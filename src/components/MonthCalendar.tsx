@@ -26,6 +26,7 @@ const dateLabel = (date: string) => {
 };
 
 interface MonthCalendarProps {
+  navigation?: boolean;
   today: string;
   initialDate?: string;
   blocks: TimeBlock[];
@@ -36,7 +37,7 @@ interface MonthCalendarProps {
   onSelectDate?: (date: string) => void;
 }
 
-export function MonthCalendar({ today, initialDate = today, blocks, minDate, maxDate, onAdd, onEdit, onSelectDate }: MonthCalendarProps) {
+export function MonthCalendar({ navigation = true, today, initialDate = today, blocks, minDate, maxDate, onAdd, onEdit, onSelectDate }: MonthCalendarProps) {
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [month, setMonth] = useState(`${initialDate.slice(0, 7)}-01`);
   const dayButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -70,11 +71,11 @@ export function MonthCalendar({ today, initialDate = today, blocks, minDate, max
   return <section className="month-calendar" aria-label="월간 일정표">
     <header className="month-calendar-toolbar">
       <h2 aria-live="polite"><CalendarDays size={19} /> {Number(month.slice(0, 4))}년 {Number(month.slice(5, 7))}월</h2>
-      <div className="month-calendar-navigation">
+      {navigation && <div className="month-calendar-navigation">
         <button type="button" className="icon-button" aria-label="이전 달" disabled={!canVisitMonth(shiftCalendarMonth(month, -1))} onClick={() => visit(shiftCalendarMonth(month, -1))}><ChevronLeft size={18} /></button>
         <button type="button" className="button button--secondary button--small" onClick={() => visit(today)}>이번 달</button>
         <button type="button" className="icon-button" aria-label="다음 달" disabled={!canVisitMonth(shiftCalendarMonth(month, 1))} onClick={() => visit(shiftCalendarMonth(month, 1))}><ChevronRight size={18} /></button>
-      </div>
+      </div>}
     </header>
     <p className="month-calendar-guide">날짜를 선택하면 아래에서 하루 일정을 볼 수 있어요. 일정 제목을 누르면 수정합니다.</p>
     <div className="month-calendar-weekdays" aria-hidden="true">{weekDayMeta.map(day => <span key={day.key}>{day.short}</span>)}</div>

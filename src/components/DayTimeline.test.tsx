@@ -112,6 +112,30 @@ const dropOn = (grid: HTMLElement, dataTransfer: { dropEffect: string }) => {
 };
 
 describe('DayTimeline inline creation', () => {
+  it('edits both times without stealing focus and creates the chosen two-hour range', () => {
+    const { grid, props } = renderTimeline(); openInlineAt(grid, 640);
+    fireEvent.change(screen.getByLabelText('새 일정 제목'), { target: { value: '개인 공부' } });
+    const start = screen.getByLabelText('새 일정 시작 시간'); const end = screen.getByLabelText('새 일정 종료 시간');
+    start.focus(); fireEvent.change(start, { target: { value: '18:00' } }); expect(start).toHaveFocus();
+    end.focus(); fireEvent.change(end, { target: { value: '20:00' } }); expect(end).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: '새 일정 저장' }));
+    expect(props.onCreate).toHaveBeenCalledWith({ kind: 'todo', title: '개인 공부', range: { startMinutes: 1080, endMinutes: 1200 } });
+  });
+
+  it('keeps the title and fields when invalid or overlapping times are rejected', () => {
+    const { grid, props } = renderTimeline({ blocks: [block] }); openInlineAt(grid, 768);
+    fireEvent.change(screen.getByLabelText('새 일정 제목'), { target: { value: '내용 유지' } });
+    fireEvent.change(screen.getByLabelText('새 일정 시작 시간'), { target: { value: '11:00' } });
+    fireEvent.change(screen.getByLabelText('새 일정 종료 시간'), { target: { value: '10:00' } });
+    fireEvent.click(screen.getByRole('button', { name: '새 일정 저장' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('15분 이상');
+    fireEvent.change(screen.getByLabelText('새 일정 시작 시간'), { target: { value: '10:00' } });
+    fireEvent.change(screen.getByLabelText('새 일정 종료 시간'), { target: { value: '10:30' } });
+    fireEvent.click(screen.getByRole('button', { name: '새 일정 저장' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('기획서 정리');
+    expect(screen.getByLabelText('새 일정 제목')).toHaveValue('내용 유지'); expect(props.onCreate).not.toHaveBeenCalled();
+  });
+
   it('creates a default 30-minute Todo from an empty slot with Enter', () => {
     const { grid, props } = renderTimeline();
 

@@ -5,7 +5,8 @@ export async function exercisePlannerSync(browser, desktop, frontendUrl) {
   if (!['localhost', '127.0.0.1'].includes(new URL(frontendUrl).hostname)) throw new Error('Sync test requires an isolated localhost stack');
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const mobile = await context.newPage();
-  const date = '2026-10-11';
+  const date = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  const nextDate = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
   const title = `두 기기 QA ${randomUUID().slice(0, 8)}`;
   const saved = page => page.getByText('서버에 저장됨', { exact: true }).waitFor({ timeout: 15000 });
   const row = (page, name) => page.getByRole('button', { name: `${name} 수정`, exact: true });
@@ -89,9 +90,9 @@ export async function exercisePlannerSync(browser, desktop, frontendUrl) {
     await saved(mobile);
     if (await row(mobile, `${title} B`).count()) throw new Error('Deleted task was silently resurrected');
     await desktop.getByRole('button', { name: `${title} 서버 제목 날짜 변경`, exact: true }).click();
-    await desktop.getByLabel('할 일 날짜', { exact: true }).fill('2026-10-12');
+    await desktop.getByLabel('할 일 날짜', { exact: true }).fill(nextDate);
     await replicated(() => desktop.getByRole('button', { name: '이 날짜로 이동', exact: true }).click(), () => row(mobile, `${title} 서버 제목`).waitFor({ state: 'hidden' }));
-    await Promise.all([desktop.goto(`${frontendUrl}/today?date=2026-10-12`), mobile.goto(`${frontendUrl}/today?date=2026-10-12`)]);
+    await Promise.all([desktop.goto(`${frontendUrl}/today?date=${nextDate}`), mobile.goto(`${frontendUrl}/today?date=${nextDate}`)]);
     await Promise.all([row(desktop, `${title} 서버 제목`).waitFor(), row(mobile, `${title} 서버 제목`).waitFor()]);
     await mobile.getByRole('complementary', { name: '선택한 날짜의 할 일' }).getByText('19:00–21:00', { exact: true }).waitFor();
     console.log(`Two independent browser sessions: create/time/edit/complete/undo ${latencies.join(', ')}ms; simultaneous edits, offline reconnect, explicit field conflict, and reload passed`);

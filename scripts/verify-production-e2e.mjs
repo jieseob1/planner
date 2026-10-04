@@ -169,8 +169,6 @@ const exerciseMonthCalendar = async (page, frontendUrl) => {
   await page.getByLabel('종료', { exact: true }).selectOption('30');
   await runAndWaitForPlannerSave(page, () => page.getByRole('dialog').getByRole('button', { name: '추가', exact: true }).click(), 'Monthly standalone event create');
   await page.reload();
-  await page.getByRole('button', { name: '월간', exact: true }).click();
-  await page.getByRole('button', { name: '다음 달', exact: true }).click();
   await page.getByRole('region', { name: '선택한 날짜의 일정', exact: true }).getByRole('button', { name: `${title} 일정 수정`, exact: true }).click();
   if (await page.getByLabel('일정 날짜', { exact: true }).inputValue() !== originalDate) fail('Month event date did not survive reload');
   const movedDate = `${originalDate.slice(0, 8)}02`;
@@ -178,21 +176,82 @@ const exerciseMonthCalendar = async (page, frontendUrl) => {
   await page.getByLabel('일정 제목', { exact: true }).fill(`${title} 수정`);
   await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '변경 저장', exact: true }).click(), 'Monthly event moved to another date');
   await page.reload();
-  await page.getByRole('button', { name: '월간', exact: true }).click();
-  await page.getByRole('button', { name: '다음 달', exact: true }).click();
   const [year, month] = movedDate.split('-').map(Number);
   await page.getByRole('button', { name: `${year}년 ${month}월 2일 00:00 ${title} 수정 일정 수정`, exact: true }).click();
   if (await page.getByLabel('일정 날짜', { exact: true }).inputValue() !== movedDate) fail('Moved event did not retain its destination date');
   await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '일정에서 삭제', exact: true }).click(), 'Monthly standalone event delete');
   await page.reload();
-  await page.getByRole('button', { name: '월간', exact: true }).click();
-  await page.getByRole('button', { name: '다음 달', exact: true }).click();
   if (await page.getByRole('button', { name: `${year}년 ${month}월 2일 00:00 ${title} 수정 일정 수정`, exact: true }).count()) fail('Deleted month event remains visible');
+};
+
+const exerciseSharedTimeCalendar = async (page, frontendUrl) => {
+  const date = '2026-11-03';
+  const title = `큰 시간 달력 ${randomUUID().slice(0, 8)}`;
+  await page.goto(`${frontendUrl}/planner?date=${date}`);
+  await page.locator('.planning-week-body .today-direct-grid').first().waitFor();
+  if (await page.locator('.planning-week-body .today-direct-grid').count() !== 7) fail('Planner no longer shows a true seven-day time calendar');
+  await page.getByRole('button', { name: '일간', exact: true }).click();
+  await page.locator('.planning-workspace.is-day-view').waitFor();
+  const gridHeight = await page.locator('.today-direct-grid').evaluate(element => element.getBoundingClientRect().height);
+  if (gridHeight !== 96 * 24) fail(`Expected enlarged 96px/hour timeline, got ${gridHeight}`);
+  await page.getByLabel('키보드 일정 시작 시간', { exact: true }).fill('18:00');
+  await page.getByRole('button', { name: '이 시간에 일정 추가', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '새 일정', exact: true });
+  await dialog.getByLabel('새 일정 제목', { exact: true }).fill(title);
+  await dialog.getByLabel('새 일정 시작 시간', { exact: true }).fill('18:00');
+  await dialog.getByLabel('새 일정 종료 시간', { exact: true }).fill('17:00');
+  await dialog.getByRole('button', { name: '새 일정 저장', exact: true }).click();
+  await dialog.getByRole('alert').getByText(/15분 이상/).waitFor();
+  if (await dialog.getByLabel('새 일정 제목', { exact: true }).inputValue() !== title) fail('Invalid time discarded the title');
+  await dialog.getByLabel('새 일정 종료 시간', { exact: true }).fill('20:00');
+  await assertDialogFitsViewport(dialog, 'Enlarged timeline create');
+  await runAndWaitForPlannerSave(page, () => dialog.getByRole('button', { name: '새 일정 저장', exact: true }).click(), 'Editable exact start/end create');
+  await page.getByRole('button', { name: `${title} 수정`, exact: true }).waitFor();
+  await page.getByRole('button', { name: `${title}, 18:00부터 20:00까지, 할 일 시간 블록`, exact: true }).waitFor();
+  await page.getByRole('button', { name: '주간', exact: true }).click();
+  await page.getByRole('button', { name: `${title}, 18:00부터 20:00까지, 할 일 시간 블록`, exact: true }).waitFor();
+  await page.reload(); await waitForPlannerSaved(page);
+  await page.getByRole('button', { name: `${title} 수정`, exact: true }).waitFor();
+  await page.goto(`${frontendUrl}/today?date=${date}`);
+  await page.getByRole('button', { name: `${title}, 18:00부터 20:00까지, 할 일 시간 블록`, exact: true }).waitFor();
+  await page.getByRole('button', { name: `${title} 수정`, exact: true }).click();
+  await page.getByRole('button', { name: '할 일 삭제', exact: true }).click();
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '할 일과 연결 기록 삭제', exact: true }).click(), 'Shared calendar cleanup');
+  console.log('Shared Planner/Today day-week calendar with editable start/end and server reload passed');
+};
+
+const exerciseMobileTimeFields = async (page, frontendUrl) => {
+  await page.goto(`${frontendUrl}/planner?date=2026-11-03`);
+  await page.getByRole('button', { name: /^시간표 \d+$/ }).click();
+  await page.getByRole('button', { name: '이 시간에 일정 추가', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '새 일정', exact: true });
+  await dialog.getByLabel('새 일정 제목', { exact: true }).fill('모바일 시간 입력 검증');
+  await dialog.getByLabel('새 일정 시작 시간', { exact: true }).fill('18:00');
+  await dialog.getByLabel('새 일정 종료 시간', { exact: true }).fill('20:00');
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await assertDialogFitsViewport(dialog, `Mobile exact-time editor ${width}px`);
+    await assertNoDocumentOverflow(page, `Mobile exact-time editor ${width}px`);
+    await assertVisibleTargets(page, `Mobile exact-time editor ${width}px`);
+    const fieldsFit = await dialog.evaluate(element => [...element.querySelectorAll('.timeline-create-times input')].every(input => {
+      const rect = input.getBoundingClientRect(); return rect.width >= 100 && rect.left >= 0 && rect.right <= innerWidth;
+    }));
+    if (!fieldsFit) fail(`Mobile ${width}px time fields are cramped or clipped`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await runAndWaitForPlannerSave(page, () => dialog.getByRole('button', { name: '새 일정 저장', exact: true }).click(), 'Mobile exact start/end create');
+  await page.getByRole('button', { name: '모바일 시간 입력 검증, 18:00부터 20:00까지, 할 일 시간 블록', exact: true }).waitFor();
+  await page.getByRole('button', { name: /^할 일 \d+$/ }).click();
+  await page.getByRole('button', { name: '모바일 시간 입력 검증 수정', exact: true }).click();
+  await page.getByRole('button', { name: '할 일 삭제', exact: true }).click();
+  await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '할 일과 연결 기록 삭제', exact: true }).click(), 'Mobile exact-time fixture cleanup');
+  console.log('Mobile 390/320px title/start/end fields, touch targets and server-backed create passed');
 };
 
 const exerciseSubtasks = async (page, frontendUrl) => {
   const title = `하위 작업 E2E ${randomUUID().slice(0, 8)}`;
-  await page.goto(`${frontendUrl}/today`);
+  const testDate = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  await page.goto(`${frontendUrl}/today?date=${testDate}`);
   await waitForPlannerSaved(page);
   await page.getByLabel('빠른 메모', { exact: true }).fill(title);
   await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: '추가', exact: true }).click(), 'Subtask parent create');
@@ -451,7 +510,8 @@ const exerciseTodoCrud = async (page, frontendUrl, mobile) => {
   await activateAndWaitForPlannerSave(page, editor.getByRole('button', { name: '변경 저장' }), `${prefix} CRUD reopen`);
 
   // Exercise the exact existing-Todo selector reported by the user.
-  await page.goto(`${frontendUrl}/planner`);
+  // The goal/allocation tools remain an explicit secondary flow.
+  await page.goto(`${frontendUrl}/planner?tools=goals`);
   await page.getByRole('button', { name: `${edited} 일정에 배치`, exact: true }).click();
   let placement = page.getByRole('dialog', { name: '할 일 또는 일정 추가' });
   await placement.getByLabel('시작', { exact: true }).selectOption('1260');
@@ -526,14 +586,10 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   );
 
   await page.goto(`${frontendUrl}/planner`);
-  await activateByKeyboard(page, page.getByRole('button', { name: /새 할 일/ }));
-  await page.getByRole('dialog', { name: '새 할 일' }).getByLabel('할 일', { exact: true }).fill('운영 E2E 회고 준비');
-  await activateAndWaitForPlannerSave(
-    page,
-    page.getByRole('dialog', { name: '새 할 일' }).getByRole('button', { name: '할 일 추가', exact: true }),
-    'Planner task creation'
-  );
-  await page.getByRole('button', { name: '운영 E2E 회고 준비 일정에 배치', exact: true }).waitFor();
+  await page.getByLabel('빠른 메모', { exact: true }).fill('운영 E2E 회고 준비');
+  await runAndWaitForPlannerSave(page, () => page.getByLabel('빠른 메모', { exact: true }).press('Enter'), 'Shared Planner task creation');
+  await page.getByRole('button', { name: '운영 E2E 회고 준비 시간 지정', exact: true }).waitFor();
+  if (await page.locator('.planning-week-body .today-direct-grid').count() !== 7) fail('Desktop Planner must expose a seven-day time calendar');
 
   await page.goto(`${frontendUrl}/goals/legacy`);
   await activateByKeyboard(page, page.getByRole('button', { name: '계획과 결과 편집' }));
@@ -574,6 +630,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
   await exercisePeriodDocuments(page, frontendUrl);
   await exerciseSubtasks(page, frontendUrl);
   await exerciseMonthCalendar(page, frontendUrl);
+  await exerciseSharedTimeCalendar(page, frontendUrl);
   await page.goto(`${frontendUrl}/today`);
   await waitForPlannerSaved(page);
 
@@ -724,17 +781,11 @@ const exerciseMobile = async (frontendUrl) => {
   await assertVisibleTargets(page, 'Mobile Today');
 
   await page.goto(`${frontendUrl}/planner`);
-  await page.getByRole('heading', { name: '이번 주 할 일과 일정을 함께 봅니다.' }).waitFor();
-  await page.getByRole('button', { name: /새 할 일/ }).click();
-  const addDialog = page.getByRole('dialog', { name: '새 할 일' });
-  await addDialog.getByLabel('할 일', { exact: true }).fill('모바일 계획함 QA');
-  await runAndWaitForPlannerSave(
-    page,
-    () => addDialog.getByRole('button', { name: '할 일 추가', exact: true }).click(),
-    'Mobile planner task creation'
-  );
-  await page.getByRole('button', { name: '모바일 계획함 QA 일정에 배치', exact: true }).waitFor();
+  await page.getByLabel('빠른 메모', { exact: true }).fill('모바일 계획함 QA');
+  await runAndWaitForPlannerSave(page, () => page.getByLabel('빠른 메모', { exact: true }).press('Enter'), 'Shared mobile Planner task creation');
+  await page.getByRole('button', { name: '모바일 계획함 QA 시간 지정', exact: true }).waitFor();
   await assertNoDocumentOverflow(page, 'Mobile Planner');
+  await exerciseMobileTimeFields(page, frontendUrl);
 
   await page.goto(`${frontendUrl}/goals`);
   await page.getByRole('heading', { name: '기간별 목표', exact: true }).waitFor();

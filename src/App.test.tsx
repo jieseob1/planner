@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppRoutes } from './App';
 import { createDemoSnapshot } from './data/demo';
-import type { PlannerSnapshot } from './domain/types';
+import type { PlannerSnapshot, Task } from './domain/types';
 import {
   getPlannerStorageKeys,
   loadInitialPlannerState,
@@ -108,7 +108,7 @@ describe('Planner frontend core flows', () => {
 
     const nowLine = screen.getByLabelText('현재 시각 14:37');
     expect(nowLine).toBeInTheDocument();
-    expect(Number.parseFloat(nowLine.style.top)).toBeCloseTo(935.47, 1);
+    expect(Number.parseFloat(nowLine.style.top)).toBeCloseTo(1403.2, 1);
   });
 
   it('offers an inline 15-minute calendar across the full day from 00:00 through 24:00', () => {
@@ -173,7 +173,8 @@ describe('Planner frontend core flows', () => {
     expect(capture).toHaveValue('');
 
     await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
-    expect(screen.getAllByText('배포 체크리스트 확인')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: '배포 체크리스트 확인 수정' })).toHaveLength(1);
+    expect(JSON.parse(window.localStorage.getItem(TEST_STORAGE_KEYS.snapshot)!).tasks.filter((task: Task) => task.title === '배포 체크리스트 확인')).toHaveLength(1);
   });
 
   it('creates a time block from an empty Today slot', async () => {
@@ -298,7 +299,7 @@ describe('Planner frontend core flows', () => {
     expect(screen.queryByRole('dialog', { name: '현재 계획을 초기화할까요?' })).not.toBeInTheDocument();
 
     await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
-    expect(screen.getByText('초기화 전에 남길 작업')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '초기화 전에 남길 작업 수정' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '현재 계획 초기화' }));
     const secondDialog = screen.getByRole('dialog', { name: '현재 계획을 초기화할까요?' });
@@ -313,41 +314,39 @@ describe('Planner frontend core flows', () => {
     const user = userEvent.setup();
     renderRoute('/planner');
 
-    await user.click(screen.getByRole('button', { name: /새 할 일/ }));
-    const dialog = screen.getByRole('dialog', { name: '새 할 일' });
-    await user.type(within(dialog).getByLabelText('할 일'), '회고 요약 초안 작성');
-    await user.click(within(dialog).getByRole('button', { name: '할 일 추가' }));
+    await user.type(screen.getByLabelText('빠른 메모'), '회고 요약 초안 작성{Enter}');
 
     expect(screen.queryByRole('dialog', { name: '새 할 일' })).not.toBeInTheDocument();
-    expect(screen.getByText('회고 요약 초안 작성')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '회고 요약 초안 작성 수정' })).toBeInTheDocument();
   });
 
   it('edits, completes, restores, and deletes a standalone Todo', async () => {
     const user = userEvent.setup();
     renderRoute('/planner');
+    await user.click(screen.getByRole('button', { name: /^나중에/ }));
 
     await user.click(screen.getByRole('button', { name: '세금계산서 발행 수정' }));
     let dialog = screen.getByRole('dialog', { name: '할 일 수정' });
-    const title = within(dialog).getByLabelText('할 일');
+    const title = within(dialog).getByLabelText('할 일 제목');
     await user.clear(title);
     await user.type(title, '영수증 정리');
     await user.click(within(dialog).getByRole('button', { name: '변경 저장' }));
 
-    await user.click(screen.getByRole('button', { name: '영수증 정리 완료' }));
-    expect(screen.queryByText('영수증 정리')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /완료 보기/ }));
-    expect(screen.getByRole('button', { name: '영수증 정리 미완료로 변경' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '영수증 정리 미완료로 변경' }));
+    await user.click(screen.getByRole('button', { name: '영수증 정리 완료 처리' }));
+    expect(screen.queryByRole('button', { name: '영수증 정리 완료 처리' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '완료 실행 취소' }));
+    expect(screen.getByRole('button', { name: '영수증 정리 완료 처리' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '영수증 정리 삭제' }));
+    await user.click(screen.getByRole('button', { name: '영수증 정리 수정' }));
+    await user.click(screen.getByRole('button', { name: '할 일 삭제' }));
     dialog = screen.getByRole('dialog', { name: '할 일을 삭제할까요?' });
-    await user.click(within(dialog).getByRole('button', { name: '삭제' }));
-    expect(screen.queryByText('영수증 정리')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: '할 일과 연결 기록 삭제' }));
+    expect(screen.queryByRole('button', { name: '영수증 정리 수정' })).not.toBeInTheDocument();
   });
 
   it('rejects an overlapping placement and accepts a nonconflicting time', async () => {
     const user = userEvent.setup();
-    renderRoute('/planner');
+    renderRoute('/planner?tools=goals');
 
     await user.click(screen.getByRole('button', { name: '세금계산서 발행 일정에 배치' }));
     const dialog = screen.getByRole('dialog', { name: '할 일 또는 일정 추가' });
@@ -374,11 +373,11 @@ describe('Planner frontend core flows', () => {
     const user = userEvent.setup();
     renderRoute('/planner');
 
-    expect(screen.getByText('주간 Planner · 8월 31일 – 9월 6일')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('8월 31일 – 9월 6일');
     await user.click(screen.getByRole('button', { name: '다음 주' }));
-    expect(screen.getByText('주간 Planner · 9월 7일 – 13일')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('9월 7일 – 9월 13일');
     await user.click(screen.getByRole('button', { name: '이전 주' }));
-    expect(screen.getByText('주간 Planner · 8월 31일 – 9월 6일')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('8월 31일 – 9월 6일');
   });
 
   it('rejects invalid review metrics and applies a valid value to Goals', async () => {
@@ -697,7 +696,7 @@ describe('Planner API synchronization', () => {
     expect(screen.getByText('기기 변경을 덮어쓰지 않고 보존했어요')).toBeInTheDocument();
     expect(window.localStorage.getItem(TEST_STORAGE_KEYS.snapshot)).toContain('충돌에서도 지킬 작업');
     await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
-    expect(screen.getByText('충돌에서도 지킬 작업')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '충돌에서도 지킬 작업 수정' })).toBeInTheDocument();
   });
 
   it('keeps edits made after a revision conflict when the local version is resolved', async () => {
@@ -735,9 +734,10 @@ describe('Planner API synchronization', () => {
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
 
     await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
+    await user.click(screen.getByRole('button', { name: /^나중에/ }));
     await user.click(screen.getByRole('button', { name: '세금계산서 발행 수정' }));
     const editDialog = screen.getByRole('dialog', { name: '할 일 수정' });
-    const title = within(editDialog).getByLabelText('할 일');
+    const title = within(editDialog).getByLabelText('할 일 제목');
     await user.clear(title);
     await user.type(title, '세금계산서 발행 수정됨');
     await user.click(within(editDialog).getByRole('button', { name: '변경 저장' }));
@@ -828,7 +828,7 @@ describe('Planner API synchronization', () => {
 
     expect(await screen.findByText('서버 저장 충돌')).toBeInTheDocument();
     await openRouteFromNavigation(user, '일정 · 주간·월간 일정');
-    expect(screen.getByText('초기 조회 중 작성한 작업')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '초기 조회 중 작성한 작업 수정' })).toBeInTheDocument();
     expect(apiMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
   });
 

@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { UserManager, WebStorageStateStore, type User } from 'oidc-client-ts';
 import { Capacitor } from '@capacitor/core';
 import { setAccessTokenProvider } from './accessToken';
+import { createOidcAccessTokenProvider } from './oidcAccessToken';
 import { NativeOidcNavigator } from './NativeOidcNavigator';
 import { SecureStateStore } from './SecureStateStore';
 import { cleanupNotificationRegistration } from './notificationRegistration';
@@ -175,6 +176,7 @@ const consentStatus = async (token: string): Promise<boolean> => {
 export function AuthProvider({ children }: PropsWithChildren) {
   const oidc = useMemo(createOidcManager, []);
   const manager = oidc?.manager ?? null;
+  const oidcAccessToken = useMemo(() => manager ? createOidcAccessTokenProvider(manager) : async () => null, [manager]);
   const [status, setStatus] = useState<AuthStatus>(isTest ? 'authenticated' : 'loading');
   const [user, setUser] = useState<User | null>(null);
   const [subject, setSubject] = useState<string | null>(isTest ? 'test:test-user' : null);
@@ -221,10 +223,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (authenticatedUser && !authenticatedUser.expired) {
           setUser(authenticatedUser);
           setSubject(oidcStorageSubject(authenticatedUser));
-          setAccessTokenProvider(async () => {
-            const current = await manager.getUser();
-            return current && !current.expired ? current.access_token : null;
-          });
+          setAccessTokenProvider(oidcAccessToken);
           setStatus(await consentStatus(authenticatedUser.access_token) ? 'authenticated' : 'consent');
         } else {
           setSubject(null);
@@ -243,7 +242,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const onLoaded = (nextUser: User) => {
         setUser(nextUser);
         setSubject(oidcStorageSubject(nextUser));
-        setAccessTokenProvider(async () => nextUser.access_token);
+        setAccessTokenProvider(oidcAccessToken);
         void consentStatus(nextUser.access_token)
           .then((accepted) => setStatus(accepted ? 'authenticated' : 'consent'))
           .catch((error: unknown) => {
@@ -266,7 +265,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       };
     }
     return () => { active = false; };
-  }, [manager, oidc]);
+  }, [manager, oidc, oidcAccessToken]);
 
   const login = useCallback(async () => {
     if (authMode() === 'local') {
@@ -283,10 +282,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       replaceAuthLocation(oidcReturnTo(authenticatedUser, window.location.pathname));
       setUser(authenticatedUser);
       setSubject(oidcStorageSubject(authenticatedUser));
-      setAccessTokenProvider(async () => authenticatedUser.access_token);
+      setAccessTokenProvider(oidcAccessToken);
       setStatus(await consentStatus(authenticatedUser.access_token) ? 'authenticated' : 'consent');
     }
-  }, [manager, oidc]);
+  }, [manager, oidc, oidcAccessToken]);
 
   const reauthenticate = useCallback(async () => {
     if (authMode() === 'local') {
@@ -303,10 +302,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       replaceAuthLocation(oidcReturnTo(authenticatedUser, window.location.pathname));
       setUser(authenticatedUser);
       setSubject(oidcStorageSubject(authenticatedUser));
-      setAccessTokenProvider(async () => authenticatedUser.access_token);
+      setAccessTokenProvider(oidcAccessToken);
       setStatus(await consentStatus(authenticatedUser.access_token) ? 'authenticated' : 'consent');
     }
-  }, [manager, oidc]);
+  }, [manager, oidc, oidcAccessToken]);
 
   const logout = useCallback(async () => {
     try {

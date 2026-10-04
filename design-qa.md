@@ -1,8 +1,33 @@
-# Task-first Today design QA
+# Unified planning workspace design QA
 
 final result: passed
 
-## Scope and visual evidence
+## 2026-10-04 shared Today / Planner release
+
+Approved scope: adapt Doslash's linked task/calendar interaction, not its entire visual identity. Both routes now use one task-first workspace with day/week/month views. Retain the product font, blue-accent tokens, logo, Lucide icons, goal/review functionality and existing data. No raster asset replacement is appropriate for this UI.
+
+Source `/tmp/doslash-ux-audit-CMfjlf/07-linked-task-and-calendar.jpg` (1728 × 826 CSS/pixel, 1×) and final implementation captures were opened in the same comparison input. Implementation evidence in `/tmp/planner-workspace-qa-CNcfyT/`:
+
+- `09-desktop-day-final.png` and `10-planner-week-final.png`: 1728 × 825 CSS/pixel, 1×; authenticated 2026-10-05 task list and linked 19–21 study block. The one-pixel viewport-height difference does not affect this flow comparison. No density rescaling is needed.
+- `12-desktop-create-final.png`: same viewport, focused title/start/end entry with 18–20 preview. Different dates, content, list position and branding from Doslash are intentional adaptations.
+- `04-mobile-tasks.png`, `05-mobile-timeline.png`, `08-mobile-create-390.png`: 390 × 844 CSS/pixel, 1×. `07-mobile-create-320.png`: 320 × 740, 1×. Phone tabs and a bottom-sheet editor intentionally replace compressed desktop columns. These are responsive checks, not pixel comparisons with a desktop source.
+- `13-tablet-week-final.png`: 1024 × 768 CSS/pixel, 1×; a horizontally scrollable week keeps day columns readable and confines overflow to the calendar.
+
+Comparison history and resolved findings:
+
+- P1, route inconsistency: `/planner` still exposed the old goal-row matrix while `/today` showed a linked task/calendar. Final `/planner` week capture now shows the same task-first workspace. Advanced goal allocation/split/carry-over remains available behind an explicit disclosure.
+- P2, calendar scale: previous production capture `/tmp/planner-time-audit-S2wfOP/03-timeline.png` had an 823 × 369px scroll area. Final day capture measures 1138 × 486px at the same 1728px width. Hour geometry grows from 64 to 96px; quarter-hour guides are 24px, not mismatched decoration. Tick labels, two-hour titles and controls are legible; unnecessary instructions no longer occupy another toolbar row.
+- P0, mobile new-entry form: `06-mobile-create-blocked.png` exposed legacy child-grid rules collapsing time fields to 26px and clipping action buttons. Isolated `.timeline-create-form` styling resolves this. Second captures `07`/`08` show complete title, paired start/end and actions. At 320px, time fields measure 123 × 48px, close 44 × 44px, save/cancel 46px high; document width equals viewport. A pointer-event guard prevents the portalled form from restarting calendar selection on input clicks. Unit and actual-server E2E exercise entry/save again.
+- P2, tablet week density: `11-tablet-week-blocked.png` compressed columns to 61px and truncated time labels. The second `13` capture uses a 900px minimum calendar canvas with internal horizontal scroll; day view remains available without seven-column compression.
+- P2, entry clarity/focus: start/end fields and preview now reflect the actual values; invalid/overlapping times retain title and show an inline error. Editing a time does not re-focus the title. 24:00 is an explicit end-of-day option.
+
+No outstanding P0/P1/P2 in the captured core surfaces. Typography, neutral/accent surfaces, focus states, spacing, touch targets, wrapping and control order were inspected. Week columns share one scroll axis; full-width desktop exposes all seven days. This QA does not certify every advanced screen, physical mobile keyboards or first-time human intuitiveness.
+
+Verification: `verify:release` passed with 396 tests; real Spring/MySQL authenticated desktop/mobile CRUD, shared route day/week/reload, 390/320px entry/save, and two independent-session merge/offline/conflict journeys passed. Latest visible-update timings: 1313 / 546 / 1068 / 1325 / 819 / 1116 / 1559ms. An earlier loaded run exceeded the unchanged 2000ms test limit once (2066ms); the complete rerun passed. These localhost measurements do not guarantee internet/device latency.
+
+## Previous task-first release evidence
+
+### Scope and visual evidence
 
 This is a flow adaptation, not a pixel clone of Doslash. The approved implementation prompt requests its inline entry, linked list/calendar, contextual details and postponement patterns while keeping this product's goals/review and providing a separate mobile layout.
 

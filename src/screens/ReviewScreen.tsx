@@ -239,7 +239,7 @@ export function ReviewScreen() {
             <div><strong>{decisionCount}</strong><span>목표 결정</span></div>
           </div>
           <div className="review-complete__actions">
-            <Link className="button button--primary" to="/planner" onClick={() => setPlannerWeekOffset(1)}>
+            <Link className="button button--primary" to="/planner?tools=goals" onClick={() => setPlannerWeekOffset(1)}>
               다음 주 시간 배치 <ArrowRight size={17} />
             </Link>
             <button className="button button--secondary" type="button" onClick={() => updateReview({ completedAt: null })}>

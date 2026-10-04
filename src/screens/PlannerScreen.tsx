@@ -28,6 +28,7 @@ import { findTimeBlockConflict } from '../lib/timeBlocks';
 import { usePlanner } from '../state/PlannerProvider';
 import { addLocalDateDays, getDayKeyForDate, getToday, getWeekDays, getWeekOffsetForDate, getWeekStartDate, toLocalDate } from '../lib/calendarDate';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
+import { TodayScreen } from './TodayScreen';
 
 const defaultPlacementStart = 1020;
 const estimateOptions = [15, 25, 40, 60, 90, 120];
@@ -62,7 +63,7 @@ function getSplitEstimate(durationMinutes: number) {
   ));
 }
 
-export function PlannerScreen() {
+export function GoalPlannerScreen() {
   const { timeZone } = useTimeZone();
   const {
     tasks,
@@ -823,4 +824,17 @@ export function PlannerScreen() {
       )}
     </div>
   );
+}
+
+/** Both public planning routes use the same task and calendar interaction model. */
+export function PlannerScreen() {
+  const [params] = useSearchParams();
+  const [toolsOpen, setToolsOpen] = useState(() => params.has('action') || params.get('tools') === 'goals');
+  return <div className="planning-route">
+    <TodayScreen mode="planner" />
+    <details className="planning-advanced" open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
+      <summary>목표별 계획 · 작업 분할 · 이월 도구</summary>
+      {toolsOpen && <GoalPlannerScreen />}
+    </details>
+  </div>;
 }

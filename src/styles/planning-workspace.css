@@ -1,0 +1,95 @@
+/* Shared Today / Planner calendar. Geometry matches DAY_TIMELINE_HOUR_HEIGHT (96px). */
+.planning-workspace { height: 100dvh; min-height: 650px; grid-template-rows: auto minmax(0, 1fr); }
+.planning-workspace:has(.today-direct-timer) { grid-template-rows: auto auto minmax(0, 1fr); }
+.planning-workspace .today-direct-workspace { grid-template-columns: minmax(300px, 340px) minmax(0, 1fr); }
+.planning-workspace .today-direct-header { padding: 14px 20px 10px; gap: 10px 16px; }
+.planning-workspace .today-direct-header__status { font-size: 12px; }
+.planning-workspace .today-direct-header__status > span { padding: 6px 8px; }
+.planning-workspace .today-direct-week { max-width: 620px; }
+.planning-workspace .today-direct-week button small { font-size: 12px; }
+.planning-workspace .today-direct-week button strong { font-size: 16px; }
+.planning-workspace .today-direct-timeline-column { padding: 16px; }
+.planning-workspace .today-direct-timeline-heading { align-items: center; flex-wrap: wrap; gap: 12px; }
+.planning-workspace .today-direct-timeline-heading h2 { font-size: 20px; }
+.planning-calendar-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.planning-view-switch { display: flex; padding: 3px; border-radius: 8px; background: #eef0f5; }
+.planning-view-switch button { min-width: 52px; min-height: 44px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; }
+.planning-view-switch button[aria-pressed="true"] { background: white; color: var(--accent); box-shadow: 0 1px 4px #15233a12; }
+.planning-add-event { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: white; font: inherit; font-size: 13px; cursor: pointer; }
+.planning-workspace .today-direct-timeline__instructions { flex-wrap: wrap; overflow: visible; min-height: 52px; gap: 6px 14px; font-size: 12px; }
+.planning-workspace .today-direct-timeline__instructions > span { white-space: normal; }
+.planning-workspace .today-direct-keyboard-create, .planning-workspace .today-direct-placement-mode { margin-left: auto; flex-basis: auto; }
+.planning-workspace .today-direct-keyboard-create input, .planning-workspace .today-direct-keyboard-create button,
+.planning-workspace .today-direct-placement-mode input, .planning-workspace .today-direct-placement-mode button { min-height: 44px; font-size: 13px; }
+.planning-workspace .today-direct-grid { background: repeating-linear-gradient(to bottom, transparent 0, transparent 23px, #e8edf5 23px, #e8edf5 24px); }
+.planning-workspace .today-direct-hour time { font-size: 13px; }
+.planning-workspace .today-direct-block strong { font-size: 14px; line-height: 1.45; }
+.planning-workspace .today-direct-block__time { font-size: 12px; line-height: 1.4; }
+.planning-workspace .today-direct-timeline__legend { font-size: 12px; flex-wrap: wrap; }
+.planning-goals { margin: 0 20px 20px; border-top: 1px solid var(--border); }
+.planning-goals > summary, .planning-advanced > summary { min-height: 44px; padding: 12px 0; color: var(--text-2); font-size: 13px; cursor: pointer; }
+.planning-goals .today-goal-strip { padding: 12px 0; flex-wrap: wrap; }
+.planning-goals .today-period-context { border: 0; }
+.planning-advanced { margin: 0 20px; }
+.timeline-create-modal { width: min(460px, calc(100vw - 24px)); }
+.timeline-create-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.timeline-create-form > input, .timeline-create-form select, .timeline-create-times input { width: 100%; min-width: 0; min-height: 48px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: white; font: inherit; font-size: 16px; color: var(--text-1); }
+.timeline-create-form > time { color: var(--accent); font-size: 13px; }
+.timeline-create-times { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.timeline-create-times label { display: grid; gap: 6px; font-size: 13px; color: var(--text-2); }
+.timeline-create-form button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: auto; min-height: 44px; padding: 10px 16px; font-size: 14px; }
+.timeline-create-form .modal__actions { position: static; margin: 8px 0 0; padding: 0; border: 0; background: transparent; }
+.planning-week-scroll { min-height: 0; min-width: 0; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: white; overscroll-behavior: contain; }
+.planning-week-canvas { min-width: 0; }
+.planning-week-dates, .planning-week-body { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); }
+.planning-week-dates { position: sticky; top: 0; z-index: 4; background: white; border-bottom: 1px solid var(--border); }
+.planning-week-dates > span { display: grid; place-items: center; font-size: 12px; color: var(--text-3); }
+.planning-week-dates button { display: grid; place-content: center; min-height: 58px; border: 0; border-left: 1px solid var(--border); background: white; color: var(--text-2); cursor: pointer; }
+.planning-week-dates button small { font-size: 12px; }
+.planning-week-dates button strong { font-size: 18px; }
+.planning-week-dates button[aria-pressed="true"] { background: #eef2ff; color: var(--accent); }
+.planning-week-axis { position: relative; color: var(--text-3); }
+.planning-week-axis time { position: absolute; right: 8px; font-size: 12px; transform: translateY(-50%); }
+.planning-week-axis time:first-child { transform: none; }
+.planning-week-axis time:last-child { transform: translateY(-100%); }
+.planning-workspace .is-week-column { display: block; border: 0; border-left: 1px solid var(--border); border-radius: 0; }
+.is-week-column .today-direct-timeline__instructions, .is-week-column .today-direct-timeline__legend,
+.is-week-column .today-direct-hour time { display: none; }
+.is-week-column .today-direct-scroll { overflow: visible; }
+.is-week-column .today-direct-grid { touch-action: pan-x pan-y; }
+.is-week-column .today-direct-blocks { left: 4px; right: 4px; }
+.is-week-column .today-direct-hour { grid-template-columns: minmax(0, 1fr); padding: 0; }
+.is-week-column .today-direct-block-wrap, .is-week-column .today-direct-draft-block { left: 4px; right: 4px; }
+.is-week-column .today-direct-blocks .today-direct-block-wrap { left: var(--lane-left, 0%); right: auto; }
+.is-week-column .today-direct-block { padding: 4px 6px; }
+.is-week-column .today-direct-block strong { font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
+.is-week-column .today-direct-block__time { font-size: 11px; }
+.is-week-column .today-direct-now > time { display: none; }
+.is-week-column .today-direct-now > span { margin-left: 0; }
+.is-week-column .today-direct-live-feedback:empty { display: none; }
+.planning-month-scroll { min-height: 0; overflow: auto; }
+.planning-workspace.is-week-view .today-direct-workspace { grid-template-columns: 280px minmax(0, 1fr); }
+.planning-workspace.is-week-view .today-direct-todos { padding-inline: 16px; }
+@media (max-width: 1180px) and (min-width: 801px) {
+  .planning-workspace .today-direct-workspace { grid-template-columns: 300px minmax(0, 1fr); }
+  .planning-week-canvas { min-width: 900px; }
+  .planning-workspace .today-direct-header { grid-template-areas: "date controls" "status status" "week week"; grid-template-columns: minmax(0, 1fr) auto; }
+  .planning-workspace .today-direct-header__status { justify-content: flex-start; }
+}
+@media (max-width: 800px) {
+  .planning-workspace { height: auto; min-height: calc(100dvh - 72px); overflow: visible; display: block; }
+  .planning-workspace .today-direct-workspace { display: block; }
+  .planning-workspace .today-direct-header { padding: 12px; gap: 8px; grid-template-areas: "date controls" "status status" "week week"; grid-template-columns: minmax(0, 1fr) auto; }
+  .planning-workspace .today-direct-header__status { justify-content: flex-start; flex-wrap: wrap; font-size: 11px; }
+  .planning-workspace .today-direct-timeline-column { padding: 8px 12px 16px; }
+  .planning-workspace .today-direct-timeline { height: calc(100dvh - 360px); min-height: 460px; max-height: none; }
+  .planning-workspace .today-direct-timeline__instructions > span { display: none; }
+  .planning-workspace .today-direct-keyboard-create, .planning-workspace .today-direct-placement-mode { margin-left: 0; flex-wrap: wrap; flex-basis: 100%; }
+  .planning-workspace .today-direct-timeline-heading h2 { font-size: 18px; }
+  .planning-workspace .today-direct-timeline-heading p { font-size: 12px; }
+  .planning-calendar-tools { justify-content: space-between; width: 100%; }
+  .planning-week-scroll { height: 560px; }
+  .planning-week-canvas { min-width: 900px; }
+  .planning-workspace .is-week-column { height: auto; min-height: 0; }
+  .planning-advanced { margin: 0 12px 90px; }
+}
