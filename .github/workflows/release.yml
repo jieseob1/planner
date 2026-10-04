@@ -27,7 +27,7 @@ jobs:
       backend-digest: ${{ steps.backend.outputs.digest }}
       frontend-digest: ${{ steps.frontend.outputs.digest }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: version
         shell: bash
         run: |
@@ -114,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Configure Kubernetes access
         env:
           KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
