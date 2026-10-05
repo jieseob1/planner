@@ -1,3 +1,4 @@
+import { useLocale, tr } from '../i18n';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, CalendarClock, CalendarDays, Check, Clock3, ListChecks, Plus, Trash2 } from 'lucide-react';
 import type { DayKey, Outcome, Task, Subtask } from '../domain/types';
@@ -79,6 +80,7 @@ export function TimeBlockSheet({
   onSave,
   onDelete
 }: TimeBlockSheetProps) {
+  useLocale();
   const fallbackMode: TimeBlockMode = initialTaskId
     ? 'existing-task'
     : initialBlockId
@@ -154,7 +156,7 @@ export function TimeBlockSheet({
       if ((titleChanged && selectedTask.title !== originalTask.title && selectedTask.title !== selectedTitle)
         || (outcomeChanged && selectedTask.outcomeId !== originalTask.outcomeId && (selectedTask.outcomeId ?? null) !== (outcomeId || null))
         || (subtasksChanged && JSON.stringify(selectedTask.subtasks ?? []) !== JSON.stringify(originalTask.subtasks ?? []) && JSON.stringify(selectedTask.subtasks ?? []) !== JSON.stringify(subtasks))) {
-        setDraftError('수정 중인 항목이 다른 기기에서도 변경됐습니다. 입력은 유지됩니다. 최신 내용을 확인한 뒤 다시 열어 주세요.');
+        setDraftError(tr("수정 중인 항목이 다른 기기에서도 변경됐습니다. 입력은 유지됩니다. 최신 내용을 확인한 뒤 다시 열어 주세요."));
         return;
       }
       if (titleChanged) taskPatch.title = selectedTitle;
@@ -178,13 +180,13 @@ export function TimeBlockSheet({
 
   return (
     <Modal
-      title={taskOnly ? initialBlockId ? '시간 수정' : '시간 지정' : initialBlockId ? '일정 수정' : '할 일 또는 일정 추가'}
-      description={taskOnly ? '시작과 종료 시간을 정한 뒤 저장하세요. 같은 할 일이 목록과 시간표에 연결됩니다.' : '목표가 없어도 새 할 일이나 일정부터 바로 만들 수 있습니다.'}
+      title={taskOnly ? initialBlockId ? tr("시간 수정") : tr("시간 지정") : initialBlockId ? tr("일정 수정") : tr("할 일 또는 일정 추가")}
+      description={taskOnly ? tr("시작과 종료 시간을 정한 뒤 저장하세요. 같은 할 일이 목록과 시간표에 연결됩니다.") : tr("목표가 없어도 새 할 일이나 일정부터 바로 만들 수 있습니다.")}
       onClose={onClose}
       className="time-block-sheet"
     >
       <form className="time-block-form" onSubmit={submit}>
-        {!taskOnly && <div className="entry-mode" aria-label="등록할 항목 종류">
+        {!taskOnly && <div className="entry-mode" aria-label={tr("등록할 항목 종류")}>
           <button
             type="button"
             className={mode === 'existing-task' ? 'is-selected' : ''}
@@ -192,33 +194,30 @@ export function TimeBlockSheet({
             aria-pressed={mode === 'existing-task'}
             onClick={() => chooseMode('existing-task')}
           >
-            <ListChecks size={16} /> 기존 할 일
-          </button>
+            <ListChecks size={16} /> {tr("기존 할 일")}</button>
           <button
             type="button"
             className={mode === 'new-task' ? 'is-selected' : ''}
             aria-pressed={mode === 'new-task'}
             onClick={() => chooseMode('new-task')}
           >
-            <Plus size={16} /> 새 할 일
-          </button>
+            <Plus size={16} /> {tr("새 할 일")}</button>
           <button
             type="button"
             className={mode === 'event' ? 'is-selected' : ''}
             aria-pressed={mode === 'event'}
             onClick={() => chooseMode('event')}
           >
-            <CalendarClock size={16} /> 일정만
-          </button>
+            <CalendarClock size={16} /> {tr("일정만")}</button>
         </div>}
 
         {taskOnly && <strong className="task-only-title">{selectedTask?.title}</strong>}
         {mode === 'existing-task' && !taskOnly ? (
           <label className="field time-block-form__task">
-            <span className="field-label"><ListChecks size={16} /> 할 일 선택</span>
+            <span className="field-label"><ListChecks size={16} /> {' '}{tr("할 일 선택")}</span>
             <select
               data-autofocus
-              aria-label="할 일 선택"
+              aria-label={tr("할 일 선택")}
               value={taskId}
               onChange={(event) => updateTask(event.target.value)}
             >
@@ -231,39 +230,39 @@ export function TimeBlockSheet({
           </label>
         ) : null}
           <details className="time-block-extra" open={taskOnly ? undefined : true}>
-          {taskOnly && <summary>제목·목표·하위 할 일 수정 <small>선택</small></summary>}
+          {taskOnly && <summary>{tr("제목·목표·하위 할 일 수정")}{' '}<small>{tr("선택")}</small></summary>}
           <div className="time-block-form__details">
             <label className="field">
-              <span className="field-label">{mode === 'existing-task' ? '할 일 제목' : mode === 'new-task' ? '새 할 일' : '일정 제목'}</span>
+              <span className="field-label">{mode === 'existing-task' ? tr("할 일 제목") : mode === 'new-task' ? tr("새 할 일") : tr("일정 제목")}</span>
               <input
                 data-autofocus={mode !== 'existing-task' || undefined}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder={mode === 'new-task' ? '예: 병원 예약 전화하기' : '예: 치과 진료'}
+                placeholder={mode === 'new-task' ? tr("예: 병원 예약 전화하기") : tr("예: 치과 진료")}
                 maxLength={500}
                 required
               />
             </label>
             {mode !== 'event' && (
               <label className="field">
-                <span className="field-label">목표 연결 <small>선택</small></span>
-                <select aria-label="목표 연결" value={outcomeId} onChange={(event) => setOutcomeId(event.target.value)}>
-                  <option value="">연결하지 않음</option>
+                <span className="field-label">{tr("목표 연결")}{' '}<small>{tr("선택")}</small></span>
+                <select aria-label={tr("목표 연결")} value={outcomeId} onChange={(event) => setOutcomeId(event.target.value)}>
+                  <option value="">{tr("연결하지 않음")}</option>
                   {outcomes.map((outcome) => (
                     <option key={outcome.id} value={outcome.id}>{outcome.title}</option>
                   ))}
                 </select>
               </label>
             )}
-            {mode === 'existing-task' && <p className="field-help">제목과 목표 연결은 원래 할 일에도 반영됩니다. 시간 변경은 이 일정에만 적용됩니다.</p>}
+            {mode === 'existing-task' && <p className="field-help">{tr("제목과 목표 연결은 원래 할 일에도 반영됩니다. 시간 변경은 이 일정에만 적용됩니다.")}</p>}
           </div>
 
         {mode !== 'event' && <SubtaskEditor key={mode === 'existing-task' ? taskId : 'new-task'} value={subtasks} onChange={items => mode === 'existing-task' ? setTaskSubtasks(current => ({ ...current, [taskId]: items })) : setNewSubtasks(items)} />}
           </details>
-        {initialDate !== undefined && <label className="field"><span className="field-label"><CalendarDays size={16} /> 날짜</span><input type="date" aria-label="일정 날짜" required min={minDate} max={maxDate} value={date} onChange={event => setDate(event.target.value)} /><small className="field-help">다른 주나 달로도 일정을 옮길 수 있어요.</small></label>}
+        {initialDate !== undefined && <label className="field"><span className="field-label"><CalendarDays size={16} /> {' '}{tr("날짜")}</span><input type="date" aria-label={tr("일정 날짜")} required min={minDate} max={maxDate} value={date} onChange={event => setDate(event.target.value)} /><small className="field-help">{tr("다른 주나 달로도 일정을 옮길 수 있어요.")}</small></label>}
         {initialDate === undefined && days && days.length > 1 && (
           <div className="field-group">
-            <span className="field-label"><CalendarDays size={16} /> 날짜</span>
+            <span className="field-label"><CalendarDays size={16} /> {' '}{tr("날짜")}</span>
             <div className="segmented segmented--days time-block-days">
               {days.map((item) => (
                 <button
@@ -281,23 +280,23 @@ export function TimeBlockSheet({
           </div>
         )}
 
-        <div className="time-block-form__times" aria-label="시간 범위">
+        <div className="time-block-form__times" aria-label={tr("시간 범위")}>
           <label className="field">
-            <span className="field-label"><Clock3 size={16} /> 시작</span>
-            <select data-autofocus={taskOnly || undefined} aria-label="시작" value={startMinutes} onChange={(event) => updateStart(Number(event.target.value))}>
+            <span className="field-label"><Clock3 size={16} /> {' '}{tr("시작")}</span>
+            <select data-autofocus={taskOnly || undefined} aria-label={tr("시작")} value={startMinutes} onChange={(event) => updateStart(Number(event.target.value))}>
               {includeExactTime(startOptions, startMinutes).map((time) => <option key={time} value={time}>{formatClock(time)}</option>)}
             </select>
           </label>
           <ArrowRight size={18} aria-hidden="true" />
           <label className="field">
-            <span className="field-label"><Clock3 size={16} /> 종료</span>
-            <select aria-label="종료" value={endMinutes} onChange={(event) => setEndMinutes(Number(event.target.value))}>
+            <span className="field-label"><Clock3 size={16} /> {' '}{tr("종료")}</span>
+            <select aria-label={tr("종료")} value={endMinutes} onChange={(event) => setEndMinutes(Number(event.target.value))}>
               {endOptions.map((time) => <option key={time} value={time}>{formatClock(time)}</option>)}
             </select>
           </label>
         </div>
 
-        <div className="duration-presets" aria-label="빠른 시간 선택">
+        <div className="duration-presets" aria-label={tr("빠른 시간 선택")}>
           {[30, 60, 90, 120].map((duration) => (
             <button
               key={duration}
@@ -315,9 +314,9 @@ export function TimeBlockSheet({
         <div className="time-block-preview" aria-live="polite">
           <span className="time-block-preview__icon"><CalendarClock size={18} /></span>
           <span>
-            <small>{mode === 'event' ? '내 일정' : '할 일과 시간'}</small>
+            <small>{mode === 'event' ? tr("내 일정") : tr("할 일과 시간")}</small>
             <strong>{formatClock(startMinutes)} – {formatClock(endMinutes)}</strong>
-            <em>{selectedTitle || '제목을 입력하세요.'}</em>
+            <em>{selectedTitle || tr("제목을 입력하세요.")}</em>
           </span>
         </div>
 
@@ -326,13 +325,12 @@ export function TimeBlockSheet({
         <div className="modal__actions time-block-actions">
           {initialBlockId && onDelete && (
             <button className="button button--delete" type="button" onClick={onDelete}>
-              <Trash2 size={16} /> 일정에서 삭제
-            </button>
+              <Trash2 size={16} /> {tr("일정에서 삭제")}</button>
           )}
           <span className="time-block-actions__spacer" />
-          <button className="button button--secondary" type="button" onClick={onClose}>취소</button>
+          <button className="button button--secondary" type="button" onClick={onClose}>{tr("취소")}</button>
           <button className="button button--primary" type="submit" disabled={!selectedTitle || (mode !== 'event' && !validSubtasks(subtasks))}>
-            <Check size={16} /> {taskOnly ? '시간 저장' : initialBlockId ? '변경 저장' : '추가'}
+            <Check size={16} /> {taskOnly ? tr("시간 저장") : initialBlockId ? tr("변경 저장") : tr("추가")}
           </button>
         </div>
       </form>

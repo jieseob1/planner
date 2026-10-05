@@ -79,6 +79,17 @@ public class UserPreferenceService {
                 """, id(userId));
     }
 
+    @Transactional
+    public Preferences updateLanguage(UUID userId, String locale) {
+        if (locale == null || !locale.matches("^(ko|en|es)(-[A-Za-z]{2})?$"))
+            throw CalendarIntegrationException.invalidSettings("올바른 언어 코드를 입력해 주세요.");
+        ensure(userId);
+        // Patch only locale, preserving concurrent time-zone and notification edits.
+        jdbc.update("UPDATE user_preference SET locale = ?, updated_at = CURRENT_TIMESTAMP(6) WHERE user_id = ?", locale, id(userId));
+        jdbc.update("UPDATE app_user SET locale = ? WHERE user_id = ?", locale, id(userId));
+        return get(userId);
+    }
+
     private void validate(Preferences value) {
         try {
             ZoneId.of(value.timezone());

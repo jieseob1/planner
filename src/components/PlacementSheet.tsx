@@ -1,3 +1,4 @@
+import { useLocale, tr } from '../i18n';
 import { useState } from 'react';
 import { CalendarDays, Clock3 } from 'lucide-react';
 import type { DayKey, Task } from '../domain/types';
@@ -26,19 +27,20 @@ export function PlacementSheet({
   onClose,
   onPlace
 }: PlacementSheetProps) {
+  useLocale();
   const [day, setDay] = useState<DayKey>(initialDay);
   const [startMinutes, setStartMinutes] = useState(initialStart);
   const [durationMinutes, setDurationMinutes] = useState(task.estimateMinutes);
 
   return (
     <Modal
-      title="실행 시간을 정해요"
-      description={`“${task.title}”을 달력에 배치합니다.`}
+      title={tr("실행 시간을 정해요")}
+      description={tr("“{{v0}}”을 달력에 배치합니다.", { v0: task.title })}
       onClose={onClose}
       className="placement-sheet"
     >
       <div className="field-group">
-        <span className="field-label"><CalendarDays size={16} /> 요일</span>
+        <span className="field-label"><CalendarDays size={16} /> {' '}{tr("요일")}</span>
         <div className="segmented segmented--days">
           {days.map((item, index) => (
             <button
@@ -58,7 +60,7 @@ export function PlacementSheet({
 
       <div className="form-grid form-grid--two">
         <label className="field">
-          <span className="field-label"><Clock3 size={16} /> 시작</span>
+          <span className="field-label"><Clock3 size={16} /> {' '}{tr("시작")}</span>
           <select value={startMinutes} onChange={(event) => setStartMinutes(Number(event.target.value))}>
             {timeOptions.map((time) => (
               <option key={time} value={time}>{String(Math.floor(time / 60)).padStart(2, '0')}:{String(time % 60).padStart(2, '0')}</option>
@@ -66,7 +68,7 @@ export function PlacementSheet({
           </select>
         </label>
         <label className="field">
-          <span className="field-label">예상 시간</span>
+          <span className="field-label">{tr("예상 시간")}</span>
           <select value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))}>
             {[15, 25, 40, 60, 90, 120].map((minutes) => (
               <option key={minutes} value={minutes}>{formatMinutes(minutes)}</option>
@@ -76,16 +78,16 @@ export function PlacementSheet({
       </div>
 
       <div className="placement-preview">
-        <span>{dayLabels[day]}</span>
+        <span>{dayLabels()[day]}</span>
         <strong>{String(Math.floor(startMinutes / 60)).padStart(2, '0')}:{String(startMinutes % 60).padStart(2, '0')}</strong>
-        <span>부터 {formatMinutes(durationMinutes)}</span>
+        <span>{tr("부터")}{' '}{formatMinutes(durationMinutes)}</span>
       </div>
 
       {error && <p className="form-error" role="alert">{error}</p>}
 
       <div className="modal__actions">
-        <button className="button button--secondary" type="button" onClick={onClose}>취소</button>
-        <button className="button button--primary" type="button" onClick={() => onPlace(day, startMinutes, durationMinutes)}>계획에 배치</button>
+        <button className="button button--secondary" type="button" onClick={onClose}>{tr("취소")}</button>
+        <button className="button button--primary" type="button" onClick={() => onPlace(day, startMinutes, durationMinutes)}>{tr("계획에 배치")}</button>
       </div>
     </Modal>
   );

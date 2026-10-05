@@ -1,3 +1,5 @@
+import { tr, useLocale } from '../i18n';
+import { LanguageSelector } from '../i18n/LanguageSelector';
 import { useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarClock, Check, Clock3, Compass, Target, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -33,7 +35,7 @@ const slotAtDayOffset = (
   return {
     value,
     label,
-    detail: `${formatClock(startMinutes)}부터`,
+    detail: tr("{{v0}}부터", { v0: formatClock(startMinutes) }),
     day: weekDayMeta[dayIndex].key,
     startMinutes,
     weekOffset: Math.floor((today.index + dayOffset) / 7)
@@ -47,14 +49,14 @@ export const buildSlots = (now = new Date(), timeZone?: string): OnboardingSlot[
   let saturdayOffset = (5 - today.index + 7) % 7;
   if (saturdayOffset === 0 && currentMinutes >= 600) saturdayOffset = 7;
   return [
-    slotAtDayOffset(now, eveningOffset, 1170, 'today-evening', eveningOffset === 0 ? '오늘 저녁' : '내일 저녁', timeZone),
-    slotAtDayOffset(now, 1, 420, 'tomorrow-morning', '내일 아침', timeZone),
+    slotAtDayOffset(now, eveningOffset, 1170, 'today-evening', eveningOffset === 0 ? tr("오늘 저녁") : tr("내일 저녁"), timeZone),
+    slotAtDayOffset(now, 1, 420, 'tomorrow-morning', tr("내일 아침"), timeZone),
     slotAtDayOffset(
       now,
       saturdayOffset,
       600,
       'saturday-morning',
-      saturdayOffset === 0 ? '오늘 오전' : saturdayOffset >= 7 ? '다음 토요일 오전' : '토요일 오전',
+      saturdayOffset === 0 ? tr("오늘 오전") : saturdayOffset >= 7 ? tr("다음 토요일 오전") : tr("토요일 오전"),
       timeZone
     )
   ];
@@ -71,7 +73,7 @@ export const isSlotInPast = (
   return slot.startMinutes <= getMinuteOfDay(now, timeZone);
 };
 
-const stepLabels = ['결과', '다음 행동', '시간 선택'];
+const stepLabels = () => [tr("결과"), tr("다음 행동"), tr("시간 선택")];
 
 function findSlotConflict(slot: OnboardingSlot, durationMinutes: number, timeBlocks: TimeBlock[]) {
   return findTimeBlockConflict(timeBlocks, {
@@ -83,10 +85,11 @@ function findSlotConflict(slot: OnboardingSlot, durationMinutes: number, timeBlo
 }
 
 export function OnboardingScreen() {
+  const language = useLocale();
   const { timeZone } = useTimeZone();
   const navigate = useNavigate();
   const { finishOnboarding, timeBlocks } = usePlanner();
-  const slots = useMemo(() => buildSlots(new Date(), timeZone), [timeZone]);
+  const slots = useMemo(() => buildSlots(new Date(), timeZone), [timeZone, language]);
   const [step, setStep] = useState(1);
   const [outcomeTitle, setOutcomeTitle] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -105,8 +108,8 @@ export function OnboardingScreen() {
     : -1;
   const customSlot: OnboardingSlot = {
     value: 'today-evening',
-    label: `${customWeekOffset === 0 ? '이번 주' : '다음 주'} ${weekDayMeta.find((day) => day.key === customDay)?.long ?? ''}`,
-    detail: customStartMinutes >= 0 ? `${formatClock(customStartMinutes)}부터` : '시간을 선택하세요',
+    label: `${customWeekOffset === 0 ? tr("이번 주") : tr("다음 주")} ${weekDayMeta.find((day) => day.key === customDay)?.long ?? ''}`,
+    detail: customStartMinutes >= 0 ? tr("{{v0}}부터", { v0: formatClock(customStartMinutes) }) : tr("시간을 선택하세요"),
     day: customDay,
     startMinutes: customStartMinutes,
     weekOffset: customWeekOffset
@@ -128,20 +131,20 @@ export function OnboardingScreen() {
       ? taskTitle.trim().length > 2
       : scheduleMode === 'unplaced' || Boolean(selectedSlot && !invalidCustomSlot && !selectedSlotConflict);
   const previewValues = [
-    outcomeTitle.trim() || '원하는 변화 한 문장',
-    taskTitle.trim() || (step > 1 ? '바로 시작할 행동 입력 중' : '다음 단계에서 정합니다.'),
+    outcomeTitle.trim() || tr("원하는 변화 한 문장"),
+    taskTitle.trim() || (step > 1 ? tr("바로 시작할 행동 입력 중") : tr("다음 단계에서 정합니다.")),
     step === 3
       ? scheduleMode === 'unplaced'
-        ? `일정 없이 할 일만 · ${formatMinutes(estimateMinutes)}`
+        ? tr("일정 없이 할 일만 · {{v0}}", { v0: formatMinutes(estimateMinutes) })
         : `${selectedSlot?.label} ${selectedSlot?.detail} · ${formatMinutes(estimateMinutes)}`
-      : '마지막 단계에서 시간을 선택하거나 미배치로 둡니다.'
+      : tr("마지막 단계에서 시간을 선택하거나 미배치로 둡니다.")
   ];
 
   const finish = () => {
     if (scheduleMode !== 'unplaced' && (!selectedSlot || invalidCustomSlot || selectedSlotConflict)) {
       setScheduleError(invalidCustomSlot
-        ? '현재 이후이면서 자정을 넘지 않는 시간을 선택하세요.'
-        : '선택한 시간에 이미 일정이 있습니다. 비어 있는 시간을 선택하세요.');
+        ? tr("현재 이후이면서 자정을 넘지 않는 시간을 선택하세요.")
+        : tr("선택한 시간에 이미 일정이 있습니다. 비어 있는 시간을 선택하세요."));
       return;
     }
     const payloadSlot = selectedSlot ?? slots[0];
@@ -176,16 +179,17 @@ export function OnboardingScreen() {
       <div className="onboarding__brand">
         <span className="brand__mark"><Compass size={20} /></span>
         <strong>GOALS TO TODAY</strong>
+        <LanguageSelector />
       </div>
 
       <section className="onboarding__panel">
         <header className="onboarding__header">
           <div className="onboarding__header-meta">
-            <p className="eyebrow">FIRST PLAN · 약 3분</p>
+            <p className="eyebrow">{tr("FIRST PLAN · 약 3분")}</p>
             <span>{step} / 3</span>
           </div>
-          <ol className="onboarding-progress" aria-label={`3단계 중 ${step}단계`}>
-            {stepLabels.map((label, index) => {
+          <ol className="onboarding-progress" aria-label={tr("3단계 중 {{v0}}단계", { v0: step })}>
+            {stepLabels().map((label, index) => {
               const item = index + 1;
               const complete = item < step;
               const active = item === step;
@@ -207,15 +211,15 @@ export function OnboardingScreen() {
           {step === 1 ? (
             <div className="onboarding-step onboarding-step--focused">
               <p className="eyebrow onboarding-step__eyebrow"><Target size={14} /> STEP 1 · RESULT</p>
-              <h1 className="onboarding-step__title">이번 분기에 무엇을 바꿀까요?</h1>
-              <p>첫 결과를 만들거나, 목표 없이 Todo와 캘린더부터 바로 시작할 수 있습니다.</p>
+              <h1 className="onboarding-step__title">{tr("이번 분기에 무엇을 바꿀까요?")}</h1>
+              <p>{tr("첫 결과를 만들거나, 목표 없이 Todo와 캘린더부터 바로 시작할 수 있습니다.")}</p>
               <label className="field field--large onboarding-focus-field">
-                <span className="field-label">결과 한 문장</span>
+                <span className="field-label">{tr("결과 한 문장")}</span>
                 <input
                   autoFocus
                   value={outcomeTitle}
                   onChange={(event) => setOutcomeTitle(event.target.value)}
-                  placeholder="예: 기술 글 6개를 발행한다"
+                  placeholder={tr("예: 기술 글 6개를 발행한다")}
                   aria-describedby="outcome-field-hint"
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && outcomeTitle.trim().length > 2) setStep(2);
@@ -223,8 +227,8 @@ export function OnboardingScreen() {
                 />
               </label>
               <div className="prompt-chips" id="outcome-field-hint">
-                <span>예시</span>
-                {['포트폴리오 1개 공개', '사이드 수익 80만원', '10km 55분 완주'].map((example) => (
+                <span>{tr("예시")}</span>
+                {[tr("포트폴리오 1개 공개"), tr("사이드 수익 80만원"), tr("10km 55분 완주")].map((example) => (
                   <button key={example} type="button" onClick={() => setOutcomeTitle(example)}>{example}</button>
                 ))}
               </div>
@@ -234,37 +238,37 @@ export function OnboardingScreen() {
           {step === 2 ? (
             <div className="onboarding-step onboarding-step--focused">
               <p className="eyebrow onboarding-step__eyebrow"><Zap size={14} /> STEP 2 · ACTION</p>
-              <h1 className="onboarding-step__title">가장 먼저 무엇을 할까요?</h1>
-              <p>한 번 앉아서 시작하고, 두 시간 안에 끝낼 수 있는 행동으로 적어주세요.</p>
+              <h1 className="onboarding-step__title">{tr("가장 먼저 무엇을 할까요?")}</h1>
+              <p>{tr("한 번 앉아서 시작하고, 두 시간 안에 끝낼 수 있는 행동으로 적어주세요.")}</p>
               <div className="selected-outcome"><Target size={15} /><span>{outcomeTitle}</span></div>
               <label className="field field--large onboarding-focus-field">
-                <span className="field-label">첫 번째 다음 행동</span>
+                <span className="field-label">{tr("첫 번째 다음 행동")}</span>
                 <input
                   autoFocus
                   value={taskTitle}
                   onChange={(event) => setTaskTitle(event.target.value)}
-                  placeholder="예: 첫 글의 제목과 목차를 정한다"
+                  placeholder={tr("예: 첫 글의 제목과 목차를 정한다")}
                   aria-describedby="action-field-hint"
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && taskTitle.trim().length > 2) setStep(3);
                   }}
                 />
               </label>
-              <p className="action-rule" id="action-field-hint"><Zap size={15} /><span>동사로 시작하고, 지금 바로 할 수 있을 만큼 작게 씁니다.</span></p>
+              <p className="action-rule" id="action-field-hint"><Zap size={15} /><span>{tr("동사로 시작하고, 지금 바로 할 수 있을 만큼 작게 씁니다.")}</span></p>
             </div>
           ) : null}
 
           {step === 3 ? (
             <div className="onboarding-step onboarding-step--focused">
               <p className="eyebrow onboarding-step__eyebrow"><CalendarClock size={14} /> STEP 3 · TIME</p>
-              <h1 className="onboarding-step__title">언제 시작할까요?</h1>
-              <p>추천 시간을 고르거나 직접 정할 수 있습니다. 아직 모르겠다면 할 일만 먼저 만드세요.</p>
+              <h1 className="onboarding-step__title">{tr("언제 시작할까요?")}</h1>
+              <p>{tr("추천 시간을 고르거나 직접 정할 수 있습니다. 아직 모르겠다면 할 일만 먼저 만드세요.")}</p>
               <div className="selected-outcome selected-outcome--action"><Zap size={15} /><span>{taskTitle}</span></div>
-              <div className="segmented" role="radiogroup" aria-label="시간 정하기 방식">
+              <div className="segmented" role="radiogroup" aria-label={tr("시간 정하기 방식")}>
                 {([
-                  ['recommended', '추천 시간'],
-                  ['custom', '직접 선택'],
-                  ['unplaced', '나중에 정하기']
+                  ['recommended', tr("추천 시간")],
+                  ['custom', tr("직접 선택")],
+                  ['unplaced', tr("나중에 정하기")]
                 ] as const).map(([mode, label]) => (
                   <button
                     key={mode}
@@ -282,7 +286,7 @@ export function OnboardingScreen() {
                 ))}
               </div>
               {scheduleMode === 'recommended' ? (
-                <div className="slot-grid" role="radiogroup" aria-label="추천 실행 시간">
+                <div className="slot-grid" role="radiogroup" aria-label={tr("추천 실행 시간")}>
                   {slots.map((item) => {
                     const conflict = findSlotConflict(item, estimateMinutes, timeBlocks);
                     return (
@@ -301,7 +305,7 @@ export function OnboardingScreen() {
                         <CalendarClock size={18} />
                         <span>
                           <strong>{item.label}</strong>
-                          <small>{conflict ? `시간 겹침 · ${formatClock(conflict.startMinutes)} ${conflict.title}` : item.detail}</small>
+                          <small>{conflict ? tr("시간 겹침 · {{v0}} {{v1}}", { v0: formatClock(conflict.startMinutes), v1: conflict.title }) : item.detail}</small>
                         </span>
                         <i>{recommendedSlot === item.value && !conflict ? <Check size={13} /> : null}</i>
                       </button>
@@ -312,31 +316,28 @@ export function OnboardingScreen() {
               {scheduleMode === 'custom' ? (
                 <div className="form-grid__columns">
                   <label className="field">
-                    주
-                    <select value={customWeekOffset} onChange={(event) => setCustomWeekOffset(Number(event.target.value))}>
-                      <option value={0}>이번 주</option>
-                      <option value={1}>다음 주</option>
+                    {tr("주")}<select value={customWeekOffset} onChange={(event) => setCustomWeekOffset(Number(event.target.value))}>
+                      <option value={0}>{tr("이번 주")}</option>
+                      <option value={1}>{tr("다음 주")}</option>
                     </select>
                   </label>
                   <label className="field">
-                    요일
-                    <select value={customDay} onChange={(event) => setCustomDay(event.target.value as DayKey)}>
+                    {tr("요일")}<select value={customDay} onChange={(event) => setCustomDay(event.target.value as DayKey)}>
                       {weekDayMeta.map((day) => <option key={day.key} value={day.key}>{day.long}</option>)}
                     </select>
                   </label>
                   <label className="field">
-                    시작 시간
-                    <input type="time" value={customStart} onChange={(event) => setCustomStart(event.target.value)} />
+                    {tr("시작 시간")}<input type="time" value={customStart} onChange={(event) => setCustomStart(event.target.value)} />
                   </label>
                 </div>
               ) : null}
               {scheduleMode === 'unplaced' ? (
-                <p className="review-carryover-empty"><Check size={16} /> 첫 할 일은 만들고 일정에는 배치하지 않습니다. Today나 Planner에서 언제든 시간을 정할 수 있습니다.</p>
+                <p className="review-carryover-empty"><Check size={16} /> {' '}{tr("첫 할 일은 만들고 일정에는 배치하지 않습니다. Today나 Planner에서 언제든 시간을 정할 수 있습니다.")}</p>
               ) : null}
-              {invalidCustomSlot ? <p className="slot-conflict-alert" role="alert">현재 이후이면서 자정을 넘지 않는 시간을 선택하세요.</p> : null}
+              {invalidCustomSlot ? <p className="slot-conflict-alert" role="alert">{tr("현재 이후이면서 자정을 넘지 않는 시간을 선택하세요.")}</p> : null}
               {scheduleError ? <p className="slot-conflict-alert" role="alert">{scheduleError}</p> : null}
               <div className="field duration-field" role="group" aria-labelledby="duration-field-label">
-                <span className="field-label" id="duration-field-label"><Clock3 size={16} /> 예상 시간</span>
+                <span className="field-label" id="duration-field-label"><Clock3 size={16} /> {' '}{tr("예상 시간")}</span>
                 <div className="segmented">
                   {[25, 40, 60, 90].map((minutes) => (
                     <button
@@ -351,7 +352,7 @@ export function OnboardingScreen() {
                         if (scheduleMode === 'recommended' && currentSlot && findSlotConflict(currentSlot, minutes, timeBlocks) && nextAvailableSlot) {
                           setRecommendedSlot(nextAvailableSlot.value);
                         }
-                        setScheduleError(scheduleMode === 'recommended' && !nextAvailableSlot ? '이 길이로 예약할 수 있는 추천 시간이 없습니다.' : '');
+                        setScheduleError(scheduleMode === 'recommended' && !nextAvailableSlot ? tr("이 길이로 예약할 수 있는 추천 시간이 없습니다.") : '');
                       }}
                     >
                       {formatMinutes(minutes)}
@@ -366,12 +367,10 @@ export function OnboardingScreen() {
         <footer className="onboarding__actions">
           {step > 1 ? (
             <button className="button button--secondary" type="button" onClick={() => setStep((current) => current - 1)}>
-              <ArrowLeft size={17} /> 이전
-            </button>
+              <ArrowLeft size={17} /> {tr("이전")}</button>
           ) : (
             <button className="button button--secondary" type="button" onClick={startWithoutGoal}>
-              목표 없이 Todo·캘린더 시작
-            </button>
+              {tr("목표 없이 Todo·캘린더 시작")}</button>
           )}
           <button
             className="button button--primary"
@@ -379,34 +378,34 @@ export function OnboardingScreen() {
             disabled={!canContinue}
             onClick={() => step < 3 ? setStep((current) => current + 1) : finish()}
           >
-            {step < 3 ? '계속' : '첫 실행 만들기'} <ArrowRight size={17} />
+            {step < 3 ? tr("계속") : tr("첫 실행 만들기")} <ArrowRight size={17} />
           </button>
         </footer>
       </section>
 
-      <aside className="onboarding-preview" aria-label="계획 미리보기">
+      <aside className="onboarding-preview" aria-label={tr("계획 미리보기")}>
         <div className="onboarding-preview__intro">
-          <p className="eyebrow">PLAN PREVIEW</p>
-          <h2>첫 결과와 행동을 만들고, 시간은 선택합니다.</h2>
-          <p>온보딩은 시작점입니다. 더 세밀한 계획 구조는 첫 실행 뒤 이어서 정리합니다.</p>
+          <p className="eyebrow">{tr("PLAN PREVIEW")}</p>
+          <h2>{tr("첫 결과와 행동을 만들고, 시간은 선택합니다.")}</h2>
+          <p>{tr("온보딩은 시작점입니다. 더 세밀한 계획 구조는 첫 실행 뒤 이어서 정리합니다.")}</p>
         </div>
         <div className="preview-flow">
           <article className={clsx('preview-node', outcomeTitle && 'is-filled', step === 1 && 'is-active')}>
-            <span>01 · 분기 결과</span>
+            <span>{tr("01 · 분기 결과")}</span>
             <strong>{previewValues[0]}</strong>
           </article>
           <ArrowRight size={18} aria-hidden="true" />
           <article className={clsx('preview-node', taskTitle && 'is-filled', step === 2 && 'is-active')}>
-            <span>02 · 다음 행동</span>
+            <span>{tr("02 · 다음 행동")}</span>
             <strong>{previewValues[1]}</strong>
           </article>
           <ArrowRight size={18} aria-hidden="true" />
           <article className={clsx('preview-node', step === 3 && 'is-filled', step === 3 && 'is-active')}>
-            <span>03 · 시간 선택</span>
+            <span>{tr("03 · 시간 선택")}</span>
             <strong>{previewValues[2]}</strong>
           </article>
         </div>
-        <p className="onboarding-preview__note"><Clock3 size={15} /> 계획이 아니라 시작 시간이 행동을 만듭니다.</p>
+        <p className="onboarding-preview__note"><Clock3 size={15} /> {' '}{tr("계획이 아니라 시작 시간이 행동을 만듭니다.")}</p>
       </aside>
     </main>
   );

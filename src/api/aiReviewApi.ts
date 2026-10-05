@@ -1,3 +1,4 @@
+import { tr, getLanguage, localizeApiDetail } from '../i18n';
 import { getAccessToken } from '../auth/accessToken';
 
 export type AiReviewPeriod = 'week' | 'month';
@@ -41,13 +42,13 @@ export class AiReviewApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) { super(message); this.name = 'AiReviewApiError'; }
 }
 const base = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
-const messages: Record<number, string> = {
-  401: '로그인이 만료되었습니다. 다시 로그인해 주세요.',
-  403: 'AI 이용 동의와 계정 권한을 확인해 주세요.',
-  422: '분석할 기록이 없거나 요청 범위를 처리할 수 없습니다.',
-  429: '이번 달 AI 보고서 한도 또는 비용 한도에 도달했습니다.',
-  503: 'AI 보고서 서비스가 아직 설정되지 않았거나 일시적으로 사용할 수 없습니다.'
-};
+const messages = (): Record<number, string> => ({
+  401: tr("로그인이 만료되었습니다. 다시 로그인해 주세요."),
+  403: tr("AI 이용 동의와 계정 권한을 확인해 주세요."),
+  422: tr("분석할 기록이 없거나 요청 범위를 처리할 수 없습니다."),
+  429: tr("이번 달 AI 보고서 한도 또는 비용 한도에 도달했습니다."),
+  503: tr("AI 보고서 서비스가 아직 설정되지 않았거나 일시적으로 사용할 수 없습니다.")
+});
 async function request<T>(path: string, method: 'GET' | 'PUT' | 'POST' = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const controller = new AbortController();
   const abort = () => controller.abort(signal?.reason);
@@ -57,16 +58,16 @@ async function request<T>(path: string, method: 'GET' | 'PUT' | 'POST' = 'GET', 
     signal?.throwIfAborted();
     const token = await getAccessToken();
     controller.signal.throwIfAborted();
-    if (!token) throw new AiReviewApiError(401, 'unauthenticated', messages[401]);
+    if (!token) throw new AiReviewApiError(401, 'unauthenticated', messages()[401]);
     const response = await fetch(`${base}/api/v1/ai-reviews${path}`, {
       method, cache: 'no-store', signal: controller.signal,
-      headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Accept: 'application/json', 'Accept-Language': getLanguage(), Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {})
     });
     if (!response.ok) {
       const problem = await response.json().catch(() => null) as { code?: unknown; message?: unknown } | null;
       throw new AiReviewApiError(response.status, typeof problem?.code === 'string' ? problem.code.slice(0, 100) : 'request-failed',
-        typeof problem?.message === 'string' ? problem.message.slice(0, 500) : messages[response.status] ?? '보고서 요청을 처리하지 못했습니다. 새로 생성하기 전에 상태를 확인해 주세요.');
+        typeof problem?.message === 'string' ? localizeApiDetail(problem.message.slice(0, 500), messages()[response.status] ?? tr("보고서 요청을 처리하지 못했습니다. 새로 생성하기 전에 상태를 확인해 주세요.")) : messages()[response.status] ?? tr("보고서 요청을 처리하지 못했습니다. 새로 생성하기 전에 상태를 확인해 주세요."));
     }
     return await response.json() as T;
   } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }

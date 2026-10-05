@@ -1,3 +1,4 @@
+import { tr, getLanguage, localizeApiDetail } from '../i18n';
 import { getAccessToken } from '../auth/accessToken';
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
@@ -39,7 +40,7 @@ const authorizedFetch = async (path: string, init?: RequestInit) => {
   return fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
-      Accept: 'application/json',
+      Accept: 'application/json', 'Accept-Language': getLanguage(),
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers
@@ -51,7 +52,7 @@ const responseError = async (response: Response, fallback: string) => {
   let message = fallback;
   try {
     const body = await response.json() as { detail?: string };
-    if (body.detail) message = body.detail;
+    if (body.detail) message = localizeApiDetail(body.detail, fallback);
   } catch {
     // Keep the operation-specific fallback for empty upstream responses.
   }
@@ -61,7 +62,7 @@ const responseError = async (response: Response, fallback: string) => {
 const json = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await authorizedFetch(path, init);
   if (!response.ok) {
-    throw await responseError(response, '요청에 실패했습니다.');
+    throw await responseError(response, tr("요청에 실패했습니다."));
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -70,12 +71,13 @@ const json = async <T>(path: string, init?: RequestInit): Promise<T> => {
 export const accountApi = {
   entitlement: () => json<AccountEntitlement>('/api/v1/account/entitlement'),
   preferences: () => json<AccountPreferences>('/api/v1/account/preferences'),
+  saveLanguage: (locale: string) => json<AccountPreferences>('/api/v1/account/language', { method: 'PUT', body: JSON.stringify({ locale }) }),
   savePreferences: (value: AccountPreferences) => json<AccountPreferences>('/api/v1/account/preferences', {
     method: 'PUT', body: JSON.stringify(value)
   }),
   async downloadExport() {
     const response = await authorizedFetch('/api/v1/account/export');
-    if (!response.ok) throw await responseError(response, '계정 데이터를 내보내지 못했습니다.');
+    if (!response.ok) throw await responseError(response, tr("계정 데이터를 내보내지 못했습니다."));
     const blob = await response.blob();
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement('a');

@@ -55,8 +55,8 @@ public class CurrentUserService {
         lockDeletionState(userId, jwt);
         jdbc.sql("""
                         INSERT INTO app_user (
-                            user_id, oidc_issuer, oidc_subject, email, display_name, last_seen_at
-                        ) VALUES (:userId, :issuer, :subject, :email, :displayName, CURRENT_TIMESTAMP(6)) AS new
+                            user_id, oidc_issuer, oidc_subject, email, display_name, locale, last_seen_at
+                        ) VALUES (:userId, :issuer, :subject, :email, :displayName, :locale, CURRENT_TIMESTAMP(6)) AS new
                         ON DUPLICATE KEY UPDATE
                             email = COALESCE(new.email, app_user.email),
                             display_name = COALESCE(new.display_name, app_user.display_name),
@@ -67,6 +67,7 @@ public class CurrentUserService {
                 .param("subject", subject)
                 .param("email", normalizedClaim(jwt.getClaimAsString("email"), 320))
                 .param("displayName", normalizedClaim(jwt.getClaimAsString("name"), 200))
+                .param("locale", io.nowline.planner.account.DisplayLanguage.requestLanguage())
                 .update();
 
         UUID resolvedUserId = jdbc.sql("""

@@ -176,7 +176,16 @@ class NotificationSchedulerTest {
                 "daily:2026-09-08", Instant.parse("2026-09-07T23:00:00Z"));
         when(repository.claimDelivery()).thenReturn(Optional.of(delivery), Optional.empty());
         scheduler("2026-09-07T23:00:00Z").dispatch();
-        verify(notifications).dispatch(delivery);
+        verify(notifications).dispatch(delivery.withContent("오늘의 Goals to Today를 확인하세요", "실행할 작업 0개와 오늘 시간 블록을 확인할 시간입니다.", "/today"));
+    }
+
+    @Test
+    void queuedReminderUsesCurrentSpanishLanguageWithoutChangingScheduleOrUserTitle() {
+        settings = new UserPreferenceService.Preferences("Asia/Seoul", "es-ES", false, LocalTime.of(8, 0), 15);
+        var delivery = queued("2026-09-08T14:50:00Z");
+        scheduler("2026-09-08T14:50:00Z").dispatch();
+        verify(notifications).dispatch(delivery.withContent("일정", "Empieza en 15 minutos.", "/today?date=2026-09-09"));
+        verify(repository, never()).skipped(any(), any());
     }
 
     private NotificationScheduler scheduler(String now) {

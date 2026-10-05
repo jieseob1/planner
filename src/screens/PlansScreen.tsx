@@ -1,3 +1,4 @@
+import { tr, useLocale } from '../i18n';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Check, Clock3, History, Plus, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,24 +9,24 @@ import { formatInstantInTimeZone } from '../lib/calendarDate';
 import { usePlanner } from '../state/PlannerProvider';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
 
-const statusLabel: Record<PlanStatus, string> = {
-  ACTIVE: '현재 실행 중',
-  DRAFT: '초안',
-  CLOSED: '종료',
-  ARCHIVED: '보관'
-};
+const statusLabel = (): Record<PlanStatus, string> => ({
+  ACTIVE: tr("현재 실행 중"),
+  DRAFT: tr("초안"),
+  CLOSED: tr("종료"),
+  ARCHIVED: tr("보관")
+});
 
-const actionLabel: Record<string, string> = {
-  PLAN_CREATED: '계획 생성',
-  PLAN_CREATED_AND_ACTIVATED: '첫 계획 생성·활성화',
-  PLAN_ACTIVE: '계획 활성화',
-  PLAN_ACTIVATED_SNAPSHOT_LOADED: '활성 계획으로 전환',
-  PLAN_CLOSED: '계획 종료',
-  PLAN_ARCHIVED: '계획 보관',
-  PLAN_DRAFT: '계획 복원',
-  PLAN_SNAPSHOT_UPDATED: '계획 내용 저장',
-  ACTIVE_SNAPSHOT_REMOVED: '활성 실행 데이터 정리'
-};
+const actionLabel = (): Record<string, string> => ({
+  PLAN_CREATED: tr("계획 생성"),
+  PLAN_CREATED_AND_ACTIVATED: tr("첫 계획 생성·활성화"),
+  PLAN_ACTIVE: tr("계획 활성화"),
+  PLAN_ACTIVATED_SNAPSHOT_LOADED: tr("활성 계획으로 전환"),
+  PLAN_CLOSED: tr("계획 종료"),
+  PLAN_ARCHIVED: tr("계획 보관"),
+  PLAN_DRAFT: tr("계획 복원"),
+  PLAN_SNAPSHOT_UPDATED: tr("계획 내용 저장"),
+  ACTIVE_SNAPSHOT_REMOVED: tr("활성 실행 데이터 정리")
+});
 
 const quarterEnd = (year: number, quarter: number) => {
   const month = quarter * 3;
@@ -47,10 +48,10 @@ type PlanDraftErrors = Partial<Record<'title' | 'year' | 'annualDirection' | 'qu
 
 export const validatePlanDraft = (title: string, input: PlanDraftInput): PlanDraftErrors => {
   const errors: PlanDraftErrors = {};
-  if (!title.trim()) errors.title = '계획 이름을 입력하세요.';
-  if (!Number.isInteger(input.year) || input.year < 1900 || input.year > 9999) errors.year = '1900~9999 사이의 연도를 입력하세요.';
-  if (!input.annualDirection.trim()) errors.annualDirection = '1년 방향을 입력하세요.';
-  if (!input.quarterFocus.trim()) errors.quarterFocus = '이번 분기 초점을 입력하세요.';
+  if (!title.trim()) errors.title = tr("계획 이름을 입력하세요.");
+  if (!Number.isInteger(input.year) || input.year < 1900 || input.year > 9999) errors.year = tr("1900~9999 사이의 연도를 입력하세요.");
+  if (!input.annualDirection.trim()) errors.annualDirection = tr("1년 방향을 입력하세요.");
+  if (!input.quarterFocus.trim()) errors.quarterFocus = tr("이번 분기 초점을 입력하세요.");
   return errors;
 };
 
@@ -77,8 +78,8 @@ export const buildPlanDraftSnapshot = (source: PlannerSnapshot, input: PlanDraft
         nextCheckDate: null,
         metricHistory: [],
         actualHours: 0,
-        evidenceLabel: '새 계획에서 측정 근거 설정',
-        changeLabel: '새 계획 시작',
+        evidenceLabel: tr("새 계획에서 측정 근거 설정"),
+        changeLabel: tr("새 계획 시작"),
         attention: 'no-evidence',
         decision: undefined
       }))
@@ -93,6 +94,7 @@ export const buildPlanDraftSnapshot = (source: PlannerSnapshot, input: PlanDraft
 });
 
 export function PlansScreen() {
+  useLocale();
   const planner = usePlanner();
   const { timeZone } = useTimeZone();
   const navigate = useNavigate();
@@ -107,7 +109,7 @@ export function PlansScreen() {
   const [auditEvents, setAuditEvents] = useState<PlanAuditEvent[]>([]);
   const nextQuarter = planner.plan.quarter === 4 ? 1 : planner.plan.quarter + 1;
   const nextYear = planner.plan.quarter === 4 ? planner.plan.year + 1 : planner.plan.year;
-  const [title, setTitle] = useState(`${nextYear}년 ${nextQuarter}분기 계획`);
+  const [title, setTitle] = useState(tr("{{v0}}년 {{v1}}분기 계획", { v0: nextYear, v1: nextQuarter }));
   const [annualDirection, setAnnualDirection] = useState(planner.plan.annualDirection);
   const [quarterFocus, setQuarterFocus] = useState('');
   const [year, setYear] = useState(nextYear);
@@ -135,7 +137,7 @@ export function PlansScreen() {
       setError('');
     } catch (reason) {
       setListLoadFailed(true);
-      setError(reason instanceof Error ? reason.message : '계획 목록을 불러오지 못했습니다.');
+      setError(reason instanceof Error ? reason.message : tr("계획 목록을 불러오지 못했습니다."));
     } finally {
       setLoading(false);
     }
@@ -156,14 +158,14 @@ export function PlansScreen() {
       setCreateErrors({});
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '계획을 만들지 못했습니다.');
+      setError(reason instanceof Error ? reason.message : tr("계획을 만들지 못했습니다."));
     } finally {
       setBusyId(null);
     }
   };
 
   const runAction = async (plan: PlanSummary, action: 'activate' | 'close' | 'archive' | 'restore') => {
-    if (action === 'close' && !window.confirm('현재 계획을 종료할까요? 실행 화면에서는 다른 계획을 활성화할 때까지 편집할 수 없습니다.')) return;
+    if (action === 'close' && !window.confirm(tr("현재 계획을 종료할까요? 실행 화면에서는 다른 계획을 활성화할 때까지 편집할 수 없습니다."))) return;
     setBusyId(plan.id);
     try {
       await planHistoryApi.action(plan.id, action);
@@ -172,7 +174,7 @@ export function PlansScreen() {
         const reloaded = await planner.reloadFromServer();
         if (!reloaded) {
           setActivationReloadPending(true);
-          setError('계획은 활성화됐지만 새 내용을 불러오지 못했습니다. 이전 계획을 편집하지 않도록 여기서 다시 불러오세요.');
+          setError(tr("계획은 활성화됐지만 새 내용을 불러오지 못했습니다. 이전 계획을 편집하지 않도록 여기서 다시 불러오세요."));
           return;
         }
         setActivationReloadPending(false);
@@ -183,7 +185,7 @@ export function PlansScreen() {
       }
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '계획 상태를 변경하지 못했습니다.');
+      setError(reason instanceof Error ? reason.message : tr("계획 상태를 변경하지 못했습니다."));
     } finally {
       setBusyId(null);
     }
@@ -194,14 +196,14 @@ export function PlansScreen() {
     try {
       const reloaded = await planner.reloadFromServer();
       if (!reloaded) {
-        setError('활성 계획을 아직 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.');
+        setError(tr("활성 계획을 아직 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도하세요."));
         return;
       }
       setActivationReloadPending(false);
       setError('');
       navigate('/today');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '활성 계획을 불러오지 못했습니다.');
+      setError(reason instanceof Error ? reason.message : tr("활성 계획을 불러오지 못했습니다."));
     } finally {
       setBusyId(null);
     }
@@ -213,7 +215,7 @@ export function PlansScreen() {
     try {
       setAuditEvents(await planHistoryApi.audit(plan.id));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '변경 이력을 불러오지 못했습니다.');
+      setError(reason instanceof Error ? reason.message : tr("변경 이력을 불러오지 못했습니다."));
     }
   };
 
@@ -221,16 +223,15 @@ export function PlansScreen() {
     <div className="page plans-screen">
       <header className="page-header plans-header">
         <div>
-          <p className="eyebrow">PLAN LIBRARY</p>
-          <h1>연간·분기 계획</h1>
-          <p className="page-header__description">연간 방향과 분기 실행, 종료 근거를 이력으로 관리합니다.</p>
+          <p className="eyebrow">{tr("PLAN LIBRARY")}</p>
+          <h1>{tr("연간·분기 계획")}</h1>
+          <p className="page-header__description">{tr("연간 방향과 분기 실행, 종료 근거를 이력으로 관리합니다.")}</p>
         </div>
         <button className="button button--primary" type="button" onClick={() => {
           setCreateErrors({});
           setCreateOpen(true);
         }}>
-          <Plus size={18} aria-hidden="true" /> 새 계획
-        </button>
+          <Plus size={18} aria-hidden="true" /> {tr("새 계획")}</button>
       </header>
 
       {error && (
@@ -238,22 +239,20 @@ export function PlansScreen() {
           <span>{error}</span>
           {activationReloadPending ? (
             <button className="button button--secondary button--small" type="button" disabled={busyId === 'reload-active'} onClick={() => void retryActivatedPlanReload()}>
-              활성 계획 다시 불러오기
-            </button>
+              {tr("활성 계획 다시 불러오기")}</button>
           ) : listLoadFailed ? (
             <button className="button button--secondary button--small" type="button" disabled={loading} onClick={() => void load()}>
-              계획 목록 다시 불러오기
-            </button>
+              {tr("계획 목록 다시 불러오기")}</button>
           ) : null}
         </div>
       )}
-      {loading ? <p role="status">계획 목록을 불러오고 있습니다…</p> : (
-        <div className="plan-library" aria-label="계획 목록">
+      {loading ? <p role="status">{tr("계획 목록을 불러오고 있습니다…")}</p> : (
+        <div className="plan-library" aria-label={tr("계획 목록")}>
           {plans.length === 0 && !error && (
             <div className="integration-empty">
               <div>
-                <strong>아직 저장된 계획이 없습니다</strong>
-                <p>새 계획으로 연간 방향과 분기 실행을 시작하세요.</p>
+                <strong>{tr("아직 저장된 계획이 없습니다")}</strong>
+                <p>{tr("새 계획으로 연간 방향과 분기 실행을 시작하세요.")}</p>
               </div>
             </div>
           )}
@@ -261,44 +260,39 @@ export function PlansScreen() {
             <article className={`plan-card plan-card--${plan.status.toLowerCase()}`} key={plan.id}>
               <div className="plan-card__heading">
                 <div>
-                  <span className="plan-status">{statusLabel[plan.status]}</span>
+                  <span className="plan-status">{statusLabel()[plan.status]}</span>
                   <h2>{plan.title}</h2>
-                  <p>{plan.year}년 {plan.quarter}분기 · 최근 변경 {formatInstantInTimeZone(plan.updatedAt, timeZone, {
+                  <p>{plan.year}{tr("년")}{' '}{plan.quarter}{tr("분기 · 최근 변경")}{' '}{formatInstantInTimeZone(plan.updatedAt, timeZone, {
                     year: 'numeric', month: 'numeric', day: 'numeric'
                   })}</p>
                 </div>
-                {plan.status === 'ACTIVE' && <Check size={22} aria-label="활성 계획" />}
+                {plan.status === 'ACTIVE' && <Check size={22} aria-label={tr("활성 계획")} />}
               </div>
               <div className="plan-card__meta">
                 <span><Clock3 size={15} aria-hidden="true" /> revision {plan.sourceRevision ?? '—'}</span>
-                <span>생성 {formatInstantInTimeZone(plan.createdAt, timeZone, {
+                <span>{tr("생성")}{' '}{formatInstantInTimeZone(plan.createdAt, timeZone, {
                   year: 'numeric', month: 'numeric', day: 'numeric'
                 })}</span>
               </div>
               <div className="plan-card__actions">
                 {plan.status !== 'ACTIVE' && plan.status !== 'ARCHIVED' && (
                   <button className="button button--primary" type="button" disabled={busyId === plan.id} onClick={() => void runAction(plan, 'activate')}>
-                    이 계획 실행
-                  </button>
+                    {tr("이 계획 실행")}</button>
                 )}
                 {plan.status === 'ACTIVE' && (
                   <button className="button button--secondary" type="button" disabled={busyId === plan.id} onClick={() => void runAction(plan, 'close')}>
-                    계획 종료
-                  </button>
+                    {tr("계획 종료")}</button>
                 )}
                 {plan.status === 'ARCHIVED' && (
                   <button className="button button--secondary" type="button" disabled={busyId === plan.id} onClick={() => void runAction(plan, 'restore')}>
-                    <RotateCcw size={16} aria-hidden="true" /> 복원
-                  </button>
+                    <RotateCcw size={16} aria-hidden="true" /> {tr("복원")}</button>
                 )}
                 {(plan.status === 'DRAFT' || plan.status === 'CLOSED') && (
                   <button className="button button--secondary" type="button" disabled={busyId === plan.id} onClick={() => void runAction(plan, 'archive')}>
-                    <Archive size={16} aria-hidden="true" /> 보관
-                  </button>
+                    <Archive size={16} aria-hidden="true" /> {tr("보관")}</button>
                 )}
                 <button className="button button--ghost" type="button" onClick={() => void showAudit(plan)}>
-                  <History size={16} aria-hidden="true" /> 변경 이력
-                </button>
+                  <History size={16} aria-hidden="true" /> {tr("변경 이력")}</button>
               </div>
             </article>
           ))}
@@ -307,8 +301,8 @@ export function PlansScreen() {
 
       {createOpen && (
         <Modal
-          title="새 연간·분기 계획"
-          description="목표 구조만 선택적으로 가져오며, 할 일·일정·실행 기록·회고는 새로 시작합니다."
+          title={tr("새 연간·분기 계획")}
+          description={tr("목표 구조만 선택적으로 가져오며, 할 일·일정·실행 기록·회고는 새로 시작합니다.")}
           onClose={() => {
             setCreateErrors({});
             setCreateOpen(false);
@@ -316,9 +310,8 @@ export function PlansScreen() {
         >
           <div className="form-grid plan-create-form">
             <label className="field">
-              계획 이름
-              <input
-                aria-label="계획 이름"
+              {tr("계획 이름")}<input
+                aria-label={tr("계획 이름")}
                 value={title}
                 maxLength={200}
                 aria-invalid={Boolean(createErrors.title)}
@@ -332,9 +325,8 @@ export function PlansScreen() {
             </label>
             <div className="form-grid__columns">
               <label className="field">
-                연도
-                <input
-                  aria-label="연도"
+                {tr("연도")}<input
+                  aria-label={tr("연도")}
                   type="number"
                   min="1900"
                   max="9999"
@@ -348,12 +340,11 @@ export function PlansScreen() {
                 />
                 {createErrors.year ? <small id="plan-year-error" className="form-error" role="alert">{createErrors.year}</small> : null}
               </label>
-              <label className="field">분기<select value={quarter} onChange={(event) => setQuarter(Number(event.target.value))}>{[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}분기</option>)}</select></label>
+              <label className="field">{tr("분기")}<select value={quarter} onChange={(event) => setQuarter(Number(event.target.value))}>{[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}{tr("분기")}</option>)}</select></label>
             </div>
             <label className="field">
-              1년 방향
-              <textarea
-                aria-label="1년 방향"
+              {tr("1년 방향")}<textarea
+                aria-label={tr("1년 방향")}
                 value={annualDirection}
                 maxLength={2000}
                 aria-invalid={Boolean(createErrors.annualDirection)}
@@ -366,9 +357,8 @@ export function PlansScreen() {
               {createErrors.annualDirection ? <small id="plan-direction-error" className="form-error" role="alert">{createErrors.annualDirection}</small> : null}
             </label>
             <label className="field">
-              이번 분기 초점
-              <textarea
-                aria-label="이번 분기 초점"
+              {tr("이번 분기 초점")}<textarea
+                aria-label={tr("이번 분기 초점")}
                 value={quarterFocus}
                 maxLength={2000}
                 autoFocus
@@ -383,7 +373,7 @@ export function PlansScreen() {
               {createErrors.quarterFocus ? <small id="plan-focus-error" className="form-error" role="alert">{createErrors.quarterFocus}</small> : null}
             </label>
             <div className="field">
-              <span className="field-label" id="plan-copy-scope-label">현재 계획에서 가져올 내용</span>
+              <span className="field-label" id="plan-copy-scope-label">{tr("현재 계획에서 가져올 내용")}</span>
               <div className="segmented" role="radiogroup" aria-labelledby="plan-copy-scope-label">
                 <button
                   type="button"
@@ -392,8 +382,7 @@ export function PlansScreen() {
                   className={copyScope === 'goal-structure' ? 'is-selected' : ''}
                   onClick={() => setCopyScope('goal-structure')}
                 >
-                  목표 구조만
-                </button>
+                  {tr("목표 구조만")}</button>
                 <button
                   type="button"
                   role="radio"
@@ -401,13 +390,12 @@ export function PlansScreen() {
                   className={copyScope === 'blank' ? 'is-selected' : ''}
                   onClick={() => setCopyScope('blank')}
                 >
-                  빈 계획
-                </button>
+                  {tr("빈 계획")}</button>
               </div>
               <small>
                 {copyScope === 'goal-structure'
-                  ? '결과 이름·목표값·예상/가용 시간만 복사합니다. 현재값·근거·판단과 모든 실행 내역은 제외됩니다.'
-                  : '결과와 실행 내역을 모두 제외하고 빈 계획으로 시작합니다.'}
+                  ? tr("결과 이름·목표값·예상/가용 시간만 복사합니다. 현재값·근거·판단과 모든 실행 내역은 제외됩니다.")
+                  : tr("결과와 실행 내역을 모두 제외하고 빈 계획으로 시작합니다.")}
               </small>
             </div>
           </div>
@@ -415,22 +403,22 @@ export function PlansScreen() {
             <button className="button button--secondary" type="button" onClick={() => {
               setCreateErrors({});
               setCreateOpen(false);
-            }}>취소</button>
-            <button className="button button--primary" type="button" disabled={busyId === 'create'} onClick={() => void createPlan()}>초안 만들기</button>
+            }}>{tr("취소")}</button>
+            <button className="button button--primary" type="button" disabled={busyId === 'create'} onClick={() => void createPlan()}>{tr("초안 만들기")}</button>
           </div>
         </Modal>
       )}
 
       {auditPlan && (
-        <Modal title={`${auditPlan.title} 변경 이력`} description="서버에 기록된 주요 상태 변경과 저장 revision입니다." onClose={() => setAuditPlan(null)}>
+        <Modal title={tr("{{v0}} 변경 이력", { v0: auditPlan.title })} description={tr("서버에 기록된 주요 상태 변경과 저장 revision입니다.")} onClose={() => setAuditPlan(null)}>
           <ol className="audit-list">
             {auditEvents.map((event) => (
               <li key={event.id}>
-                <strong>{actionLabel[event.action] ?? event.action}</strong>
+                <strong>{actionLabel()[event.action] ?? event.action}</strong>
                 <span>{formatInstantInTimeZone(event.occurredAt, timeZone)}{event.revision ? ` · revision ${event.revision}` : ''}</span>
               </li>
             ))}
-            {!auditEvents.length && <li>기록을 불러오는 중이거나 아직 변경 이력이 없습니다.</li>}
+            {!auditEvents.length && <li>{tr("기록을 불러오는 중이거나 아직 변경 이력이 없습니다.")}</li>}
           </ol>
         </Modal>
       )}

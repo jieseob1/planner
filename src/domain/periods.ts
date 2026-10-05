@@ -1,9 +1,10 @@
+import { tr } from '../i18n';
 import { addLocalDateDays, isLocalDate, toLocalDate } from '../lib/calendarDate';
 import type { PlannerSnapshot } from './types';
 
 export const periods = ['day', 'week', 'month', 'quarter', 'year'] as const;
 export type Period = typeof periods[number];
-export const periodLabels: Record<Period, string> = { day: '일', week: '주', month: '월', quarter: '분기', year: '연간' };
+export const periodLabels = (): Record<Period, string> => ({ day: tr("일"), week: tr("주"), month: tr("월"), quarter: tr("분기"), year: tr("연간") });
 export interface PeriodRange { period: Period; startDate: string; endDate: string }
 export interface PeriodGoal extends PeriodRange {
   id: string; title: string; parentId: string | null; measurement: 'completion' | 'number';
@@ -22,7 +23,7 @@ export interface PeriodWrite {
 
 const iso = (year: number, month: number, day = 1) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 export function periodRange(period: Period, anchor: string): PeriodRange {
-  if (!isLocalDate(anchor)) throw new Error('올바른 날짜를 선택해 주세요.');
+  if (!isLocalDate(anchor)) throw new Error(tr("올바른 날짜를 선택해 주세요."));
   const [year, month] = anchor.split('-').map(Number);
   let startDate = anchor;
   if (period === 'week') startDate = addLocalDateDays(anchor, -((new Date(`${anchor}T12:00:00Z`).getUTCDay() + 6) % 7));

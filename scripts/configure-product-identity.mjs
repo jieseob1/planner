@@ -52,7 +52,7 @@ try {
   if (theme && apply) {
     exec(['test', '-r', '/opt/keycloak/themes/goalstotoday/login/theme.properties']);
     // Partial update preserves SMTP, registration, brute-force protection, and existing sessions.
-    write('update', '', { loginTheme: 'goalstotoday' });
+    write('update', '', { loginTheme: 'goalstotoday', internationalizationEnabled: true, supportedLocales: ['ko', 'en', 'es'], defaultLocale: 'ko' });
   }
   if (adminEmail) {
     const users = get('users', '-q', `email=${adminEmail}`, '-q', 'exact=true', '--fields', 'id,email,enabled')
@@ -68,7 +68,7 @@ try {
     assert.ok(confirmed.some((item) => item.name === 'nowline-admin'), 'Admin role not assigned');
     console.log('Authorized existing administrator account role verified (email and identity omitted).');
   }
-  const realm = get('', '--fields', 'realm,loginTheme');
+  const realm = get('', '--fields', 'realm,loginTheme,internationalizationEnabled,supportedLocales');
   assert.ok(role, 'Administrator role missing');
   const client = get('clients', '-q', 'clientId=nowline-mobile', '--fields', 'id,clientId')[0];
   assert.ok(client, 'Mobile client missing; run with --apply');
@@ -79,7 +79,11 @@ try {
   assert.equal(current.implicitFlowEnabled, false);
   assert.deepEqual(current.redirectUris, mobile.redirectUris);
   assert.equal(current.attributes['pkce.code.challenge.method'], 'S256');
-  if (theme) assert.equal(realm.loginTheme, 'goalstotoday');
+  if (theme) {
+    assert.equal(realm.loginTheme, 'goalstotoday');
+    assert.equal(realm.internationalizationEnabled, true);
+    for (const language of ['ko', 'en', 'es']) assert.ok(realm.supportedLocales.includes(language));
+  }
   console.log('Product identity verified: explicit administrator role, PKCE mobile client' + (theme ? ', custom login theme.' : '.'));
 } finally {
   try { exec(['rm', '-f', config]); } catch { /* Container may have restarted; no host credentials were written. */ }

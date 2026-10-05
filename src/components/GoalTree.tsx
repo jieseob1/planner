@@ -1,3 +1,4 @@
+import { useLocale, tr } from '../i18n';
 import { useId, useMemo, useState } from 'react';
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Circle, Plus } from 'lucide-react';
 import { goalProgress, periodLabels, type PeriodDocument, type PeriodGoal, rangeLabel } from '../domain/periods';
@@ -28,6 +29,7 @@ interface GoalTreeProps {
 }
 
 export function GoalTree({ documents, selectedIds, onEdit, onAddChild }: GoalTreeProps) {
+  useLocale();
   const instanceId = useId();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const { byId, children, roots, selected } = useMemo(() => {
@@ -70,20 +72,20 @@ export function GoalTree({ documents, selectedIds, onEdit, onAddChild }: GoalTre
     const progress = goalProgress(goal);
     return <li key={id} className="goal-tree-node">
       <div className={`goal-tree-card${selected.has(id) ? '' : ' goal-tree-card--context'}`} style={{ paddingInlineStart: `${Math.min(depth, 4) * 14 + 10}px` }}>
-        {childIds.length > 0 ? <button type="button" className="goal-tree-toggle" aria-label={`${goal.title} 하위 목표 ${expanded ? '접기' : '펼치기'}`} aria-expanded={expanded} aria-controls={groupId} onClick={() => setCollapsed(current => {
+        {childIds.length > 0 ? <button type="button" className="goal-tree-toggle" aria-label={tr("{{v0}} 하위 목표 {{v1}}", { v0: goal.title, v1: expanded ? tr('fold') : tr('unfold') })} aria-expanded={expanded} aria-controls={groupId} onClick={() => setCollapsed(current => {
           const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next;
         })}>{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button> : <span className="goal-tree-toggle goal-tree-toggle--empty" aria-hidden="true" />}
-        <button type="button" className="goal-tree-edit" onClick={() => onEdit(document)} aria-label={`${goal.title} 목표 수정`}>
+        <button type="button" className="goal-tree-edit" onClick={() => onEdit(document)} aria-label={tr("{{v0}} 목표 수정", { v0: goal.title })}>
           {progress === 100 ? <CheckCircle2 className="is-complete" size={21} /> : <Circle size={21} />}
-          <span className="goal-tree-copy"><strong>{goal.title}</strong><small>{periodLabels[goal.period]} 목표 · {rangeLabel(goal)}</small>{childIds.length > 0 && <small>하위 목표 {childIds.length}개 · 각각 따로 측정</small>}</span>
-          <span className="period-progress goal-tree-progress"><strong>{goal.measurement === 'completion' ? goal.done ? '완료' : '진행 중' : `${goal.current ?? '미측정'} / ${goal.target} ${goal.unit}`}<span>{progress === null ? '미측정' : `${progress}%`}</span></strong><progress max={100} value={progress ?? 0} aria-label={`${goal.title} 목표 달성률`} /></span>
+          <span className="goal-tree-copy"><strong>{goal.title}</strong><small>{periodLabels()[goal.period]} {' '}{tr("목표 ·")}{' '}{rangeLabel(goal)}</small>{childIds.length > 0 && <small>{tr("하위 목표")}{' '}{childIds.length}{tr("개 · 각각 따로 측정")}</small>}</span>
+          <span className="period-progress goal-tree-progress"><strong>{goal.measurement === 'completion' ? goal.done ? tr("완료") : tr("진행 중") : `${goal.current ?? tr("미측정")} / ${goal.target} ${goal.unit}`}<span>{progress === null ? tr("미측정") : `${progress}%`}</span></strong><progress max={100} value={progress ?? 0} aria-label={tr("{{v0}} 목표 달성률", { v0: goal.title })} /></span>
           <ArrowRight className="goal-tree-open" size={16} aria-hidden="true" />
         </button>
-        <button type="button" className="goal-tree-add" onClick={() => { setCollapsed(current => { const next = new Set(current); next.delete(id); return next; }); onAddChild(goal); }} aria-label={`${goal.title} 하위 목표 추가`}><Plus size={16} /><span>하위 목표</span></button>
+        <button type="button" className="goal-tree-add" onClick={() => { setCollapsed(current => { const next = new Set(current); next.delete(id); return next; }); onAddChild(goal); }} aria-label={tr("{{v0}} 하위 목표 추가", { v0: goal.title })}><Plus size={16} /><span>{tr("하위 목표")}{' '}</span></button>
       </div>
-      {childIds.length > 0 && <ul id={groupId} hidden={!expanded} className="goal-tree-list" aria-label={`${goal.title} 하위 목표`}>{childIds.map(child => renderGoal(child, depth + 1))}</ul>}
+      {childIds.length > 0 && <ul id={groupId} hidden={!expanded} className="goal-tree-list" aria-label={tr("{{v0}} 하위 목표", { v0: goal.title })}>{childIds.map(child => renderGoal(child, depth + 1))}</ul>}
     </li>;
   };
 
-  return <ul className="goal-tree-list goal-tree-root" aria-label="목표 연결 구조">{roots.map(id => renderGoal(id, 0))}</ul>;
+  return <ul className="goal-tree-list goal-tree-root" aria-label={tr("목표 연결 구조")}>{roots.map(id => renderGoal(id, 0))}</ul>;
 }

@@ -1,3 +1,4 @@
+import { useLocale, tr } from './i18n';
 import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { AppShell } from './components/AppShell';
@@ -24,23 +25,27 @@ import './styles/today-usability.css';
 import './styles/planning-workspace.css';
 
 function RequireActivePlan({ children }: { children: ReactNode }) {
+  useLocale();
   const { hasActivePlan, plannerReady } = usePlanner();
-  if (!plannerReady) return <main className="route-loading" role="status">계획을 불러오고 있습니다…</main>;
+  if (!plannerReady) return <main className="route-loading" role="status">{tr("계획을 불러오고 있습니다…")}</main>;
   return hasActivePlan ? children : <Navigate to="/onboarding" replace />;
 }
 
 function RequireNoActivePlan({ children }: { children: ReactNode }) {
+  useLocale();
   const { hasActivePlan, plannerReady } = usePlanner();
-  if (!plannerReady) return <main className="route-loading" role="status">계획을 불러오고 있습니다…</main>;
+  if (!plannerReady) return <main className="route-loading" role="status">{tr("계획을 불러오고 있습니다…")}</main>;
   return hasActivePlan ? <Navigate to="/today" replace /> : children;
 }
 
 function GoalsRoute() {
+  useLocale();
   const [params] = useSearchParams();
   return params.get('action') === 'stop' ? <Navigate to={`/goals/legacy?${params}`} replace /> : <PeriodGoalsScreen />;
 }
 
 export function AppRoutes() {
+  useLocale();
   return (
     <Routes>
       <Route path="/onboarding" element={<RequireNoActivePlan><OnboardingScreen /></RequireNoActivePlan>} />
@@ -62,6 +67,7 @@ export function AppRoutes() {
 }
 
 export function App() {
+  useLocale();
   return (
     <BrowserRouter>
       <Routes>

@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -58,7 +59,7 @@ export class NativeOidcNavigator implements INavigator {
   consumeCallbackUrl(): string {
     const value = this.callbackUrl;
     this.callbackUrl = null;
-    if (!value) throw new Error('인증 콜백을 받지 못했습니다. 다시 로그인해 주세요.');
+    if (!value) throw new Error(tr("인증 콜백을 받지 못했습니다. 다시 로그인해 주세요."));
     return value;
   }
 
@@ -69,12 +70,12 @@ export class NativeOidcNavigator implements INavigator {
     let rejectCallback!: (reason: Error) => void;
     const callback = new Promise<string>((resolve, reject) => { resolveCallback = resolve; rejectCallback = reject; });
     void callback.catch(() => undefined);
-    this.cancel = () => rejectCallback(new Error('로그인을 취소했습니다. 다시 시도해 주세요.'));
+    this.cancel = () => rejectCallback(new Error(tr("로그인을 취소했습니다. 다시 시도해 주세요.")));
     try {
       listener = await App.addListener('appUrlOpen', ({ url }) => {
         if (this.allowedCallbacks.some((allowed) => matchesNativeCallback(url, allowed))) resolveCallback(url);
       });
-      timeout = setTimeout(() => rejectCallback(new Error('로그인 시간이 초과되었습니다. 다시 시도해 주세요.')), CALLBACK_TIMEOUT_MS);
+      timeout = setTimeout(() => rejectCallback(new Error(tr("로그인 시간이 초과되었습니다. 다시 시도해 주세요."))), CALLBACK_TIMEOUT_MS);
       await Browser.open({ url: params.url, presentationStyle: 'popover' });
       const url = await callback;
       this.callbackUrl = url;

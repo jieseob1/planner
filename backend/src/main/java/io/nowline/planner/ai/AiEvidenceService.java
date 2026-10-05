@@ -22,7 +22,8 @@ public class AiEvidenceService {
     }
     @Transactional
     public Snapshot capture(UUID user, String period, LocalDate start, boolean reflections) {
-        ZoneId zone = ZoneId.of(preferences.get(user).timezone());
+        var userPreferences = preferences.get(user);
+        ZoneId zone = ZoneId.of(userPreferences.timezone());
         Instant now = Instant.now();
         LocalDate end = end(period, start);
         if (!end.isBefore(now.atZone(zone).toLocalDate())) throw new AiReviewException(422, "ai-period-open", "아직 끝나지 않은 기간은 직접 회고를 작성해 주세요.");
@@ -36,7 +37,8 @@ public class AiEvidenceService {
                 (rs, row) -> json.readValue(rs.getString(1), PlannerSnapshot.class), user.toString()));
         var documents = jdbc.query("SELECT body FROM period_document WHERE user_id=? AND deleted=FALSE ORDER BY document_id",
                 (rs, row) -> json.readValue(rs.getString(1), PeriodDocument.class), user.toString());
-        return aggregate(period, start, end, zone, now, sources, documents, reflections);
+        var snapshot = aggregate(period, start, end, zone, now, sources, documents, reflections);
+        return new Snapshot(snapshot.period(), snapshot.startDate(), snapshot.endDate(), snapshot.timezone(), snapshot.capturedAt(), snapshot.metrics(), snapshot.evidence(), userPreferences.locale());
     }
     static LocalDate end(String period, LocalDate start) {
         if (start == null || start.getYear() < 1900 || start.getYear() > 9998
@@ -108,5 +110,9 @@ public class AiEvidenceService {
     private static boolean inside(LocalDate date, LocalDate start, LocalDate end) { return date != null && !date.isBefore(start) && !date.isAfter(end); }
     public record Metrics(long completedTasks, long plannedMinutes, long recordedSeconds) {}
     public record Evidence(String id, String kind, String date, String title, Map<String,Object> details) {}
-    public record Snapshot(String period, LocalDate startDate, LocalDate endDate, String timezone, Instant capturedAt, Metrics metrics, List<Evidence> evidence) {}
+    public record Snapshot(String period, LocalDate startDate, LocalDate endDate, String timezone, Instant capturedAt, Metrics metrics, List<Evidence> evidence, String locale) {
+        public Snapshot(String period, LocalDate startDate, LocalDate endDate, String timezone, Instant capturedAt, Metrics metrics, List<Evidence> evidence) {
+            this(period, startDate, endDate, timezone, capturedAt, metrics, evidence, "ko");
+        }
+    }
 }

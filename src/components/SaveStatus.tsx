@@ -1,3 +1,4 @@
+import { tr, useLocale, getIntlLocale } from '../i18n';
 import { useEffect, useState } from 'react';
 import { Check, CloudOff, RefreshCw, TriangleAlert } from 'lucide-react';
 import clsx from 'clsx';
@@ -6,23 +7,24 @@ import { ConflictResolutionModal } from './ConflictResolutionModal';
 import { Modal } from './Modal';
 import './save-validation.css';
 
-const labels = {
-  checking: { label: '서버 확인 중', detail: '기기 데이터를 먼저 불러왔어요' },
-  saved: { label: '서버에 저장됨', detail: '저장 완료' },
-  saving: { label: '서버에 저장 중', detail: '변경 내용은 기기에 저장됨' },
-  offline: { label: '오프라인', detail: '변경 내용은 이 기기에 저장됨' },
-  retry: { label: '서버 연결 실패', detail: '기기 데이터는 안전하게 보관 중' },
-  'validation-error': { label: '서버 저장 거절 (400)', detail: '저장할 내용을 확인해 주세요' },
-  conflict: { label: '서버 저장 충돌', detail: '기기 변경을 덮어쓰지 않고 보존했어요' },
-  'storage-error': { label: '기기 저장 실패', detail: '브라우저 저장 공간을 확인해 주세요' }
-} as const;
+const labels = () => ({
+  checking: { label: tr("서버 확인 중"), detail: tr("기기 데이터를 먼저 불러왔어요") },
+  saved: { label: tr("서버에 저장됨"), detail: tr("저장 완료") },
+  saving: { label: tr("서버에 저장 중"), detail: tr("변경 내용은 기기에 저장됨") },
+  offline: { label: tr("오프라인"), detail: tr("변경 내용은 이 기기에 저장됨") },
+  retry: { label: tr("서버 연결 실패"), detail: tr("기기 데이터는 안전하게 보관 중") },
+  'validation-error': { label: tr("서버 저장 거절 (400)"), detail: tr("저장할 내용을 확인해 주세요") },
+  conflict: { label: tr("서버 저장 충돌"), detail: tr("기기 변경을 덮어쓰지 않고 보존했어요") },
+  'storage-error': { label: tr("기기 저장 실패"), detail: tr("브라우저 저장 공간을 확인해 주세요") }
+} as const);
 
-const formatSavedTime = (date: Date) => date.toLocaleTimeString('ko-KR', {
+const formatSavedTime = (date: Date) => date.toLocaleTimeString(getIntlLocale(), {
   hour: '2-digit',
   minute: '2-digit'
 });
 
 export function SaveStatus() {
+  useLocale();
   const { retrySync, saveStatus, saveProblem, syncConflict } = usePlanner();
   const [lastSavedAt, setLastSavedAt] = useState(() => new Date());
   const [conflictOpen, setConflictOpen] = useState(false);
@@ -34,7 +36,7 @@ export function SaveStatus() {
       : saveStatus === 'conflict' || saveStatus === 'storage-error' || saveStatus === 'validation-error'
         ? TriangleAlert
         : RefreshCw;
-  const copy = labels[saveStatus];
+  const copy = labels()[saveStatus];
 
   useEffect(() => {
     if (saveStatus === 'saved') setLastSavedAt(new Date());
@@ -43,33 +45,33 @@ export function SaveStatus() {
 
   if (saveStatus === 'validation-error') {
     const isPrecondition = saveProblem?.kind === 'precondition';
-    const title = isPrecondition ? '저장 버전 정보를 확인해 주세요' : '저장할 내용을 확인해 주세요';
+    const title = isPrecondition ? tr("저장 버전 정보를 확인해 주세요") : tr("저장할 내용을 확인해 주세요");
     const firstError = saveProblem?.errors[0];
     const summary = isPrecondition
-      ? '입력 내용은 유지하고 저장 버전 정보를 확인해야 합니다.'
+      ? tr("입력 내용은 유지하고 저장 버전 정보를 확인해야 합니다.")
       : firstError ? `${firstError.label}: ${firstError.message}` : saveProblem?.detail ?? copy.detail;
     const localCopy = saveProblem?.localStored === false
-      ? '변경 내용은 현재 화면에 유지됩니다. 기기 저장에도 실패했으니 이 탭을 닫지 마세요.'
+      ? tr("변경 내용은 현재 화면에 유지됩니다. 기기 저장에도 실패했으니 이 탭을 닫지 마세요.")
       : isPrecondition
-        ? '변경 내용은 이 기기에 보관 중입니다. 초기화하거나 로그아웃하지 마세요.'
-        : '변경 내용은 이 기기에 보관 중입니다. 초기화하지 말고 입력값을 수정해 주세요.';
+        ? tr("변경 내용은 이 기기에 보관 중입니다. 초기화하거나 로그아웃하지 마세요.")
+        : tr("변경 내용은 이 기기에 보관 중입니다. 초기화하지 말고 입력값을 수정해 주세요.");
     return <>
       <div className="save-validation-notice" role="status" aria-live="polite" aria-atomic="true">
         <TriangleAlert size={15} aria-hidden="true" />
-        <div><strong>{isPrecondition ? '저장 버전 확인 필요' : copy.label}</strong><small>{summary}</small>
-          <button className="text-button" type="button" onClick={() => setValidationOpen(true)}>오류 확인</button>
+        <div><strong>{isPrecondition ? tr("저장 버전 확인 필요") : copy.label}</strong><small>{summary}</small>
+          <button className="text-button" type="button" onClick={() => setValidationOpen(true)}>{tr("오류 확인")}</button>
         </div>
       </div>
       {validationOpen && <Modal title={title} description={localCopy} onClose={() => setValidationOpen(false)} className="save-validation-modal">
         <p>{saveProblem?.detail ?? copy.detail}</p>
         {saveProblem?.errors.length ? <ul>{saveProblem.errors.map((error, index) => <li key={`${error.field}-${index}`}>
           <strong>{error.label}</strong><p>{error.message}</p><code>{error.field}</code>
-        </li>)}</ul> : <p>문제가 계속되면 아래 오류 코드를 함께 알려 주세요.</p>}
-        {saveProblem && saveProblem.additionalErrors > 0 && <p>추가로 확인할 항목이 {saveProblem.additionalErrors}개 있습니다.</p>}
+        </li>)}</ul> : <p>{tr("문제가 계속되면 아래 오류 코드를 함께 알려 주세요.")}</p>}
+        {saveProblem && saveProblem.additionalErrors > 0 && <p>{tr("추가로 확인할 항목이")}{' '}{saveProblem.additionalErrors}{tr("개 있습니다.")}</p>}
         <p className="save-validation-code">HTTP 400{saveProblem?.code ? ` · ${saveProblem.code}` : ''}</p>
         <div className="save-validation-actions">
-          <button className="button button--ghost" type="button" onClick={() => setValidationOpen(false)}>{isPrecondition ? '나중에 확인' : '입력값 확인하기'}</button>
-          <button className="primary-button" type="button" onClick={() => { setValidationOpen(false); retrySync(); }}>다시 저장</button>
+          <button className="button button--ghost" type="button" onClick={() => setValidationOpen(false)}>{isPrecondition ? tr("나중에 확인") : tr("입력값 확인하기")}</button>
+          <button className="primary-button" type="button" onClick={() => { setValidationOpen(false); retrySync(); }}>{tr("다시 저장")}</button>
         </div>
       </Modal>}
     </>;
@@ -91,13 +93,11 @@ export function SaveStatus() {
           </span>
           {saveStatus === 'retry' ? (
             <button className="text-button save-status__retry" type="button" onClick={retrySync}>
-              다시 시도
-            </button>
+              {tr("다시 시도")}</button>
           ) : null}
           {saveStatus === 'conflict' && syncConflict ? (
             <button className="text-button save-status__retry" type="button" onClick={() => setConflictOpen(true)}>
-              변경 비교
-            </button>
+              {tr("변경 비교")}</button>
           ) : null}
         </span>
       </span>

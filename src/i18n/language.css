@@ -1,0 +1,17 @@
+.language-selector { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-secondary, #526076); }
+.language-selector select { min-height: 44px; max-width: 150px; border: 1px solid var(--border, #dce1ed); border-radius: 10px; background: var(--surface, #fff); color: inherit; padding: 6px 26px 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.language-selector select:focus-visible { outline: 3px solid #9ab2ff; outline-offset: 2px; }
+.language-settings { margin-bottom: 24px; }
+.language-settings p { color: var(--text-secondary, #526076); }
+.today-direct-header__status { flex-wrap: wrap; white-space: normal; }
+.today-direct-header__status .language-selector { font-size: 13px; }
+html:not([lang="ko"]) { word-break: normal; }
+html:not([lang="ko"]) .nav-label, html:not([lang="ko"]) .bottom-nav__label { white-space: normal; overflow-wrap: anywhere; }
+html:not([lang="ko"]) button, html:not([lang="ko"]) h1, html:not([lang="ko"]) h2, html:not([lang="ko"]) h3 { word-break: normal; overflow-wrap: anywhere; }
+@media (max-width: 680px) {
+  .app-frame > .app-topbar { flex-wrap: wrap; height: auto; gap: 8px; padding-block: 10px; }
+  .app-topbar .top-bar__context { flex: 1 1 100%; min-width: 0; }
+  .app-topbar .top-bar__actions { flex: 1 1 100%; flex-wrap: wrap; min-width: 0; justify-content: flex-start; }
+  .app-topbar .save-status { min-width: 0; max-width: 100%; }
+  .app-topbar .save-status__label, .app-topbar .save-status__detail { white-space: normal; overflow-wrap: anywhere; }
+}

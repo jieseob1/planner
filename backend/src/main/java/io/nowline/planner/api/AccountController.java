@@ -111,6 +111,13 @@ public class AccountController {
     public record DeleteRequest(@NotBlank String confirmation) {
     }
 
+    @PutMapping("/language")
+    ResponseEntity<UserPreferenceService.Preferences> updateLanguage(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody LanguageRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(preferences.updateLanguage(currentUser.resolve(jwt), request.locale()));
+    }
+    public record LanguageRequest(@NotBlank String locale) {}
+
     public record ConsentRequest(
             @AssertTrue(message = "이용약관 동의가 필요합니다.") boolean termsAccepted,
             @AssertTrue(message = "개인정보 처리방침 동의가 필요합니다.") boolean privacyAccepted

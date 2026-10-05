@@ -1,3 +1,4 @@
+import { useLocale, tr } from '../i18n';
 import { useEffect, useId, useRef, type PropsWithChildren } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
@@ -11,6 +12,7 @@ interface ModalProps extends PropsWithChildren {
 }
 
 export function Modal({ title, description, onClose, children, className = '', eyebrow }: ModalProps) {
+  useLocale();
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   const returnFocusRef = useRef<HTMLElement | null>(
@@ -68,7 +70,7 @@ export function Modal({ title, description, onClose, children, className = '', e
             <h2 id={titleId}>{title}</h2>
             {description ? <p id={descriptionId} className="modal__description">{description}</p> : null}
           </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="닫기">
+          <button className="icon-button" type="button" onClick={onClose} aria-label={tr("닫기")}>
             <X size={20} aria-hidden="true" />
           </button>
         </header>

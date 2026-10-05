@@ -25,7 +25,7 @@
   "ssoSessionMaxLifespan": 36000,
   "offlineSessionIdleTimeout": 2592000,
   "internationalizationEnabled": true,
-  "supportedLocales": ["ko", "en"],
+  "supportedLocales": ["ko", "en", "es"],
   "defaultLocale": "ko",
   "passwordPolicy": "length(12) and digits(1) and upperCase(1) and lowerCase(1) and specialChars(1) and notUsername(undefined) and passwordHistory(5)",
   "clients": [

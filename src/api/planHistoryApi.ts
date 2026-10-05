@@ -1,3 +1,4 @@
+import { tr, getLanguage, localizeApiDetail } from '../i18n';
 import { getAccessToken } from '../auth/accessToken';
 import type { PlanAuditEvent, PlanDetail, PlanSummary, PlannerSnapshot, ProblemDetails } from '../domain/types';
 import { PlannerApiError } from './plannerApi';
@@ -8,7 +9,7 @@ const plansUrl = `${baseUrl}/api/v1/plans`;
 const headers = async (json = false) => {
   const accessToken = await getAccessToken();
   return {
-    Accept: 'application/json',
+    Accept: 'application/json', 'Accept-Language': getLanguage(),
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
   };
@@ -20,7 +21,7 @@ const read = async <T>(response: Response): Promise<T> => {
     try { problem = await response.json() as ProblemDetails; } catch { /* no body */ }
     throw new PlannerApiError(
       response.status,
-      problem?.detail ?? problem?.title ?? `계획 요청 실패 (${response.status})`,
+      localizeApiDetail(problem?.detail ?? problem?.title ?? '', tr("계획 요청 실패 ({{v0}})", { v0: response.status })) || tr("계획 요청 실패 ({{v0}})", { v0: response.status }),
       problem
     );
   }

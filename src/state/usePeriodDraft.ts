@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { createIdempotencyKey } from '../api/plannerApi';
 import type { PeriodGoal, PeriodReview, PeriodWrite } from '../domain/periods';
@@ -41,11 +42,11 @@ export function usePeriodDraft<T extends Value>(key: string, initial: T, revisio
       setDraft(d => ({ ...d, revision: result.revision, mutationId: createIdempotencyKey() }));
       setDirty(false); setConflict(false);
       try { localStorage.removeItem(storageKey); } catch { /* The explicit saved state is still visible. */ }
-      setMessage(deleted ? '삭제했습니다. 연결된 할 일과 일정은 유지됩니다.' : '서버에 저장했습니다.');
+      setMessage(deleted ? tr("삭제했습니다. 연결된 할 일과 일정은 유지됩니다.") : tr("서버에 저장했습니다."));
       return true;
     } catch (error) {
       setDirty(true);
-      setMessage(error instanceof Error ? error.message : '저장하지 못했습니다. 입력은 유지됩니다.');
+      setMessage(error instanceof Error ? error.message : tr("저장하지 못했습니다. 입력은 유지됩니다."));
       if (error && typeof error === 'object' && 'status' in error && error.status === 412) {
         setConflict(true); await periods.reload();
       }
@@ -57,7 +58,7 @@ export function usePeriodDraft<T extends Value>(key: string, initial: T, revisio
   const keepDraft = () => {
     const latest = compare(); if (!latest) return;
     setDraft(d => ({ ...d, revision: latest.revision, mutationId: createIdempotencyKey() }));
-    setConflict(false); setMessage('내 입력을 선택했습니다. 저장 버튼으로 확정해 주세요.');
+    setConflict(false); setMessage(tr("내 입력을 선택했습니다. 저장 버튼으로 확정해 주세요."));
   };
   return { value: draft.value, edit, save, busy, message, dirty, stored, conflict, compare, keepDraft, ready: periods?.ready ?? false };
 }

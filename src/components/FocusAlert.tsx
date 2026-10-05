@@ -1,3 +1,4 @@
+import { useLocale } from '../i18n';
 import { useEffect, useRef } from 'react';
 
 interface FocusAlertProps {
@@ -6,6 +7,7 @@ interface FocusAlertProps {
 }
 
 export function FocusAlert({ message, className = 'inline-alert' }: FocusAlertProps) {
+  useLocale();
   const alertRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

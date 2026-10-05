@@ -10,6 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['planner-mark.svg'],
       manifest: {
+        id: '/',
         name: 'Goals to Today · 연간 목표를 오늘의 실행으로',
         short_name: 'Goals to Today',
         description: '연간 목표부터 오늘의 시간 블록과 실행 근거까지 연결하는 개인 플래너',
@@ -31,7 +32,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         navigateFallbackDenylist: navigationFallbackDenylist,
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
         importScripts: ['/push-handler.js']
       }
     })

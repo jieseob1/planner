@@ -1,3 +1,4 @@
+import { tr, useLocale } from '../i18n';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -26,16 +27,16 @@ import { formatMinutes } from '../lib/format';
 import { usePlanner } from '../state/PlannerProvider';
 import { useTimeZone } from '../timezone/TimeZoneProvider';
 
-const blockerOptions = [
-  { value: 'time', label: '시간이 부족했어요', hint: '예상보다 외부 일정이 많았음' },
-  { value: 'scope', label: '일이 너무 컸어요', hint: '다음 행동으로 더 잘게 나눠야 함' },
-  { value: 'unclear', label: '완료 기준이 모호했어요', hint: '근거와 종료 조건을 먼저 정해야 함' },
-  { value: 'none', label: '특별한 방해가 없었어요', hint: '현재 방식을 다음 주에도 유지' }
+const blockerOptions = () => [
+  { value: 'time', label: tr("시간이 부족했어요"), hint: tr("예상보다 외부 일정이 많았음") },
+  { value: 'scope', label: tr("일이 너무 컸어요"), hint: tr("다음 행동으로 더 잘게 나눠야 함") },
+  { value: 'unclear', label: tr("완료 기준이 모호했어요"), hint: tr("근거와 종료 조건을 먼저 정해야 함") },
+  { value: 'none', label: tr("특별한 방해가 없었어요"), hint: tr("현재 방식을 다음 주에도 유지") }
 ];
 
 const formatReviewDate = (value: string) => {
   const [, month, day] = value.split('-').map(Number);
-  return `${month}월 ${day}일`;
+  return tr("{{v0}}월 {{v1}}일", { v0: month, v1: day });
 };
 
 export const getReviewWeekPeriod = (reference = new Date(), timeZone?: string) => {
@@ -57,6 +58,7 @@ export const getReviewWeekPeriod = (reference = new Date(), timeZone?: string) =
 };
 
 export function ReviewScreen() {
+  useLocale();
   const {
     tasks,
     outcomes,
@@ -203,8 +205,8 @@ export function ReviewScreen() {
 
   const markMetricUnchanged = () => {
     if (!selectedMetricOutcome || selectedMetricOutcome.current === null) return;
-    if (!updateOutcomeMetric(selectedMetricOutcome.id, selectedMetricOutcome.current, '주간 점검에서 변화 없음 확인')) return;
-    updateReview({ metricDraft: '변화 없음' });
+    if (!updateOutcomeMetric(selectedMetricOutcome.id, selectedMetricOutcome.current, tr("주간 점검에서 변화 없음 확인"))) return;
+    updateReview({ metricDraft: tr("변화 없음") });
     setMetricValue(String(selectedMetricOutcome.current));
     setMetricTouched(false);
     setMetricEvidence('');
@@ -231,20 +233,19 @@ export function ReviewScreen() {
         <section className="review-complete card">
           <span className="review-complete__icon"><CheckCircle2 size={34} /></span>
           <p className="eyebrow">WEEK CLOSED · {reviewPeriod}</p>
-          <h1>다음 주의 기준이 정해졌습니다.</h1>
-          <p>선택한 결과 수치와 방해 요인, Top 3를 현재 계획에 반영했습니다.</p>
+          <h1>{tr("다음 주의 기준이 정해졌습니다.")}</h1>
+          <p>{tr("선택한 결과 수치와 방해 요인, Top 3를 현재 계획에 반영했습니다.")}</p>
           <div className="review-complete__summary">
-            <div><strong>{selectedActiveTaskIds.length}</strong><span>우선 실행</span></div>
-            <div><strong>{formatMinutes(selectedMinutes)}</strong><span>계획 시간</span></div>
-            <div><strong>{decisionCount}</strong><span>목표 결정</span></div>
+            <div><strong>{selectedActiveTaskIds.length}</strong><span>{tr("우선 실행")}</span></div>
+            <div><strong>{formatMinutes(selectedMinutes)}</strong><span>{tr("계획 시간")}</span></div>
+            <div><strong>{decisionCount}</strong><span>{tr("목표 결정")}</span></div>
           </div>
           <div className="review-complete__actions">
             <Link className="button button--primary" to="/planner?tools=goals" onClick={() => setPlannerWeekOffset(1)}>
-              다음 주 시간 배치 <ArrowRight size={17} />
+              {tr("다음 주 시간 배치")}<ArrowRight size={17} />
             </Link>
             <button className="button button--secondary" type="button" onClick={() => updateReview({ completedAt: null })}>
-              <RotateCcw size={16} /> 다시 점검
-            </button>
+              <RotateCcw size={16} /> {tr("다시 점검")}</button>
           </div>
         </section>
       </div>
@@ -256,19 +257,19 @@ export function ReviewScreen() {
       <header className="page-header review-header">
         <div>
           <p className="eyebrow">WEEKLY REVIEW · {reviewPeriod}</p>
-          <h1>한 주를 닫고, 다음 주를 고릅니다.</h1>
-          <p className="page-header__description">달라진 수치와 가장 큰 방해만 확인한 뒤, 다음 주 Top 3를 시간에 연결하세요.</p>
+          <h1>{tr("한 주를 닫고, 다음 주를 고릅니다.")}</h1>
+          <p className="page-header__description">{tr("달라진 수치와 가장 큰 방해만 확인한 뒤, 다음 주 Top 3를 시간에 연결하세요.")}</p>
         </div>
-        <div className="review-header__status"><span>자동 저장 · 5단계 · 약 5분</span></div>
+        <div className="review-header__status"><span>{tr("자동 저장 · 5단계 · 약 5분")}</span></div>
       </header>
 
-      <section className="review-overview" aria-label="이번 주 요약과 점검 진행 상황">
-        <div className="review-stats" aria-label="이번 주 요약">
-          <div><Clock3 size={17} /><span><strong>{(totalSeconds / 3600).toFixed(1)}h</strong><small>실제 실행</small></span></div>
-          <div><Check size={17} /><span><strong>{completedTasks}</strong><small>이번 주 실행 후 완료</small></span></div>
-          <div><Target size={17} /><span><strong>{decisionCount}</strong><small>현재 목표 결정</small></span></div>
+      <section className="review-overview" aria-label={tr("이번 주 요약과 점검 진행 상황")}>
+        <div className="review-stats" aria-label={tr("이번 주 요약")}>
+          <div><Clock3 size={17} /><span><strong>{(totalSeconds / 3600).toFixed(1)}h</strong><small>{tr("실제 실행")}</small></span></div>
+          <div><Check size={17} /><span><strong>{completedTasks}</strong><small>{tr("이번 주 실행 후 완료")}</small></span></div>
+          <div><Target size={17} /><span><strong>{decisionCount}</strong><small>{tr("현재 목표 결정")}</small></span></div>
         </div>
-        <div className="review-progress" aria-label="주간 점검 진행 상황">
+        <div className="review-progress" aria-label={tr("주간 점검 진행 상황")}>
           <span className={clsx('is-active', hasMetric && 'is-done')}>{hasMetric ? <Check size={13} /> : 1}</span>
           <i />
           <span className={clsx(hasMetric && 'is-active', hasBlocker && 'is-done')}>{hasBlocker ? <Check size={13} /> : 2}</span>
@@ -285,28 +286,28 @@ export function ReviewScreen() {
         <section className={clsx('review-step', 'review-stage', hasMetric && 'is-complete')}>
           <header className="review-step__header">
             <span className="review-step__number">01</span>
-            <div><p className="eyebrow">METRIC UPDATE</p><h2>누락되거나 오래된 결과 수치를 확인합니다.</h2></div>
-            <span className="review-step__time">약 1분</span>
+            <div><p className="eyebrow">{tr("METRIC UPDATE")}</p><h2>{tr("누락되거나 오래된 결과 수치를 확인합니다.")}</h2></div>
+            <span className="review-step__time">{tr("약 1분")}</span>
           </header>
           <div className="review-step__body">
             {selectedMetricOutcome ? (
               <div className="metric-update">
                 <div className="metric-update__context">
                   <label className="metric-outcome-select field">
-                    <span className="field-label">갱신할 결과</span>
+                    <span className="field-label">{tr("갱신할 결과")}</span>
                     <select value={selectedMetricOutcome.id} onChange={(event) => selectMetricOutcome(event.target.value)}>
                       {metricOptions.map((outcome) => <option key={outcome.id} value={outcome.id}>{outcome.title}</option>)}
                     </select>
                   </label>
                   <span className="attention-badge attention-badge--stale">
                     <AlertTriangle size={13} />
-                    {selectedMetricOutcome.current === null ? '측정값 없음' : `${selectedMetricOutcome.lastUpdatedDays ?? 0}일 전 갱신`}
+                    {selectedMetricOutcome.current === null ? tr("측정값 없음") : tr("{{v0}}일 전 갱신", { v0: selectedMetricOutcome.lastUpdatedDays ?? 0 })}
                   </span>
                   <strong>{selectedMetricOutcome.title}</strong>
                   <small>{selectedMetricOutcome.evidenceLabel}</small>
                 </div>
                 <label className="metric-input">
-                  <span>현재 확인된 값</span>
+                  <span>{tr("현재 확인된 값")}</span>
                   <div>
                     <input
                       value={metricValue}
@@ -323,16 +324,16 @@ export function ReviewScreen() {
                         setMetricUnchanged(false);
                         setAppliedMetricKey(null);
                       }}
-                      placeholder="예: 24"
+                      placeholder={tr("예: 24")}
                     />
                     <span>{selectedMetricOutcome.unit}</span>
                   </div>
                   {metricError
-                    ? <small id="metric-value-error" className="form-error field-error" role="alert">0 이상의 숫자를 입력하세요.</small>
-                    : <small id="metric-value-help">측정값이 없으면 빈칸으로 두고 실제 값을 확인하세요.</small>}
+                    ? <small id="metric-value-error" className="form-error field-error" role="alert">{tr("0 이상의 숫자를 입력하세요.")}</small>
+                    : <small id="metric-value-help">{tr("측정값이 없으면 빈칸으로 두고 실제 값을 확인하세요.")}</small>}
                 </label>
                 <label className="metric-input metric-input--evidence">
-                  <span>확인 근거</span>
+                  <span>{tr("확인 근거")}</span>
                   <input
                     value={metricEvidence}
                     maxLength={500}
@@ -345,24 +346,24 @@ export function ReviewScreen() {
                       setMetricUnchanged(false);
                       setAppliedMetricKey(null);
                     }}
-                    placeholder="예: 결제 대시보드 9월 2일 확인"
+                    placeholder={tr("예: 결제 대시보드 9월 2일 확인")}
                   />
                   {metricEvidenceError
-                    ? <small id="metric-evidence-error" className="form-error field-error" role="alert">확인한 자료나 관찰 근거를 입력하세요.</small>
-                    : <small id="metric-evidence-help">이번 값이 어디서 확인됐는지 남깁니다.</small>}
+                    ? <small id="metric-evidence-error" className="form-error field-error" role="alert">{tr("확인한 자료나 관찰 근거를 입력하세요.")}</small>
+                    : <small id="metric-evidence-help">{tr("이번 값이 어디서 확인됐는지 남깁니다.")}</small>}
                 </label>
                 <button className="button button--secondary" type="button" disabled={!validMetric || !validMetricEvidence} onClick={applyMetric}>
-                  {metricApplied ? <Check size={16} /> : <BarChart3 size={16} />} {metricApplied ? '반영됨' : '반영'}
+                  {metricApplied ? <Check size={16} /> : <BarChart3 size={16} />} {metricApplied ? tr("반영됨") : tr("반영")}
                 </button>
               </div>
-            ) : <p className="empty-state" role="status">갱신할 결과가 없습니다.</p>}
+            ) : <p className="empty-state" role="status">{tr("갱신할 결과가 없습니다.")}</p>}
             <button
               className="review-skip"
               type="button"
               disabled={!selectedMetricOutcome || selectedMetricOutcome.current === null}
               onClick={markMetricUnchanged}
             >
-              변화 없음으로 기록 <ChevronRight size={15} />
+              {tr("변화 없음으로 기록")}<ChevronRight size={15} />
             </button>
           </div>
         </section>
@@ -370,12 +371,12 @@ export function ReviewScreen() {
         <section className={clsx('review-step', 'review-stage', hasBlocker && 'is-complete')}>
           <header className="review-step__header">
             <span className="review-step__number">02</span>
-            <div><p className="eyebrow">BLOCKER</p><h2>가장 크게 막은 것 하나를 고릅니다.</h2></div>
-            <span className="review-step__time">약 1분</span>
+            <div><p className="eyebrow">{tr("BLOCKER")}</p><h2>{tr("가장 크게 막은 것 하나를 고릅니다.")}</h2></div>
+            <span className="review-step__time">{tr("약 1분")}</span>
           </header>
           <div className="review-step__body">
-            <div className="blocker-options" role="radiogroup" aria-label="가장 큰 방해 요인">
-              {blockerOptions.map((option) => (
+            <div className="blocker-options" role="radiogroup" aria-label={tr("가장 큰 방해 요인")}>
+              {blockerOptions().map((option) => (
                 <button
                   key={option.value}
                   type="button"
@@ -395,8 +396,8 @@ export function ReviewScreen() {
         <section className={clsx('review-step', 'review-stage', 'review-step--carryover', unresolvedCarryovers.length === 0 && 'is-complete')}>
           <header className="review-step__header">
             <span className="review-step__number">03</span>
-            <div><p className="eyebrow">CARRYOVER DECISION</p><h2>끝내지 못한 일을 다음 계획의 근거로 바꿉니다.</h2></div>
-            <span className="review-step__time">약 1분</span>
+            <div><p className="eyebrow">{tr("CARRYOVER DECISION")}</p><h2>{tr("끝내지 못한 일을 다음 계획의 근거로 바꿉니다.")}</h2></div>
+            <span className="review-step__time">{tr("약 1분")}</span>
           </header>
           <div className="review-step__body">
             {carryoverTasks.length > 0 ? (
@@ -405,26 +406,25 @@ export function ReviewScreen() {
                   const outcome = outcomes.find((item) => item.id === task.outcomeId);
                   return (
                     <article key={task.id}>
-                      <div><small>{outcome?.title ?? '연결되지 않은 할 일'} · {task.carryCount}회 이월</small><strong>{task.title}</strong></div>
+                      <div><small>{outcome?.title ?? tr("연결되지 않은 할 일")} · {task.carryCount}{tr("회 이월")}</small><strong>{task.title}</strong></div>
                       <div>
                         <Link
                           to={`/planner?action=reschedule&task=${encodeURIComponent(task.id)}`}
                           onClick={() => setPlannerWeekOffset(1)}
                         >
-                          {nextWeekTaskIds.has(task.id) ? '다음 주 배치됨' : '다음 주로'}
+                          {nextWeekTaskIds.has(task.id) ? tr("다음 주 배치됨") : tr("다음 주로")}
                         </Link>
-                        <Link to={`/planner?action=split&task=${encodeURIComponent(task.id)}`}>나누기</Link>
-                        <Link to={`/goals?action=stop&task=${encodeURIComponent(task.id)}`}>중단</Link>
+                        <Link to={`/planner?action=split&task=${encodeURIComponent(task.id)}`}>{tr("나누기")}</Link>
+                        <Link to={`/goals?action=stop&task=${encodeURIComponent(task.id)}`}>{tr("중단")}</Link>
                       </div>
                     </article>
                   );
                 })}
               </div>
-            ) : <p className="review-carryover-empty"><Check size={16} /> 결정이 필요한 이월 작업이 없습니다.</p>}
+            ) : <p className="review-carryover-empty"><Check size={16} /> {' '}{tr("결정이 필요한 이월 작업이 없습니다.")}</p>}
             {unresolvedCarryovers.length > 0 ? (
               <p className="inline-alert" role="status">
-                이월 작업 {unresolvedCarryovers.length}개가 아직 다음 주에 배치되지 않았습니다. 그대로 완료하면 미결정 상태로 남습니다.
-              </p>
+                {tr('carryovers', { count: unresolvedCarryovers.length })}</p>
             ) : null}
           </div>
         </section>
@@ -432,8 +432,8 @@ export function ReviewScreen() {
         <section className={clsx('review-step', 'review-stage', 'review-step--tasks', hasTopTasks && 'is-complete')}>
           <header className="review-step__header">
             <span className="review-step__number">04</span>
-            <div><p className="eyebrow">NEXT WEEK TOP 3</p><h2>먼저 시간을 줄 실행을 최대 3개 고릅니다.</h2></div>
-            <span className="review-step__time">약 2분</span>
+            <div><p className="eyebrow">{tr("NEXT WEEK TOP 3")}</p><h2>{tr("먼저 시간을 줄 실행을 최대 3개 고릅니다.")}</h2></div>
+            <span className="review-step__time">{tr("약 2분")}</span>
           </header>
           <div className="review-step__body">
             <div className="top-task-list">
@@ -451,40 +451,40 @@ export function ReviewScreen() {
                     onClick={() => toggleTopTask(task.id)}
                   >
                     <span className="top-task__check">{selected ? <Check size={15} /> : null}</span>
-                    <span><small>{outcome?.title ?? '수집함'}</small><strong>{task.title}</strong></span>
+                    <span><small>{outcome?.title ?? tr("수집함")}</small><strong>{task.title}</strong></span>
                     <em>{formatMinutes(task.estimateMinutes)}</em>
                   </button>
                 );
               })}
               {activeTasks.length === 0 ? (
-                <p className="review-carryover-empty"><Check size={16} /> 진행 중인 일이 없습니다. Top 3 없이 회고를 마칠 수 있습니다.</p>
+                <p className="review-carryover-empty"><Check size={16} /> {' '}{tr("진행 중인 일이 없습니다. Top 3 없이 회고를 마칠 수 있습니다.")}</p>
               ) : null}
             </div>
-            <div className="selection-summary"><ListChecks size={17} /><span><strong>{selectedActiveTaskIds.length}/3 선택</strong> · 예상 {formatMinutes(selectedMinutes)}</span></div>
+            <div className="selection-summary"><ListChecks size={17} /><span><strong>{selectedActiveTaskIds.length}{tr("/3 선택")}</strong> {' '}{tr("· 예상")}{' '}{formatMinutes(selectedMinutes)}</span></div>
           </div>
         </section>
 
         <section className={clsx('review-step', 'review-stage', 'review-stage--confirm', ready && 'is-complete')}>
           <header className="review-step__header">
             <span className="review-step__number">05</span>
-            <div><p className="eyebrow">CONFIRM PLAN</p><h2>선택을 현재 계획에 반영하고 다음 주로 넘깁니다.</h2></div>
-            <span className="review-step__time">마지막</span>
+            <div><p className="eyebrow">{tr("CONFIRM PLAN")}</p><h2>{tr("선택을 현재 계획에 반영하고 다음 주로 넘깁니다.")}</h2></div>
+            <span className="review-step__time">{tr("마지막")}</span>
           </header>
           <div className="review-step__body">
             <div className={clsx('review-submit', 'review-confirmation', ready && 'review-submit--ready')}>
               <div>
                 <ShieldCheck size={22} />
                 <span>
-                  <strong>{ready ? '필수 선택이 모두 준비됐습니다.' : '앞의 네 단계를 먼저 완료하세요.'}</strong>
+                  <strong>{ready ? tr("필수 선택이 모두 준비됐습니다.") : tr("앞의 네 단계를 먼저 완료하세요.")}</strong>
                   <small>
                     {ready
-                      ? `Top ${selectedActiveTaskIds.length} · ${formatMinutes(selectedMinutes)} · ${unresolvedCarryovers.length > 0 ? `미결정 이월 ${unresolvedCarryovers.length}개 유지` : '이월 결정 완료'}`
-                      : `결과 수치 · 방해 요인 · ${activeTasks.length === 0 ? '완료 주 확인' : 'Top 3'}`}
+                      ? `Top ${selectedActiveTaskIds.length} · ${formatMinutes(selectedMinutes)} · ${unresolvedCarryovers.length > 0 ? tr("미결정 이월 {{v0}}개 유지", { v0: unresolvedCarryovers.length }) : tr("이월 결정 완료")}`
+                      : tr("결과 수치 · 방해 요인 · {{v0}}", { v0: activeTasks.length === 0 ? tr('completedWeek') : 'Top 3' })}
                   </small>
                 </span>
               </div>
               <button className="button button--primary" type="button" disabled={!ready} onClick={finishReview}>
-                주간 점검 완료{unresolvedCarryovers.length > 0 ? ` · 이월 ${unresolvedCarryovers.length}개 남김` : ''} <ArrowRight size={17} />
+                {tr("주간 점검 완료")}{unresolvedCarryovers.length > 0 ? tr(" · 이월 {{v0}}개 남김", { v0: unresolvedCarryovers.length }) : ''} <ArrowRight size={17} />
               </button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { useLocale, tr } from '../i18n';
 import { AlertTriangle, Circle, CircleCheck, Clock3, GripVertical, Pencil, Play, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { DragEvent } from 'react';
@@ -30,11 +31,12 @@ export function TaskRow({
   onDragStart,
   compact = false
 }: TaskRowProps) {
+  useLocale();
   const done = task.status === 'done';
   const running = task.status === 'in-progress';
   const cancelled = task.status === 'cancelled';
   const hasCarryover = task.carryCount > 0;
-  const statusLabel = done ? '완료' : running ? '기록 중' : cancelled ? '중단됨' : '미완료';
+  const statusLabel = done ? tr("완료") : running ? tr("기록 중") : cancelled ? tr("중단됨") : tr("미완료");
 
   return (
     <div
@@ -55,7 +57,7 @@ export function TaskRow({
         <button
           className="task-row__status task-row__status-button"
           type="button"
-          aria-label={`${task.title} ${done ? '미완료로 변경' : '완료'}`}
+          aria-label={`${task.title} ${done ? tr("미완료로 변경") : tr("완료")}`}
           onClick={onToggleDone}
         >
           {done ? <CircleCheck size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
@@ -69,16 +71,15 @@ export function TaskRow({
         <button
           className="task-row__body task-row__body-button"
           type="button"
-          aria-label={`${task.title} 일정에 배치`}
+          aria-label={tr("{{v0}} 일정에 배치", { v0: task.title })}
           onClick={onSelect}
         >
-          <span className="sr-only">상태: {statusLabel}</span>
+          <span className="sr-only">{tr("상태:")}{' '}{statusLabel}</span>
           <span className="task-row__title-line">
             <strong>{task.title}</strong>
             {running && (
               <span className="task-row__running" aria-hidden="true">
-                <span aria-hidden="true">●</span> 기록 중
-              </span>
+                <span aria-hidden="true">●</span> {tr("기록 중")}</span>
             )}
           </span>
           <span className="task-row__meta">
@@ -91,21 +92,19 @@ export function TaskRow({
             {hasCarryover && (
               <span className="task-row__warning">
                 <AlertTriangle size={13} aria-hidden="true" />
-                {task.carryCount}회 이월
-              </span>
+                {task.carryCount}{tr("회 이월")}</span>
             )}
-            {cancelled && <span className="task-row__cancelled" aria-hidden="true">중단됨</span>}
+            {cancelled && <span className="task-row__cancelled" aria-hidden="true">{tr("중단됨")}</span>}
           </span>
         </button>
       ) : (
         <div className="task-row__body">
-        <span className="sr-only">상태: {statusLabel}</span>
+        <span className="sr-only">{tr("상태:")}{' '}{statusLabel}</span>
         <div className="task-row__title-line">
           <strong>{task.title}</strong>
           {running && (
             <span className="task-row__running" aria-hidden="true">
-              <span aria-hidden="true">●</span> 기록 중
-            </span>
+              <span aria-hidden="true">●</span> {tr("기록 중")}</span>
           )}
         </div>
         <div className="task-row__meta">
@@ -118,22 +117,21 @@ export function TaskRow({
           {hasCarryover && (
             <span className="task-row__warning">
               <AlertTriangle size={13} aria-hidden="true" />
-              {task.carryCount}회 이월
-            </span>
+              {task.carryCount}{tr("회 이월")}</span>
           )}
-          {cancelled && <span className="task-row__cancelled" aria-hidden="true">중단됨</span>}
+          {cancelled && <span className="task-row__cancelled" aria-hidden="true">{tr("중단됨")}</span>}
         </div>
         </div>
       )}
       {(onEdit || onDelete) && (
         <div className="task-row__tools">
           {onEdit && (
-            <button className="task-row__tool" type="button" aria-label={`${task.title} 수정`} onClick={onEdit}>
+            <button className="task-row__tool" type="button" aria-label={tr("{{v0}} 수정", { v0: task.title })} onClick={onEdit}>
               <Pencil size={14} />
             </button>
           )}
           {onDelete && (
-            <button className="task-row__tool task-row__tool--delete" type="button" aria-label={`${task.title} 삭제`} onClick={onDelete}>
+            <button className="task-row__tool task-row__tool--delete" type="button" aria-label={tr("{{v0}} 삭제", { v0: task.title })} onClick={onDelete}>
               <Trash2 size={14} />
             </button>
           )}
@@ -143,14 +141,14 @@ export function TaskRow({
         <button
           className="button button--quiet button--small task-row__start"
           type="button"
-          aria-label={`${task.title} ${running ? '계속' : '시작'}`}
+          aria-label={`${task.title} ${running ? tr("계속") : tr("시작")}`}
           onClick={(event) => {
             event.stopPropagation();
             onStart();
           }}
         >
           <Play size={14} fill="currentColor" aria-hidden="true" />
-          {running ? '계속' : '시작'}
+          {running ? tr("계속") : tr("시작")}
         </button>
       )}
     </div>

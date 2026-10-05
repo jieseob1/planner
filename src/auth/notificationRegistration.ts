@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { accountApi } from '../api/accountApi';
@@ -31,7 +32,7 @@ export const storedNotificationDeviceId = (subject: string | null): string | nul
 };
 
 export const getOrCreateNotificationDeviceId = (subject: string | null): string => {
-  if (!subject) throw new Error('알림 기기를 등록하려면 로그인 정보가 필요합니다.');
+  if (!subject) throw new Error(tr("알림 기기를 등록하려면 로그인 정보가 필요합니다."));
   const existing = storedNotificationDeviceId(subject);
   if (existing) return existing;
   const created = crypto.randomUUID();
@@ -60,7 +61,7 @@ const settleWithin = async <T,>(operation: Promise<T>, timeoutMs: number, label:
     return await Promise.race([
       operation,
       new Promise<never>((_, reject) => {
-        timeout = window.setTimeout(() => reject(new Error(`${label} 시간 초과`)), timeoutMs);
+        timeout = window.setTimeout(() => reject(new Error(tr("{{v0}} 시간 초과", { v0: label }))), timeoutMs);
       })
     ]);
   } finally {
@@ -101,17 +102,17 @@ export const cleanupNotificationRegistration = async (
 
   if (id) {
     try {
-      await settleWithin(accountApi.disableDevice(id), timeoutMs, '서버 알림 기기 해지');
+      await settleWithin(accountApi.disableDevice(id), timeoutMs, tr("서버 알림 기기 해지"));
       result.remote = 'disabled';
     } catch (reason) {
-      result.errors.push(`서버 알림 기기 해지 실패: ${reasonMessage(reason)}`);
+      result.errors.push(tr("서버 알림 기기 해지 실패: {{v0}}", { v0: reasonMessage(reason) }));
     }
   }
 
   try {
-    result.local = await settleWithin(revokeLocalSubscription(), timeoutMs, '이 기기의 푸시 구독 해지');
+    result.local = await settleWithin(revokeLocalSubscription(), timeoutMs, tr("이 기기의 푸시 구독 해지"));
   } catch (reason) {
-    result.errors.push(`이 기기의 푸시 구독 해지 실패: ${reasonMessage(reason)}`);
+    result.errors.push(tr("이 기기의 푸시 구독 해지 실패: {{v0}}", { v0: reasonMessage(reason) }));
   } finally {
     // Never let another account reuse an identifier whose ownership is stale
     // or unknown. A later opt-in creates a new subject-scoped identifier.

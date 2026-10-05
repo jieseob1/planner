@@ -1,12 +1,13 @@
+import { tr, getLanguage } from '../i18n';
 import { getAccessToken } from '../auth/accessToken';
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
 
 export class AdminApiError extends Error {
   constructor(readonly status: number) {
-    super(status === 401 ? '로그인이 만료되었습니다. 다시 로그인해 주세요.'
-      : status === 403 ? '관리자 권한이 필요한 화면입니다.'
-        : '운영 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    super(status === 401 ? tr("로그인이 만료되었습니다. 다시 로그인해 주세요.")
+      : status === 403 ? tr("관리자 권한이 필요한 화면입니다.")
+        : tr("운영 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."));
     this.name = 'AdminApiError';
   }
 }
@@ -15,7 +16,7 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   const token = await getAccessToken();
   const response = await fetch(`${baseUrl}/api/v1/admin${path}`, {
     method: 'GET', cache: 'no-store', signal,
-    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+    headers: { Accept: 'application/json', 'Accept-Language': getLanguage(), ...(token ? { Authorization: `Bearer ${token}` } : {}) }
   });
   if (!response.ok) throw new AdminApiError(response.status);
   return response.json() as Promise<T>;

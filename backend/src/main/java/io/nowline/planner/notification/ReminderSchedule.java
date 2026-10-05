@@ -2,6 +2,7 @@ package io.nowline.planner.notification;
 
 import io.nowline.planner.account.UserPreferenceService.Preferences;
 import io.nowline.planner.domain.PlannerSnapshot;
+import io.nowline.planner.account.DisplayLanguage;
 
 import java.time.Instant;
 import java.time.LocalTime;
@@ -32,16 +33,16 @@ final class ReminderSchedule {
                 .atZone(zone).toInstant();
         Instant target = start.minus(preferences.blockReminderMinutes(), ChronoUnit.MINUTES);
         String key = "block:v2:" + block.id() + ":" + start.toEpochMilli() + ":" + preferences.blockReminderMinutes();
-        return new BlockReminder(key, start, target, block.title(), preferences.blockReminderMinutes(), "/today?date=" + block.date());
+        return new BlockReminder(key, start, target, block.title(), preferences.blockReminderMinutes(), "/today?date=" + block.date(), preferences.locale());
     }
 
     static boolean withinDispatchWindow(Instant now, Instant target) {
         return !now.isBefore(target) && !now.isAfter(target.plusSeconds(120));
     }
 
-    record BlockReminder(String key, Instant start, Instant target, String title, int leadMinutes, String targetPath) {
+    record BlockReminder(String key, Instant start, Instant target, String title, int leadMinutes, String targetPath, String locale) {
         String body() {
-            return leadMinutes == 0 ? "지금 시작할 시간입니다." : leadMinutes + "분 뒤 시작합니다.";
+            return DisplayLanguage.blockBody(locale, leadMinutes);
         }
 
         boolean notStarted(Instant now) {

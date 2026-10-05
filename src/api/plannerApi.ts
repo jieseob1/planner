@@ -1,3 +1,4 @@
+import { tr, getLanguage, localizeApiDetail } from '../i18n';
 import type { PlannerAggregate, PlannerSnapshot, ProblemDetails } from '../domain/types';
 import { getAccessToken } from '../auth/accessToken';
 
@@ -41,7 +42,7 @@ export class PlannerApiError extends Error {
 
 export class PlannerConflictError extends PlannerApiError {
   constructor(status: 409 | 412, problem: ProblemDetails | null) {
-    super(status, problem?.detail ?? 'Planner revision conflict', problem);
+    super(status, localizeApiDetail(problem?.detail ?? '', tr("다른 탭이나 기기에서 먼저 수정했습니다. 입력은 유지됩니다. 최신 내용과 비교해 주세요.")) || tr("다른 탭이나 기기에서 먼저 수정했습니다. 입력은 유지됩니다. 최신 내용과 비교해 주세요."), problem);
     this.name = 'PlannerConflictError';
   }
 }
@@ -92,7 +93,7 @@ const throwForResponse = async (response: Response): Promise<never> => {
   }
   throw new PlannerApiError(
     response.status,
-    problem?.detail ?? problem?.title ?? `Planner API request failed (${response.status})`,
+    localizeApiDetail(problem?.detail ?? problem?.title ?? '', tr("저장하지 못했습니다. 입력을 유지하고 다시 시도해 주세요.")) || tr("저장하지 못했습니다. 입력을 유지하고 다시 시도해 주세요."),
     problem
   );
 };
@@ -125,7 +126,7 @@ export const createPlannerApiClient = ({
   const commonHeaders = async () => {
     const accessToken = await accessTokenProvider();
     return {
-      Accept: 'application/json',
+      Accept: 'application/json', 'Accept-Language': getLanguage(),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
     };
   };
@@ -141,7 +142,7 @@ export const createPlannerApiClient = ({
     if (current.revision !== revision) throw new PlannerConflictError(412, null);
     const refreshed = response.headers.get('ETag');
     if (!refreshed || !/^"planner-[^"\s]+-\d+"$/.test(refreshed)) {
-      throw new PlannerApiError(502, '서버의 저장 검증 정보를 확인할 수 없습니다. 로컬 변경은 유지됩니다.');
+      throw new PlannerApiError(502, tr("서버의 저장 검증 정보를 확인할 수 없습니다. 로컬 변경은 유지됩니다."));
     }
     return refreshed;
   };

@@ -1,3 +1,4 @@
+import { tr, useLocale } from '../i18n';
 import { useEffect, useMemo, useState, type CSSProperties, type DragEvent, type FormEvent } from 'react';
 import {
   AlertTriangle,
@@ -51,8 +52,8 @@ interface PlannerBlockDraft {
 function getWeekLabel(days: ReturnType<typeof getWeekDays>) {
   const first = days[0];
   const last = days[days.length - 1];
-  const start = `${first.month}월 ${first.date}일`;
-  const end = first.month === last.month ? `${last.date}일` : `${last.month}월 ${last.date}일`;
+  const start = tr("{{v0}}월 {{v1}}일", { v0: first.month, v1: first.date });
+  const end = first.month === last.month ? tr("{{v0}}일", { v0: last.date }) : tr("{{v0}}월 {{v1}}일", { v0: last.month, v1: last.date });
   return `${start} – ${end}`;
 }
 
@@ -64,6 +65,7 @@ function getSplitEstimate(durationMinutes: number) {
 }
 
 export function GoalPlannerScreen() {
+  const language = useLocale();
   const { timeZone } = useTimeZone();
   const {
     tasks,
@@ -98,7 +100,7 @@ export function GoalPlannerScreen() {
 
   const weekDays = useMemo(
     () => getWeekDays(plannerWeekOffset, new Date(), timeZone),
-    [plannerWeekOffset, timeZone]
+    [plannerWeekOffset, timeZone, language]
   );
   const weekDateSet = useMemo(() => new Set(weekDays.map((day) => day.isoDate)), [weekDays]);
   const weekBlocks = useMemo(
@@ -174,8 +176,8 @@ export function GoalPlannerScreen() {
       }, 0);
       rows.push({
         id: 'inbox',
-        title: '연결되지 않은 할 일',
-        parentTitle: '수집함',
+        title: tr("연결되지 않은 할 일"),
+        parentTitle: tr("수집함"),
         neededHours: inboxTasks.reduce((sum, task) => sum + task.estimateMinutes / 60, 0),
         actualHours: 0,
         plannedMinutes
@@ -184,8 +186,8 @@ export function GoalPlannerScreen() {
 
     rows.push({
       id: 'calendar',
-      title: '개인 일정',
-      parentTitle: '목표 없이',
+      title: tr("개인 일정"),
+      parentTitle: tr("목표 없이"),
       neededHours: 0,
       actualHours: 0,
       plannedMinutes: weekBlocks
@@ -238,7 +240,7 @@ export function GoalPlannerScreen() {
 
   const openAddTask = (sourceTask?: Task) => {
     setEditingTask(null);
-    setAddTitle(sourceTask ? `${sourceTask.title} — 1단계` : '');
+    setAddTitle(sourceTask ? tr("{{v0}} — 1단계", { v0: sourceTask.title }) : '');
     setAddOutcomeId(sourceTask?.outcomeId ?? '');
     setAddEstimate(sourceTask ? String(getSplitEstimate(sourceTask.estimateMinutes)) : '25');
     setAddNote('');
@@ -275,7 +277,7 @@ export function GoalPlannerScreen() {
   const placeTask = (task: Task, day: DayKey, startMinutes: number, durationMinutes: number) => {
     const conflict = findConflict(day, startMinutes, durationMinutes);
     if (conflict) {
-      const message = `${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`;
+      const message = tr("{{v0}} {{v1}}과 시간이 겹칩니다.", { v0: formatClock(conflict.startMinutes), v1: conflict.title });
       setPlacementError(message);
       return false;
     }
@@ -290,11 +292,11 @@ export function GoalPlannerScreen() {
       weekOffset: plannerWeekOffset
     });
     if (saved === false) {
-      setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시작 시간을 바꿔주세요.');
+      setPlacementError(tr("다른 일정과 시간이 겹칩니다. 날짜나 시작 시간을 바꿔주세요."));
       return false;
     }
     setPlacementError('');
-    showNotice(`${task.title} · ${formatClock(startMinutes)}에 배치했어요.`);
+    showNotice(tr("{{v0}} · {{v1}}에 배치했어요.", { v0: task.title, v1: formatClock(startMinutes) }));
     return true;
   };
 
@@ -309,8 +311,8 @@ export function GoalPlannerScreen() {
         note: addNote,
         subtasks: addSubtasks
       });
-      if (!saved) { showNotice('수정하지 못했습니다. 입력 내용과 동기화 상태를 확인해 주세요.'); return; }
-      showNotice(`${addTitle.trim()}을 수정했어요.`);
+      if (!saved) { showNotice(tr("수정하지 못했습니다. 입력 내용과 동기화 상태를 확인해 주세요.")); return; }
+      showNotice(tr("{{v0}}을 수정했어요.", { v0: addTitle.trim() }));
     } else {
       const taskId = addTask({
         title: addTitle.trim(),
@@ -318,9 +320,9 @@ export function GoalPlannerScreen() {
         estimateMinutes: Number(addEstimate),
         subtasks: addSubtasks
       });
-      if (!taskId) { showNotice('할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요.'); return; }
+      if (!taskId) { showNotice(tr("할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요.")); return; }
       if (taskId && addNote.trim()) updateTask(taskId, { note: addNote });
-      showNotice(`${addTitle.trim()}을 할 일에 추가했어요.`);
+      showNotice(tr("{{v0}}을 할 일에 추가했어요.", { v0: addTitle.trim() }));
     }
     setAddOpen(false);
     setEditingTask(null);
@@ -329,7 +331,7 @@ export function GoalPlannerScreen() {
   const saveBlockDraft = (value: TimeBlockEditorValue) => {
     const date = value.date ?? weekDays.find((day) => day.key === value.day)?.isoDate;
     if (!date || date < calendarMinDate || date > calendarMaxDate) {
-      setPlacementError('저장 가능한 날짜 범위를 벗어났습니다. 날짜를 다시 선택해 주세요.'); return;
+      setPlacementError(tr("저장 가능한 날짜 범위를 벗어났습니다. 날짜를 다시 선택해 주세요.")); return;
     }
     const weekOffset = getWeekOffsetForDate(date, new Date(), timeZone);
     const day = getDayKeyForDate(date);
@@ -343,7 +345,7 @@ export function GoalPlannerScreen() {
       weekOffset
     }, { ignoreBlockId: value.blockId });
     if (conflict && !sameSlot) {
-      setPlacementError(`${formatClock(conflict.startMinutes)} ${conflict.title}과 시간이 겹칩니다.`);
+      setPlacementError(tr("{{v0}} {{v1}}과 시간이 겹칩니다.", { v0: formatClock(conflict.startMinutes), v1: conflict.title }));
       return;
     }
 
@@ -356,7 +358,7 @@ export function GoalPlannerScreen() {
         subtasks: value.subtasks
       });
       if (!taskId) {
-        setPlacementError('새 할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요.');
+        setPlacementError(tr("새 할 일을 만들지 못했습니다. 입력 내용을 확인해 주세요."));
         return;
       }
     }
@@ -374,19 +376,19 @@ export function GoalPlannerScreen() {
       ...(value.mode === 'existing-task' ? { taskPatch: value.taskPatch ?? {} } : {})
     })) {
       if (value.mode === 'new-task' && taskId) removeTask(taskId);
-      setPlacementError('다른 일정과 시간이 겹칩니다. 날짜나 시간을 바꿔주세요.');
+      setPlacementError(tr("다른 일정과 시간이 겹칩니다. 날짜나 시간을 바꿔주세요."));
       return;
     }
     setPlacementDraft(null);
     setPlacementError('');
-    showNotice(`${value.title}을 ${date} ${formatClock(value.startMinutes)}에 ${value.blockId ? '수정' : '추가'}했어요.`);
+    showNotice(tr("{{v0}}을 {{v1}} {{v2}}에 {{v3}}했어요.", { v0: value.title, v1: date, v2: formatClock(value.startMinutes), v3: value.blockId ? tr('수정') : tr('추가') }));
   };
 
   const deleteBlockDraft = () => {
     if (!placementDraft?.blockId || !removeTimeBlock(placementDraft.blockId)) return;
     setPlacementDraft(null);
     setPlacementError('');
-    showNotice('일정에서 삭제했어요. 연결된 할 일은 그대로 남아 있습니다.');
+    showNotice(tr("일정에서 삭제했어요. 연결된 할 일은 그대로 남아 있습니다."));
   };
 
   useEffect(() => {
@@ -397,7 +399,7 @@ export function GoalPlannerScreen() {
       setEditingTask(null);
       setAddSubtasks([]);
       setAddNote('');
-      setAddTitle(`${task.title} — 1단계`);
+      setAddTitle(tr("{{v0}} — 1단계", { v0: task.title }));
       setAddOutcomeId(task.outcomeId ?? '');
       setAddEstimate(String(getSplitEstimate(task.estimateMinutes)));
       setAddOpen(true);
@@ -414,65 +416,65 @@ export function GoalPlannerScreen() {
     const task = tasks.find((item) => item.id === taskId);
     if (!task) return;
     const placed = placeTask(task, day, startMinutes, task.estimateMinutes);
-    if (!placed) showNotice(`${task.title}은 다른 일정과 겹쳐 배치하지 않았어요.`);
+    if (!placed) showNotice(tr("{{v0}}은 다른 일정과 겹쳐 배치하지 않았어요.", { v0: task.title }));
   };
 
   return (
     <div className="page page--planner planner-nowline">
       <header className="page-header page-header--compact planner-header">
         <div>
-          <p className="eyebrow" aria-live="polite">{calendarView === 'week' ? `주간 Planner · ${getWeekLabel(weekDays)}` : '월간 Planner'}</p>
-          <h1>{calendarView === 'week' ? '이번 주 할 일과 일정을 함께 봅니다.' : '한 달의 일정을 한눈에 봅니다.'}</h1>
-          <p className="page-header__description">목표 연결은 선택입니다. 할 일만 적거나 일정만 만들어도 바로 저장됩니다.</p>
+          <p className="eyebrow" aria-live="polite">{calendarView === 'week' ? tr("주간 Planner · {{v0}}", { v0: getWeekLabel(weekDays) }) : tr("월간 Planner")}</p>
+          <h1>{calendarView === 'week' ? tr("이번 주 할 일과 일정을 함께 봅니다.") : tr("한 달의 일정을 한눈에 봅니다.")}</h1>
+          <p className="page-header__description">{tr("목표 연결은 선택입니다. 할 일만 적거나 일정만 만들어도 바로 저장됩니다.")}</p>
         </div>
-        {calendarView === 'week' && <div className="week-switcher" aria-label="주 변경">
-          <button className="icon-button" type="button" aria-label="이전 주" onClick={() => setPlannerWeekOffset(plannerWeekOffset - 1)}><ChevronLeft size={19} /></button>
+        {calendarView === 'week' && <div className="week-switcher" aria-label={tr("주 변경")}>
+          <button className="icon-button" type="button" aria-label={tr("이전 주")} onClick={() => setPlannerWeekOffset(plannerWeekOffset - 1)}><ChevronLeft size={19} /></button>
           <button className="button button--secondary button--small" type="button" onClick={() => setPlannerWeekOffset(0)}>
-            {plannerWeekOffset === 0 ? '이번 주' : '이번 주로'}
+            {plannerWeekOffset === 0 ? tr("이번 주") : tr("이번 주로")}
           </button>
-          <button className="icon-button" type="button" aria-label="다음 주" onClick={() => setPlannerWeekOffset(plannerWeekOffset + 1)}><ChevronRight size={19} /></button>
+          <button className="icon-button" type="button" aria-label={tr("다음 주")} onClick={() => setPlannerWeekOffset(plannerWeekOffset + 1)}><ChevronRight size={19} /></button>
         </div>}
       </header>
 
-      <div className="planner-view-switch" role="group" aria-label="일정 보기 방식"><button type="button" aria-pressed={calendarView === 'week'} onClick={() => setCalendarView('week')}>주간</button><button type="button" aria-pressed={calendarView === 'month'} onClick={() => { if (calendarView !== 'month') setMonthSelectedDate(plannerWeekOffset === 0 ? actualToday : weekDays[0].isoDate); setCalendarView('month'); }}>월간</button></div>
+      <div className="planner-view-switch" role="group" aria-label={tr("일정 보기 방식")}><button type="button" aria-pressed={calendarView === 'week'} onClick={() => setCalendarView('week')}>{tr("주간")}</button><button type="button" aria-pressed={calendarView === 'month'} onClick={() => { if (calendarView !== 'month') setMonthSelectedDate(plannerWeekOffset === 0 ? actualToday : weekDays[0].isoDate); setCalendarView('month'); }}>{tr("월간")}</button></div>
 
       {calendarView === 'week' && plannerWeekOffset === 1 && review.selectedTopTaskIds.length > 0 && (
         <div className="next-week-priority" role="status">
           <Sparkles size={17} />
-          <span><strong>회고에서 고른 다음 주 Top 3를 먼저 보여드려요.</strong> 이제 시간을 배치하면 계획이 완성됩니다.</span>
+          <span><strong>{tr("회고에서 고른 다음 주 Top 3를 먼저 보여드려요.")}</strong> {' '}{tr("이제 시간을 배치하면 계획이 완성됩니다.")}</span>
         </div>
       )}
 
-      {calendarView === 'week' && <section className="planner-capacity-toolbar" aria-label="주간 계획 도구">
+      {calendarView === 'week' && <section className="planner-capacity-toolbar" aria-label={tr("주간 계획 도구")}>
         <div className="planner-capacity-toolbar__capacity">
           <div className="planning-number">
-            <span>{availableHours > 0 ? '계획 / 가용' : '계획한 시간'}</span>
-            <strong>{plannedHours.toFixed(1)}<small>{availableHours > 0 ? ` / ${availableHours.toFixed(0)}시간` : '시간'}</small></strong>
+            <span>{availableHours > 0 ? tr("계획 / 가용") : tr("계획한 시간")}</span>
+            <strong>{plannedHours.toFixed(1)}<small>{availableHours > 0 ? tr(" / {{v0}}시간", { v0: availableHours.toFixed(0) }) : tr("시간")}</small></strong>
           </div>
-          {availableHours > 0 ? <><CapacityBar used={plannedHours} total={availableHours} label="계획된 주간 용량" /><span className={clsx('capacity-percent', capacityPercentage >= 85 && 'capacity-percent--warning')}>{capacityPercentage}%</span></> : <span className="field-help">가용 시간 미설정 · 계획한 시간만 표시합니다.</span>}
+          {availableHours > 0 ? <><CapacityBar used={plannedHours} total={availableHours} label={tr("계획된 주간 용량")} /><span className={clsx('capacity-percent', capacityPercentage >= 85 && 'capacity-percent--warning')}>{capacityPercentage}%</span></> : <span className="field-help">{tr("가용 시간 미설정 · 계획한 시간만 표시합니다.")}</span>}
         </div>
 
         {outcomes.length > 0 ? (
           <div className={clsx('capacity-warning', requiredHours > availableHours && 'capacity-warning--danger')}>
             <AlertTriangle size={18} />
             <div>
-              <strong>목표 결과에 {requiredHours.toFixed(0)}시간 필요</strong>
+              <strong>{tr("목표 결과에")}{' '}{requiredHours.toFixed(0)}{tr("시간 필요")}</strong>
               <span>
                 {requiredHours > availableHours
-                  ? `${(requiredHours - availableHours).toFixed(0)}시간 초과 · 우선순위를 줄여야 합니다.`
-                  : '현재 가용 시간 안에서 실행할 수 있습니다.'}
+                  ? tr("{{v0}}시간 초과 · 우선순위를 줄여야 합니다.", { v0: (requiredHours - availableHours).toFixed(0) })
+                  : tr("현재 가용 시간 안에서 실행할 수 있습니다.")}
               </span>
             </div>
-            <Link to="/goals">목표 보기 <ArrowRight size={15} /></Link>
+            <Link to="/goals">{tr("목표 보기")}{' '}<ArrowRight size={15} /></Link>
           </div>
         ) : (
           <div className="capacity-warning capacity-warning--freeform">
             <CalendarRange size={18} />
             <div>
-              <strong>목표 없이 바로 시작할 수 있어요.</strong>
-              <span>일반 Todo와 개인 일정도 같은 화면에서 관리합니다.</span>
+              <strong>{tr("목표 없이 바로 시작할 수 있어요.")}</strong>
+              <span>{tr("일반 Todo와 개인 일정도 같은 화면에서 관리합니다.")}</span>
             </div>
-            <button type="button" onClick={() => openAddTask()}>할 일 추가 <ArrowRight size={15} /></button>
+            <button type="button" onClick={() => openAddTask()}>{tr("할 일 추가")}{' '}<ArrowRight size={15} /></button>
           </div>
         )}
 
@@ -480,16 +482,15 @@ export function GoalPlannerScreen() {
           <button
             className="button button--secondary button--small"
             type="button"
-            onClick={() => showNotice(carryoverCount > 0 ? `${carryoverCount}개 이월 작업을 먼저 확인하세요.` : '확인할 이월 작업이 없습니다.')}
+            onClick={() => showNotice(carryoverCount > 0 ? tr("{{v0}}개 이월 작업을 먼저 확인하세요.", { v0: carryoverCount }) : tr("확인할 이월 작업이 없습니다."))}
           >
-            이월 {carryoverCount}
+            {tr("이월")}{carryoverCount}
           </button>
           <Link
             className="button button--primary button--small"
             to="/today"
           >
-            <Check size={15} /> 오늘 실행 보기
-          </Link>
+            <Check size={15} /> {tr("오늘 실행 보기")}</Link>
         </div>
       </section>}
 
@@ -497,20 +498,20 @@ export function GoalPlannerScreen() {
         className={clsx('planner-workspace planner-workspace--outcomes', calendarView === 'month' && 'planner-workspace--month')}
         style={{ '--planner-context-width': '296px' } as CSSProperties}
       >
-        <aside className="backlog-panel backlog-panel--context" aria-label="내 할 일">
+        <aside className="backlog-panel backlog-panel--context" aria-label={tr("내 할 일")}>
           <details className="backlog-panel__disclosure" open>
             <summary>
               <span>
-                <span className="eyebrow">TODO</span>
-                <strong>내 할 일</strong>
+                <span className="eyebrow">{tr("TODO")}</span>
+                <strong>{tr("내 할 일")}</strong>
               </span>
               <span className="count-badge">{tasks.filter((task) => task.status !== 'cancelled').length}</span>
             </summary>
 
             <div className="backlog-panel__controls">
-              <p className="backlog-panel__guide"><GripVertical size={14} /> {calendarView === 'month' ? '날짜를 고른 뒤 할 일 제목을 눌러 시간을 정하세요.' : '끌어서 배치하거나 제목을 눌러 시간을 정하세요.'}</p>
+              <p className="backlog-panel__guide"><GripVertical size={14} /> {calendarView === 'month' ? tr("날짜를 고른 뒤 할 일 제목을 눌러 시간을 정하세요.") : tr("끌어서 배치하거나 제목을 눌러 시간을 정하세요.")}</p>
               <button type="button" onClick={() => setShowCompleted((value) => !value)}>
-                {showCompleted ? '완료 숨기기' : `완료 보기 ${tasks.filter((task) => task.status === 'done').length}`}
+                {showCompleted ? tr("완료 숨기기") : tr("완료 보기 {{v0}}", { v0: tasks.filter((task) => task.status === 'done').length })}
               </button>
             </div>
 
@@ -521,7 +522,7 @@ export function GoalPlannerScreen() {
                   <section key={outcomeId} className="backlog-group">
                     <header>
                       <span className="outcome-dot" />
-                      <strong>{outcome?.title ?? '연결되지 않은 할 일'}</strong>
+                      <strong>{outcome?.title ?? tr("연결되지 않은 할 일")}</strong>
                       <span>{formatMinutes(groupTasks.reduce((sum, task) => sum + task.estimateMinutes, 0))}</span>
                     </header>
                     {groupTasks.map((task) => (
@@ -547,34 +548,33 @@ export function GoalPlannerScreen() {
               {byOutcome.length === 0 && (
                 <div className="backlog-empty">
                   <Sparkles size={21} />
-                  <strong>표시할 할 일이 없습니다.</strong>
-                  <span>아래에서 새 할 일을 만들거나 완료 항목을 확인하세요.</span>
+                  <strong>{tr("표시할 할 일이 없습니다.")}</strong>
+                  <span>{tr("아래에서 새 할 일을 만들거나 완료 항목을 확인하세요.")}</span>
                 </div>
               )}
             </div>
             <button className="button button--ghost button--full" type="button" onClick={() => openAddTask()}>
-              <Plus size={17} /> 새 할 일
-            </button>
+              <Plus size={17} /> {tr("새 할 일")}</button>
           </details>
         </aside>
 
-        {calendarView === 'month' ? <MonthCalendar today={actualToday} initialDate={monthSelectedDate} blocks={timeBlocks} minDate={calendarMinDate} maxDate={calendarMaxDate} onSelectDate={setMonthSelectedDate} onAdd={openMonthDate} onEdit={openBlock} /> : <section className="outcome-planner" aria-label="주간 결과와 시간 배치표">
+        {calendarView === 'month' ? <MonthCalendar today={actualToday} initialDate={monthSelectedDate} blocks={timeBlocks} minDate={calendarMinDate} maxDate={calendarMaxDate} onSelectDate={setMonthSelectedDate} onAdd={openMonthDate} onEdit={openBlock} /> : <section className="outcome-planner" aria-label={tr("주간 결과와 시간 배치표")}>
           <header className="calendar-panel__toolbar outcome-planner__toolbar">
-            <div><CalendarRange size={17} /> 7일 결과 / 시간</div>
-            <div className="calendar-legend" aria-label="시간 블록 범례">
-              <span><i className="legend-dot legend-dot--focus" />계획</span>
-              <span><i className="legend-dot legend-dot--external" />외부 일정 · 읽기 전용</span>
-              <span><i className="legend-dot legend-dot--drop" />배치 가능</span>
+            <div><CalendarRange size={17} /> {' '}{tr("7일 결과 / 시간")}</div>
+            <div className="calendar-legend" aria-label={tr("시간 블록 범례")}>
+              <span><i className="legend-dot legend-dot--focus" />{tr("계획")}</span>
+              <span><i className="legend-dot legend-dot--external" />{tr("외부 일정 · 읽기 전용")}</span>
+              <span><i className="legend-dot legend-dot--drop" />{tr("배치 가능")}</span>
             </div>
           </header>
 
-          <p className="horizontal-scroll-hint" id="planner-scroll-hint">표를 좌우로 밀어 요일별 계획을 확인하세요.</p>
+          <p className="horizontal-scroll-hint" id="planner-scroll-hint">{tr("표를 좌우로 밀어 요일별 계획을 확인하세요.")}</p>
           <div className="outcome-grid-scroll" tabIndex={0} aria-describedby="planner-scroll-hint">
-            <div className="outcome-grid" role="table" aria-label="목표 결과별 7일 시간표">
+            <div className="outcome-grid" role="table" aria-label={tr("목표 결과별 7일 시간표")}>
               <div className="outcome-grid__row outcome-grid__row--head" role="row">
                 <div className="outcome-grid__corner" role="columnheader">
-                  <span>분류</span>
-                  <strong>할 일 / 일정</strong>
+                  <span>{tr("분류")}</span>
+                  <strong>{tr("할 일 / 일정")}</strong>
                 </div>
                 {weekDays.map((day) => (
                   <div
@@ -582,7 +582,7 @@ export function GoalPlannerScreen() {
                     className={clsx('outcome-grid__day-header', isActualToday(day.isoDate, actualToday) && 'is-today')}
                     role="columnheader"
                   >
-                    <span>{day.short}요일</span>
+                    <span>{day.short}{tr("요일")}</span>
                     <strong>{day.date}</strong>
                   </div>
                 ))}
@@ -590,8 +590,8 @@ export function GoalPlannerScreen() {
 
               <div className="outcome-grid__row outcome-grid__row--external" role="row">
                 <div className="outcome-lane-head outcome-lane-head--external" role="rowheader">
-                  <span><Lock size={13} /> 외부 일정</span>
-                  <small>읽기 전용</small>
+                  <span><Lock size={13} /> {' '}{tr("외부 일정")}</span>
+                  <small>{tr("읽기 전용")}</small>
                 </div>
                 {weekDays.map((day) => {
                   const externalBlocks = weekBlocks.filter((block) => block.day === day.key && block.external);
@@ -621,18 +621,18 @@ export function GoalPlannerScreen() {
                       <span className="outcome-lane-head__parent">{lane.parentTitle}</span>
                       <strong>{lane.title}</strong>
                       {isCalendarLane ? (
-                        <p className="outcome-lane-head__freeform">약속, 이동, 휴식처럼 할 일이 아닌 일정</p>
+                        <p className="outcome-lane-head__freeform">{tr("약속, 이동, 휴식처럼 할 일이 아닌 일정")}</p>
                       ) : (
                         <>
                           <dl className="outcome-lane-head__metrics">
-                            <div><dt>필요</dt><dd>{lane.neededHours.toFixed(0)}h</dd></div>
-                            <div><dt>계획</dt><dd>{formatMinutes(lane.plannedMinutes)}</dd></div>
-                            <div><dt>실제</dt><dd>{lane.actualHours.toFixed(0)}h</dd></div>
+                            <div><dt>{tr("필요")}</dt><dd>{lane.neededHours.toFixed(0)}h</dd></div>
+                            <div><dt>{tr("계획")}</dt><dd>{formatMinutes(lane.plannedMinutes)}</dd></div>
+                            <div><dt>{tr("실제")}</dt><dd>{lane.actualHours.toFixed(0)}h</dd></div>
                           </dl>
                           <div className="outcome-lane-head__signal">
                             <span><i style={{ width: `${Math.min(100, allocationRatio * 100)}%` }} /></span>
                             <small className={shortageMinutes > 0 ? 'is-short' : 'is-ready'}>
-                              {shortageMinutes > 0 ? `${formatMinutes(shortageMinutes)} 부족` : '필요 시간 확보'}
+                              {shortageMinutes > 0 ? tr("{{v0}} 부족", { v0: formatMinutes(shortageMinutes) }) : tr("필요 시간 확보")}
                             </small>
                           </div>
                         </>
@@ -653,7 +653,7 @@ export function GoalPlannerScreen() {
                               key={block.id}
                               type="button"
                               className={clsx('outcome-time-block', isCalendarLane && 'outcome-time-block--event')}
-                              aria-label={`${block.title}, ${formatClock(block.startMinutes)}, 일정 수정`}
+                              aria-label={tr("{{v0}}, {{v1}}, 일정 수정", { v0: block.title, v1: formatClock(block.startMinutes) })}
                               onClick={() => openBlock(block)}
                             >
                               <span><Clock3 size={11} /> {formatClock(block.startMinutes)}</span>
@@ -664,7 +664,7 @@ export function GoalPlannerScreen() {
                           <button
                             className={clsx('outcome-drop-target', blocks.length === 0 && 'outcome-drop-target--empty')}
                             type="button"
-                            aria-label={`${day.short}요일 ${formatClock(defaultPlacementStart)}에 할 일 또는 일정 추가`}
+                            aria-label={tr("{{v0}}요일 {{v1}}에 할 일 또는 일정 추가", { v0: day.short, v1: formatClock(defaultPlacementStart) })}
                             onClick={() => openPlacement(
                               null,
                               day.key,
@@ -677,7 +677,7 @@ export function GoalPlannerScreen() {
                             }}
                             onDrop={(event) => onDrop(event, day.key, defaultPlacementStart)}
                           >
-                            <Plus size={13} /> {blocks.length === 0 ? '추가' : '하나 더'}
+                            <Plus size={13} /> {blocks.length === 0 ? tr("추가") : tr("하나 더")}
                           </button>
                         </div>
                       );
@@ -690,10 +690,10 @@ export function GoalPlannerScreen() {
         </section>}
       </div>
 
-      {calendarView === 'week' && <section className="allocation-strip allocation-signals" aria-label="목표별 시간 배분">
+      {calendarView === 'week' && <section className="allocation-strip allocation-signals" aria-label={tr("목표별 시간 배분")}>
         <div className="allocation-strip__title">
-          <span className="eyebrow">배분 신호</span>
-          <strong>결과별 이번 주 판단</strong>
+          <span className="eyebrow">{tr("배분 신호")}</span>
+          <strong>{tr("결과별 이번 주 판단")}</strong>
         </div>
         <div className="allocation-strip__items allocation-signals__items">
           {lanes.filter((lane) => lane.id !== 'calendar').slice(0, 4).map((lane) => {
@@ -705,7 +705,7 @@ export function GoalPlannerScreen() {
                 <span>{lane.title}</span>
                 <strong>{formatMinutes(lane.plannedMinutes)} / {lane.neededHours.toFixed(0)}h</strong>
                 <div><i style={{ width: `${Math.min(100, ratio * 100)}%` }} /></div>
-                <small>{state === 'ready' ? '충분' : state === 'tight' ? '주의' : '부족'}</small>
+                <small>{state === 'ready' ? tr("충분") : state === 'tight' ? tr("주의") : tr("부족")}</small>
               </div>
             );
           })}
@@ -742,8 +742,8 @@ export function GoalPlannerScreen() {
 
       {addOpen && (
         <Modal
-          title={editingTask ? '할 일 수정' : '새 할 일'}
-          description="목표 연결은 선택입니다. 일반 Todo처럼 제목만 입력해도 저장됩니다."
+          title={editingTask ? tr("할 일 수정") : tr("새 할 일")}
+          description={tr("목표 연결은 선택입니다. 일반 Todo처럼 제목만 입력해도 저장됩니다.")}
           onClose={() => {
             setAddOpen(false);
             setEditingTask(null);
@@ -752,26 +752,26 @@ export function GoalPlannerScreen() {
           <form onSubmit={submitTask}>
             <div className="form-grid">
               <label className="field">
-                  <span className="field-label">할 일</span>
+                  <span className="field-label">{tr("할 일")}</span>
                 <input
                   data-autofocus
                   value={addTitle}
                   maxLength={500}
                   onChange={(event) => setAddTitle(event.target.value)}
-                  placeholder="예: 실패 흐름을 세 단계로 나누기"
+                  placeholder={tr("예: 실패 흐름을 세 단계로 나누기")}
                   required
                 />
               </label>
               <div className="form-grid form-grid--two">
                 <label className="field">
-                  <span className="field-label">목표 연결 <small>선택</small></span>
+                  <span className="field-label">{tr("목표 연결")}{' '}<small>{tr("선택")}</small></span>
                   <select value={addOutcomeId} onChange={(event) => setAddOutcomeId(event.target.value)}>
-                    <option value="">연결하지 않음 · 수집함</option>
+                    <option value="">{tr("연결하지 않음 · 수집함")}</option>
                     {outcomes.map((outcome) => <option key={outcome.id} value={outcome.id}>{outcome.title}</option>)}
                   </select>
                 </label>
                 <label className="field">
-                  <span className="field-label">예상 시간</span>
+                  <span className="field-label">{tr("예상 시간")}</span>
                   <select value={addEstimate} onChange={(event) => setAddEstimate(event.target.value)}>
                     {[...new Set([...estimateOptions, Number(addEstimate)])].sort((a, b) => a - b).map((minutes) => (
                       <option key={minutes} value={minutes}>{formatMinutes(minutes)}</option>
@@ -780,13 +780,13 @@ export function GoalPlannerScreen() {
                 </label>
               </div>
               <label className="field">
-                <span className="field-label">메모 <small>선택</small></span>
+                <span className="field-label">{tr("메모")}{' '}<small>{tr("선택")}</small></span>
                 <textarea
                   rows={3}
                   value={addNote}
                   maxLength={4000}
                   onChange={(event) => setAddNote(event.target.value)}
-                  placeholder="필요한 링크나 간단한 내용을 남겨보세요."
+                  placeholder={tr("필요한 링크나 간단한 내용을 남겨보세요.")}
                 />
               </label>
             </div>
@@ -795,9 +795,9 @@ export function GoalPlannerScreen() {
               <button className="button button--secondary" type="button" onClick={() => {
                 setAddOpen(false);
                 setEditingTask(null);
-              }}>취소</button>
+              }}>{tr("취소")}</button>
               <button className="button button--primary" type="submit" disabled={!addTitle.trim() || !validSubtasks(addSubtasks)}>
-                {editingTask ? '변경 저장' : '할 일 추가'}
+                {editingTask ? tr("변경 저장") : tr("할 일 추가")}
               </button>
             </div>
           </form>
@@ -806,19 +806,19 @@ export function GoalPlannerScreen() {
 
       {deleteTaskCandidate && (
         <Modal
-          title="할 일을 삭제할까요?"
-          description="연결된 시간 블록과 실행 기록도 함께 삭제됩니다."
+          title={tr("할 일을 삭제할까요?")}
+          description={tr("연결된 시간 블록과 실행 기록도 함께 삭제됩니다.")}
           onClose={() => setDeleteTaskCandidate(null)}
         >
           <p className="delete-task-summary"><strong>{deleteTaskCandidate.title}</strong></p>
-          <p>하위 할 일 {deleteTaskCandidate.subtasks?.length ?? 0}개도 함께 삭제됩니다.</p>
+          <p>{tr("하위 할 일")}{' '}{deleteTaskCandidate.subtasks?.length ?? 0}{tr("개도 함께 삭제됩니다.")}</p>
           <div className="modal__actions">
-            <button className="button button--secondary" type="button" onClick={() => setDeleteTaskCandidate(null)}>취소</button>
+            <button className="button button--secondary" type="button" onClick={() => setDeleteTaskCandidate(null)}>{tr("취소")}</button>
             <button className="button button--delete" type="button" onClick={() => {
-              if (!removeTask(deleteTaskCandidate.id)) { showNotice('삭제하지 못했습니다. 동기화 상태를 확인해 주세요.'); return; }
-              showNotice(`${deleteTaskCandidate.title}을 삭제했어요.`);
+              if (!removeTask(deleteTaskCandidate.id)) { showNotice(tr("삭제하지 못했습니다. 동기화 상태를 확인해 주세요.")); return; }
+              showNotice(tr("{{v0}}을 삭제했어요.", { v0: deleteTaskCandidate.title }));
               setDeleteTaskCandidate(null);
-            }}>삭제</button>
+            }}>{tr("삭제")}</button>
           </div>
         </Modal>
       )}
@@ -828,12 +828,13 @@ export function GoalPlannerScreen() {
 
 /** Both public planning routes use the same task and calendar interaction model. */
 export function PlannerScreen() {
+  useLocale();
   const [params] = useSearchParams();
   const [toolsOpen, setToolsOpen] = useState(() => params.has('action') || params.get('tools') === 'goals');
   return <div className="planning-route">
     <TodayScreen mode="planner" />
     <details className="planning-advanced" open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
-      <summary>목표별 계획 · 작업 분할 · 이월 도구</summary>
+      <summary>{tr("목표별 계획 · 작업 분할 · 이월 도구")}</summary>
       {toolsOpen && <GoalPlannerScreen />}
     </details>
   </div>;

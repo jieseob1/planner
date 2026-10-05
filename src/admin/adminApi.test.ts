@@ -13,7 +13,7 @@ describe('adminApi', () => {
     await expect(adminApi.access(controller.signal)).resolves.toEqual({ allowed: true });
     expect(fetcher).toHaveBeenCalledWith('/api/v1/admin/access', {
       method: 'GET', cache: 'no-store', signal: controller.signal,
-      headers: { Accept: 'application/json', Authorization: 'Bearer signed-test-token' }
+      headers: { Accept: 'application/json', 'Accept-Language': 'ko', Authorization: 'Bearer signed-test-token' }
     });
   });
 

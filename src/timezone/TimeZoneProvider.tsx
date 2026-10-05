@@ -1,3 +1,4 @@
+import { tr, useLocale, applyAccountLanguage } from '../i18n';
 import {
   createContext,
   type PropsWithChildren,
@@ -26,10 +27,11 @@ export interface TimeZoneContextValue {
 const TimeZoneContext = createContext<TimeZoneContextValue | null>(null);
 
 const preferenceError = (reason: unknown) => (
-  reason instanceof Error ? reason.message : '계정 시간대를 불러오지 못했습니다.'
+  reason instanceof Error ? reason.message : tr("계정 시간대를 불러오지 못했습니다.")
 );
 
 export function TimeZoneProvider({ children }: PropsWithChildren) {
+  useLocale();
   const { status, subject } = useAuth();
   const [deviceTimeZone] = useState(getDeviceTimeZone);
   const [timeZone, setTimeZone] = useState(deviceTimeZone);
@@ -52,7 +54,7 @@ export function TimeZoneProvider({ children }: PropsWithChildren) {
     requestSequence.current += 1;
     setLoading(false);
     if (!subject || !isValidTimeZone(nextTimeZone)) {
-      useDeviceFallback('계정에 저장된 시간대가 올바르지 않아 기기 시간대를 사용합니다.', subject);
+      useDeviceFallback(tr("계정에 저장된 시간대가 올바르지 않아 기기 시간대를 사용합니다."), subject);
       return;
     }
     setTimeZone(nextTimeZone);
@@ -80,8 +82,9 @@ export function TimeZoneProvider({ children }: PropsWithChildren) {
     try {
       const preferences = await accountApi.preferences();
       if (sequence !== requestSequence.current) return;
+      applyAccountLanguage(preferences.locale);
       if (!isValidTimeZone(preferences.timezone)) {
-        useDeviceFallback('계정에 저장된 시간대가 올바르지 않아 기기 시간대를 사용합니다.', subject);
+        useDeviceFallback(tr("계정에 저장된 시간대가 올바르지 않아 기기 시간대를 사용합니다."), subject);
         return;
       }
       setTimeZone(preferences.timezone);
@@ -91,7 +94,7 @@ export function TimeZoneProvider({ children }: PropsWithChildren) {
       setError(null);
     } catch (reason) {
       if (sequence !== requestSequence.current) return;
-      useDeviceFallback(`${preferenceError(reason)} 기기 시간대를 임시로 사용합니다.`, subject);
+      useDeviceFallback(tr("{{v0}} 기기 시간대를 임시로 사용합니다.", { v0: preferenceError(reason) }), subject);
     } finally {
       if (sequence === requestSequence.current) setLoading(false);
     }
@@ -140,7 +143,7 @@ export function TimeZoneProvider({ children }: PropsWithChildren) {
   return (
     <TimeZoneContext.Provider value={value}>
       {resolvingAuthenticatedSubject
-        ? <main className="route-loading" role="status">계정 시간대를 불러오고 있습니다…</main>
+        ? <main className="route-loading" role="status">{tr("계정 시간대를 불러오고 있습니다…")}</main>
         : children}
     </TimeZoneContext.Provider>
   );

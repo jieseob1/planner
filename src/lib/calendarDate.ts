@@ -1,14 +1,12 @@
+import { getIntlLocale } from '../i18n';
 import type { DayKey } from '../domain/types';
 
-export const weekDayMeta: Array<{ key: DayKey; short: string; long: string }> = [
-  { key: 'mon', short: '월', long: '월요일' },
-  { key: 'tue', short: '화', long: '화요일' },
-  { key: 'wed', short: '수', long: '수요일' },
-  { key: 'thu', short: '목', long: '목요일' },
-  { key: 'fri', short: '금', long: '금요일' },
-  { key: 'sat', short: '토', long: '토요일' },
-  { key: 'sun', short: '일', long: '일요일' }
-];
+export const weekDayMeta: Array<{ key: DayKey; short: string; long: string }> =
+  (['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const).map((key, index) => ({
+    key,
+    get short() { return new Intl.DateTimeFormat(getIntlLocale(), { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + index))); },
+    get long() { return new Intl.DateTimeFormat(getIntlLocale(), { weekday: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + index))); }
+  }));
 
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const ISO_LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -201,7 +199,7 @@ export const formatInstantInTimeZone = (
     hour: '2-digit',
     minute: '2-digit'
   },
-  locale = 'ko-KR'
+  locale = getIntlLocale()
 ) => {
   const instant = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(instant.getTime())) return typeof value === 'string' ? value : '';

@@ -1,3 +1,5 @@
+import { tr, useLocale, getLanguage } from '../i18n';
+import { LanguageSelector } from '../i18n/LanguageSelector';
 import {
   createContext,
   type PropsWithChildren,
@@ -161,19 +163,20 @@ const localToken = async (forceRefresh = false): Promise<string> => {
 
 const consentStatus = async (token: string): Promise<boolean> => {
   const request = (accessToken: string) => fetch(`${API_BASE_URL}/api/v1/account/consent`, {
-    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+    headers: { Accept: 'application/json', 'Accept-Language': getLanguage(), Authorization: `Bearer ${accessToken}` },
     cache: 'no-store'
   });
   let response = await request(token);
   if (response.status === 401 && authMode() === 'local') {
     response = await request(await localToken(true));
   }
-  if (!response.ok) throw new Error(`정책 동의 상태를 확인하지 못했습니다. (${response.status})`);
+  if (!response.ok) throw new Error(tr("정책 동의 상태를 확인하지 못했습니다. ({{v0}})", { v0: response.status }));
   const body = await response.json() as { accepted?: boolean };
   return body.accepted === true;
 };
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  useLocale();
   const oidc = useMemo(createOidcManager, []);
   const manager = oidc?.manager ?? null;
   const oidcAccessToken = useMemo(() => manager ? createOidcAccessTokenProvider(manager) : async () => null, [manager]);
@@ -203,7 +206,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
         if (!manager) {
-          throw new Error('운영 OIDC 설정(VITE_OIDC_AUTHORITY, VITE_OIDC_CLIENT_ID)이 필요합니다.');
+          throw new Error(tr("운영 OIDC 설정(VITE_OIDC_AUTHORITY, VITE_OIDC_CLIENT_ID)이 필요합니다."));
         }
         let authenticatedUser: User | null;
         const nativeLaunch = await oidc?.nativeNavigator?.completeLaunch(manager);
@@ -232,7 +235,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       } catch (error) {
         if (!active) return;
-        setMessage(error instanceof Error ? error.message : '로그인 초기화에 실패했습니다.');
+        setMessage(error instanceof Error ? error.message : tr("로그인 초기화에 실패했습니다."));
         setStatus('error');
       }
     };
@@ -246,7 +249,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         void consentStatus(nextUser.access_token)
           .then((accepted) => setStatus(accepted ? 'authenticated' : 'consent'))
           .catch((error: unknown) => {
-            setMessage(error instanceof Error ? error.message : '정책 동의 상태를 확인하지 못했습니다.');
+            setMessage(error instanceof Error ? error.message : tr("정책 동의 상태를 확인하지 못했습니다."));
             setStatus('error');
           });
       };
@@ -276,7 +279,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return;
     }
     if (!manager) return;
-    await manager.signinRedirect({ state: { returnTo: safeAppReturnTo(window.location.pathname + window.location.search + window.location.hash) }, max_age: 900 });
+    await manager.signinRedirect({ state: { returnTo: safeAppReturnTo(window.location.pathname + window.location.search + window.location.hash) }, max_age: 900, ui_locales: getLanguage() });
     if (oidc?.nativeNavigator) {
       const authenticatedUser = await manager.signinRedirectCallback(oidc.nativeNavigator.consumeCallbackUrl());
       replaceAuthLocation(oidcReturnTo(authenticatedUser, window.location.pathname));
@@ -295,8 +298,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setStatus(await consentStatus(token) ? 'authenticated' : 'consent');
       return;
     }
-    if (!manager) throw new Error('로그인 공급자 설정을 확인해 주세요.');
-    await manager.signinRedirect(freshOidcSigninRequest(window.location.pathname));
+    if (!manager) throw new Error(tr("로그인 공급자 설정을 확인해 주세요."));
+    await manager.signinRedirect({ ...freshOidcSigninRequest(window.location.pathname), ui_locales: getLanguage() });
     if (oidc?.nativeNavigator) {
       const authenticatedUser = await manager.signinRedirectCallback(oidc.nativeNavigator.consumeCallbackUrl());
       replaceAuthLocation(oidcReturnTo(authenticatedUser, window.location.pathname));
@@ -350,39 +353,39 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setMessage('');
     try {
       const token = await (authMode() === 'local' ? localToken() : manager?.getUser().then((current) => current?.access_token));
-      if (!token) throw new Error('로그인 정보가 만료되었습니다. 다시 로그인해 주세요.');
+      if (!token) throw new Error(tr("로그인 정보가 만료되었습니다. 다시 로그인해 주세요."));
       const response = await fetch(`${API_BASE_URL}/api/v1/account/consent`, {
         method: 'PUT',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { Accept: 'application/json', 'Accept-Language': getLanguage(), 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ termsAccepted: true, privacyAccepted: true })
       });
-      if (!response.ok) throw new Error('정책 동의를 저장하지 못했습니다.');
+      if (!response.ok) throw new Error(tr("정책 동의를 저장하지 못했습니다."));
       setStatus('authenticated');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '정책 동의를 저장하지 못했습니다.');
+      setMessage(error instanceof Error ? error.message : tr("정책 동의를 저장하지 못했습니다."));
     } finally {
       setConsentBusy(false);
     }
   };
 
   if (status === 'loading') {
-    return <main className="auth-page"><div className="auth-card" role="status">로그인 상태를 확인하고 있습니다…</div></main>;
+    return <main className="auth-page"><div className="auth-card" role="status">{tr("로그인 상태를 확인하고 있습니다…")}</div></main>;
   }
   if (status === 'consent') {
     return (
       <main className="auth-page">
         <section className="auth-card auth-card--consent" aria-labelledby="consent-title">
+          <LanguageSelector />
           <div className="auth-mark"><ShieldCheck size={22} aria-hidden="true" /></div>
-          <p className="eyebrow">GOALS TO TODAY · 처음 한 번만 확인</p>
-          <h1 id="consent-title">내 계획을 안전하게 관리하기 위한 동의</h1>
-          <p>계획·실행 기록의 저장과 Google 캘린더·알림 연동에 필요한 범위만 처리합니다.</p>
-          <label className="consent-check"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /> <span><Link to="/terms" target="_blank">이용약관</Link>에 동의합니다. (필수)</span></label>
-          <label className="consent-check"><input type="checkbox" checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> <span><Link to="/privacy" target="_blank">개인정보 처리방침</Link>에 동의합니다. (필수)</span></label>
+          <p className="eyebrow">{tr("GOALS TO TODAY · 처음 한 번만 확인")}</p>
+          <h1 id="consent-title">{tr("내 계획을 안전하게 관리하기 위한 동의")}</h1>
+          <p>{tr("계획·실행 기록의 저장과 Google 캘린더·알림 연동에 필요한 범위만 처리합니다.")}</p>
+          <label className="consent-check"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /> <span>{tr('consentBefore')}<Link to="/terms" target="_blank">{tr("이용약관")}</Link>{tr('consentAfter')}</span></label>
+          <label className="consent-check"><input type="checkbox" checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> <span>{tr('consentBefore')}<Link to="/privacy" target="_blank">{tr("개인정보 처리방침")}</Link>{tr('consentAfter')}</span></label>
           {message && <FocusAlert message={message} className="auth-error" />}
           <button className="primary-button auth-button" type="button" disabled={consentBusy || !termsAccepted || !privacyAccepted} onClick={() => void acceptPolicies()}>
-            동의하고 시작하기
-          </button>
-          <button className="button button--ghost" type="button" disabled={consentBusy} onClick={() => void logout()}>동의하지 않고 로그아웃</button>
+            {tr("동의하고 시작하기")}</button>
+          <button className="button button--ghost" type="button" disabled={consentBusy} onClick={() => void logout()}>{tr("동의하지 않고 로그아웃")}</button>
         </section>
       </main>
     );

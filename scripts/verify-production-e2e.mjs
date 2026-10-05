@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -72,7 +72,7 @@ const activateByKeyboard = async (page, locator, key = 'Enter') => {
 const waitForPlannerSaved = async (page) => {
   await page.waitForFunction(() => (
     [...document.querySelectorAll('.save-status__label')]
-      .some((element) => element.textContent?.trim() === '서버에 저장됨')
+      .some((element) => ['서버에 저장됨', 'Saved on server', 'Guardado en el servidor'].includes(element.textContent?.trim()))
   ), undefined, { timeout: 20_000 });
 };
 
@@ -544,7 +544,7 @@ const exerciseTodoCrud = async (page, frontendUrl, mobile) => {
 
 const exerciseDesktop = async (frontendUrl, backendUrl) => {
   const errors = [];
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
+  const context = await browser.newContext({ locale: "ko-KR", viewport: { width: 1440, height: 900 }, acceptDownloads: true });
   const page = await context.newPage();
   const captureState = attachErrorCapture(page, errors, {
     allowExpectedOfflineErrors: false,
@@ -756,7 +756,7 @@ const exerciseDesktop = async (frontendUrl, backendUrl) => {
 
 const exerciseMobile = async (frontendUrl) => {
   const errors = [];
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const context = await browser.newContext({ locale: "ko-KR", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await context.newPage();
   const captureState = attachErrorCapture(page, errors, {
     allowExpectedOfflineErrors: false,
@@ -813,7 +813,7 @@ const exerciseMobile = async (frontendUrl) => {
 
 const exerciseKeyboardAndZoom = async (frontendUrl) => {
   const errors = [];
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ locale: "ko-KR", viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   attachErrorCapture(page, errors);
   await page.goto(`${frontendUrl}/today`, { waitUntil: 'domcontentloaded' });
@@ -877,7 +877,7 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
   if (errors.length > 0) fail(`Keyboard/zoom browser emitted errors:\n${errors.join('\n')}`);
   await context.close();
 
-  const preferenceContext = await browser.newContext({
+  const preferenceContext = await browser.newContext({ locale: "ko-KR",
     viewport: { width: 1440, height: 900 },
     colorScheme: 'dark',
     reducedMotion: 'reduce'
@@ -914,6 +914,76 @@ const exerciseKeyboardAndZoom = async (frontendUrl) => {
   await preferenceContext.close();
 };
 
+// New languages must complete real server-backed flows, not just render translated labels.
+const exerciseInternationalization = async (frontendUrl, backendUrl) => {
+  const source = JSON.parse(readFileSync(new URL('../src/i18n/source.json', import.meta.url), 'utf8'));
+  for (const [language, width] of [['en', 1440], ['es', 390]]) {
+    const date = language === 'en' ? '2026-12-31' : '2027-01-01';
+    const catalog = JSON.parse(readFileSync(new URL(`../src/i18n/${language}.json`, import.meta.url), 'utf8'));
+    const t = (key, values = {}) => {
+      const translated = catalog[source.indexOf(key)];
+      if (!translated) fail(`Missing test translation: ${key}`);
+      return translated.replace(/\{\{(\w+)\}\}/g, (_, name) => String(values[name]));
+    };
+    const context = await browser.newContext({ locale: 'ko-KR', viewport: { width, height: 900 } });
+    const page = await context.newPage();
+    await page.goto(`${frontendUrl}/today?date=${date}`);
+    await page.locator('.language-selector select').first().selectOption(language);
+    await page.locator(`html[lang="${language}"]`).waitFor();
+    await waitForPlannerSaved(page);
+    const token = await page.evaluate(() => sessionStorage.getItem('nowline.local-access-token'));
+    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+    const before = await (await expectResponse(await fetch(`${backendUrl}/api/v1/account/preferences`, { headers }), 200, 'Read preferences')).json();
+    const title = `오늘 — mañana — ${language} ${randomUUID().slice(0, 8)}`;
+    await page.getByLabel(t('빠른 메모'), { exact: true }).fill(title);
+    await runAndWaitForPlannerSave(page, () => page.getByRole('button', { name: t('추가'), exact: true }).click(), `${language} task creation`);
+    await page.reload();
+    await page.getByRole('button', { name: t('{{v0}} 수정', { v0: title }), exact: true }).waitFor();
+    if (await page.locator('html').getAttribute('lang') !== language) fail('Device language did not survive reload');
+    await assertNoDocumentOverflow(page, `${language} Today ${width}px`);
+    await page.goto(`${frontendUrl}/planner?date=${date}`);
+    if (width < 600) await page.getByRole('button', { name: new RegExp(`^${t('시간표')} \\d+$`) }).click();
+    else await page.getByRole('button', { name: t('일간'), exact: true }).click();
+    await page.getByRole('button', { name: t('이 시간에 일정 추가'), exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: t('새 일정'), exact: true });
+    await dialog.getByLabel(t('새 일정 제목'), { exact: true }).fill(`${title} evento`);
+    await dialog.getByLabel(t('새 일정 시작 시간'), { exact: true }).fill('23:15');
+    await dialog.getByLabel(t('새 일정 종료 시간'), { exact: true }).fill('24:00');
+    if (language === 'en') {
+      const otherTab = await context.newPage();
+      await otherTab.goto(`${frontendUrl}/settings`);
+      await otherTab.locator('.language-selector select').first().selectOption('es');
+      await page.locator('html[lang="es"]').waitFor();
+      if (await page.getByRole('dialog').locator('input[maxlength="500"]').inputValue() !== `${title} evento`) fail('Language change erased the open title draft');
+      await otherTab.locator('.language-selector select').first().selectOption('en');
+      await page.locator('html[lang="en"]').waitFor();
+      await otherTab.close();
+    }
+    for (const size of width < 600 ? [390, 320] : [1440]) {
+      await page.setViewportSize({ width: size, height: 900 });
+      await assertDialogFitsViewport(dialog, `${language} time editor ${size}px`);
+      await assertNoDocumentOverflow(page, `${language} time editor ${size}px`);
+    }
+    const response = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/planner'));
+    await dialog.getByRole('button', { name: t('새 일정 저장'), exact: true }).click();
+    const saved = await response;
+    if (!saved.ok()) fail(`${language} time block write failed: ${saved.status()} ${await saved.text()}`);
+    const snapshot = (await saved.json()).snapshot;
+    if (!snapshot.timeBlocks.some(block => block.date === date && block.startMinutes === 1395 && block.durationMinutes === 45)) fail('Locale changed the civil date or minutes');
+    await page.goto(`${frontendUrl}/settings`);
+    const languageSave = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/account/language'));
+    await page.getByRole('button', { name: language === 'en' ? 'Save account language' : 'Guardar idioma de la cuenta', exact: true }).click();
+    const savedLanguage = await languageSave;
+    if (!savedLanguage.ok()) fail(`Account language write failed: ${savedLanguage.status()}`);
+    const after = await savedLanguage.json();
+    if (after.locale !== (language === 'en' ? 'en-US' : 'es-ES')) fail('Account language not persisted');
+    for (const key of ['timezone', 'dailyReminderEnabled', 'dailyReminderTime', 'blockReminderMinutes']) if (before[key] !== after[key]) fail(`Language update overwrote ${key}`);
+    await assertNoDocumentOverflow(page, `${language} Settings`);
+    await context.close();
+    console.log(`${language} real-server task/time block/account language, draft preservation, reload and responsive layout passed`);
+  }
+};
+
 const backendPort = await reservePort();
 const frontendPort = await reservePort();
 const environment = {
@@ -944,11 +1014,13 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 1_100));
   await exerciseMobile(frontendUrl);
   await exerciseKeyboardAndZoom(frontendUrl);
+  await exerciseInternationalization(frontendUrl, backendUrl);
   if (fakeGoogle.stats.tokenRequests < 2 || fakeGoogle.stats.revokeRequests !== 1) {
     fail(`Calendar connect/refresh/revoke calls were incomplete: ${JSON.stringify(fakeGoogle.stats)}`);
   }
   console.log('production authenticated browser end-to-end verification passed');
   console.log('production end-to-end verification passed');
+  if (process.env.KEEP_NOWLINE_E2E === '1') console.log(`Retained QA environment: ${projectName} ${frontendUrl} ${backendUrl}`);
 } catch (error) {
   if (browser) {
     const artifacts = join(repositoryRoot, 'artifacts/operations-qa/crud-editability');

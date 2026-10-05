@@ -12,7 +12,7 @@ describe('AI review client', () => {
   it('reads configuration/history with an authenticated non-cached GET and no provider body', async () => {
     fetchMock.mockResolvedValue(json({ reports: [] }));
     await aiReviewApi.list('week', '2026-08-31');
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/ai-reviews/reports?period=week&startDate=2026-08-31', expect.objectContaining({ method: 'GET', cache: 'no-store', headers: { Accept: 'application/json', Authorization: 'Bearer account-token' } }));
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/ai-reviews/reports?period=week&startDate=2026-08-31', expect.objectContaining({ method: 'GET', cache: 'no-store', headers: { Accept: 'application/json', 'Accept-Language': 'ko', Authorization: 'Bearer account-token' } }));
     expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
   });
   it('sends only explicit generation parameters and retains the supplied request identifier', async () => {

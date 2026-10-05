@@ -35,10 +35,10 @@ if (deadButtons.length > 0) {
 
 const saveStatus = read('src/components/SaveStatus.tsx');
 for (const contract of [
-  "saved: { label: '서버에 저장됨'",
-  "saving: { label: '서버에 저장 중', detail: '변경 내용은 기기에 저장됨'",
-  "offline: { label: '오프라인', detail: '변경 내용은 이 기기에 저장됨'",
-  "conflict: { label: '서버 저장 충돌'"
+  'saved: { label: tr("서버에 저장됨")',
+  'saving: { label: tr("서버에 저장 중"), detail: tr("변경 내용은 기기에 저장됨")',
+  'offline: { label: tr("오프라인"), detail: tr("변경 내용은 이 기기에 저장됨")',
+  'conflict: { label: tr("서버 저장 충돌")'
 ]) {
   if (!saveStatus.includes(contract)) {
     throw new Error(`SaveStatus server/local persistence contract is missing: ${contract}`);

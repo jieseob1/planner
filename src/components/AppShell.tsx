@@ -1,3 +1,5 @@
+import { tr, useLocale } from '../i18n';
+import { LanguageSelector } from '../i18n/LanguageSelector';
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, Compass, Flag, LogOut, Plus, RotateCcw, Settings, ShieldCheck, Target } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -12,14 +14,15 @@ import { QUICK_CAPTURE_EVENT } from '../lib/quickCapture';
 import { useAdminAccess } from '../admin/useAdminAccess';
 import { nativePushEnabled } from '../auth/nativePush';
 
-const navItems = [
-  { to: '/today', label: '오늘', contextLabel: '오늘 실행', icon: CheckCircle2 },
-  { to: '/planner', label: '일정', contextLabel: '주간·월간 일정', icon: CalendarDays },
-  { to: '/goals', label: '목표', contextLabel: '기간별 목표', icon: Target },
-  { to: '/review', label: '돌아보기', contextLabel: '기록과 회고', icon: Flag }
+const navItems = () => [
+  { to: '/today', label: tr("오늘"), contextLabel: tr("오늘 실행"), icon: CheckCircle2 },
+  { to: '/planner', label: tr("일정"), contextLabel: tr("주간·월간 일정"), icon: CalendarDays },
+  { to: '/goals', label: tr("목표"), contextLabel: tr("기간별 목표"), icon: Target },
+  { to: '/review', label: tr("돌아보기"), contextLabel: tr("기록과 회고"), icon: Flag }
 ];
 
 export function AppShell() {
+  useLocale();
   const { hasActivePlan, isOnline, resetPlanner } = usePlanner();
   const { logout } = useAuth();
   const adminAccess = useAdminAccess();
@@ -30,11 +33,11 @@ export function AppShell() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState('');
   const isToday = pathname === '/today' || pathname === '/planner';
-  const currentNavItem = navItems.find((item) => item.to === pathname || pathname.startsWith(`${item.to}/`))
-    ?? (pathname === '/admin' ? { contextLabel: '운영 관리' }
-      : pathname === '/settings' ? { contextLabel: '설정과 연동' }
-      : pathname === '/plans' ? { contextLabel: '계획 보관함' }
-      : navItems[0]);
+  const currentNavItem = navItems().find((item) => item.to === pathname || pathname.startsWith(`${item.to}/`))
+    ?? (pathname === '/admin' ? { contextLabel: tr("운영 관리") }
+      : pathname === '/settings' ? { contextLabel: tr("설정과 연동") }
+      : pathname === '/plans' ? { contextLabel: tr("계획 보관함") }
+      : navItems()[0]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -80,8 +83,8 @@ export function AppShell() {
     setResetBusy(false);
     if (!reset) {
       setResetError(isOnline
-        ? '서버에서 최신 계획을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.'
-        : '오프라인에서는 서버 계획을 안전하게 초기화할 수 없습니다. 연결 후 다시 시도해 주세요.');
+        ? tr("서버에서 최신 계획을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+        : tr("오프라인에서는 서버 계획을 안전하게 초기화할 수 없습니다. 연결 후 다시 시도해 주세요."));
       return;
     }
     setResetConfirmOpen(false);
@@ -90,15 +93,15 @@ export function AppShell() {
 
   return (
     <div className={isToday ? 'app-shell app-shell--today' : 'app-shell'}>
-      <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
+      <a className="skip-link" href="#main-content">{tr("본문으로 건너뛰기")}</a>
       <aside className="sidebar" aria-label="Goals to Today">
-        <NavLink className="brand" to="/today" aria-label="Goals to Today 오늘로 이동">
+        <NavLink className="brand" to="/today" aria-label={tr("Goals to Today 오늘로 이동")}>
           <span className="brand__mark" aria-hidden="true"><Compass size={20} /></span>
           <strong className="brand__name">GOALS TO TODAY</strong>
         </NavLink>
 
-        <nav className="sidebar__nav" aria-label="주 메뉴">
-          {navItems.map(({ to, label, contextLabel, icon: Icon }) => (
+        <nav className="sidebar__nav" aria-label={tr("주 메뉴")}>
+          {navItems().map(({ to, label, contextLabel, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -115,29 +118,29 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar__today-footer">
-          {adminAccess.status === 'allowed' && <NavLink to="/admin" aria-label="운영 관리 · 백오피스" className={({ isActive }) => clsx('nav-item', isActive && 'nav-item--active')}>
+          {adminAccess.status === 'allowed' && <NavLink to="/admin" aria-label={tr("운영 관리 · 백오피스")} className={({ isActive }) => clsx('nav-item', isActive && 'nav-item--active')}>
             <ShieldCheck size={20} aria-hidden="true" />
-            <span className="nav-item__copy"><strong className="nav-item__label">운영 관리</strong><small>백오피스</small></span>
+            <span className="nav-item__copy"><strong className="nav-item__label">{tr("운영 관리")}</strong><small>{tr("백오피스")}</small></span>
           </NavLink>}
           <NavLink
             to="/settings"
-            aria-label="설정 · 설정과 연동"
+            aria-label={tr("설정 · 설정과 연동")}
             className={({ isActive }) => clsx('nav-item', isActive && 'nav-item--active')}
           >
             <Settings size={20} strokeWidth={1.9} aria-hidden="true" />
             <span className="nav-item__copy">
-              <strong className="nav-item__label">설정</strong>
-              <small>설정과 연동</small>
+              <strong className="nav-item__label">{tr("설정")}</strong>
+              <small>{tr("설정과 연동")}</small>
             </span>
           </NavLink>
           <button
             className="capture-button capture-button--rail"
             type="button"
             onClick={focusQuickCapture}
-            aria-label="빠른 수집"
+            aria-label={tr("빠른 수집")}
           >
             <Plus size={21} aria-hidden="true" />
-            <span>빠른 수집</span>
+            <span>{tr("빠른 수집")}</span>
           </button>
         </div>
       </aside>
@@ -150,9 +153,10 @@ export function AppShell() {
             <strong>{currentNavItem.contextLabel}</strong>
           </div>
           <div className="top-bar__actions">
-            {adminAccess.status === 'allowed' && <NavLink className="icon-button" to="/admin" aria-label="운영 관리"><ShieldCheck size={16} aria-hidden="true" /></NavLink>}
+            {!isToday && <LanguageSelector />}
+            {adminAccess.status === 'allowed' && <NavLink className="icon-button" to="/admin" aria-label={tr("운영 관리")}><ShieldCheck size={16} aria-hidden="true" /></NavLink>}
             {!isToday && pathname !== '/admin' && <SaveStatus />}
-            <button className="icon-button" type="button" onClick={() => navigate('/settings')} aria-label="설정과 연동">
+            <button className="icon-button" type="button" onClick={() => navigate('/settings')} aria-label={tr("설정과 연동")}>
               <Settings size={16} aria-hidden="true" />
             </button>
             {hasActivePlan && pathname !== '/admin' ? (
@@ -163,14 +167,14 @@ export function AppShell() {
                   setResetError('');
                   setResetConfirmOpen(true);
                 }}
-                aria-label="현재 계획 초기화"
+                aria-label={tr("현재 계획 초기화")}
                 aria-haspopup="dialog"
                 aria-expanded={resetConfirmOpen}
               >
                 <RotateCcw size={16} aria-hidden="true" />
               </button>
             ) : null}
-            <button className="icon-button" type="button" onClick={() => void logout()} aria-label="로그아웃">
+            <button className="icon-button" type="button" onClick={() => void logout()} aria-label={tr("로그아웃")}>
               <LogOut size={16} aria-hidden="true" />
             </button>
           </div>
@@ -180,8 +184,8 @@ export function AppShell() {
         </main>
       </div>
 
-      <nav className="bottom-nav" aria-label="모바일 주 메뉴">
-        {navItems.map(({ to, label, icon: Icon }) => (
+      <nav className="bottom-nav" aria-label={tr("모바일 주 메뉴")}>
+        {navItems().map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} className={({ isActive }) => clsx('bottom-nav__item', isActive && 'bottom-nav__item--active')}>
             <Icon size={20} aria-hidden="true" />
             <span>{label}</span>
@@ -189,15 +193,15 @@ export function AppShell() {
         ))}
       </nav>
 
-      {pathname !== '/admin' && <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label="빠른 수집">
+      {pathname !== '/admin' && <button className="capture-fab" type="button" onClick={focusQuickCapture} aria-label={tr("빠른 수집")}>
         <Plus size={25} aria-hidden="true" />
       </button>}
 
       {resetConfirmOpen ? (
         <Modal
-          eyebrow="계획 관리"
-          title="현재 계획을 초기화할까요?"
-          description="현재 활성 계획의 분기 결과·할 일·시간 기록·기존 주간 회고를 보관하고 새 계획 온보딩으로 이동합니다. 기간별 목표와 날짜별 돌아보기 기록은 그대로 유지됩니다. 이 초기화는 되돌릴 수 없습니다."
+          eyebrow={tr("계획 관리")}
+          title={tr("현재 계획을 초기화할까요?")}
+          description={tr("현재 활성 계획의 분기 결과·할 일·시간 기록·기존 주간 회고를 보관하고 새 계획 온보딩으로 이동합니다. 기간별 목표와 날짜별 돌아보기 기록은 그대로 유지됩니다. 이 초기화는 되돌릴 수 없습니다.")}
           onClose={() => {
             if (!resetBusy) setResetConfirmOpen(false);
           }}
@@ -211,10 +215,9 @@ export function AppShell() {
               disabled={resetBusy}
               onClick={() => setResetConfirmOpen(false)}
             >
-              취소
-            </button>
+              {tr("취소")}</button>
             <button className="button button--warning" type="button" disabled={resetBusy} onClick={() => void confirmPlannerReset()}>
-              {resetBusy ? '초기화 중…' : '현재 계획 초기화'}
+              {resetBusy ? tr("초기화 중…") : tr("현재 계획 초기화")}
             </button>
           </div>
         </Modal>

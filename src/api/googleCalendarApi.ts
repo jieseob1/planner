@@ -1,3 +1,4 @@
+import { tr, getLanguage, localizeApiDetail } from '../i18n';
 import { getAccessToken } from '../auth/accessToken';
 
 const API_PATH = '/api/v1/integrations/google-calendar';
@@ -37,17 +38,17 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${baseUrl}${API_PATH}${path}`, {
     ...init,
     headers: {
-      Accept: 'application/json',
+      Accept: 'application/json', 'Accept-Language': getLanguage(),
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers
     }
   });
   if (!response.ok) {
-    let message = 'Google Calendar 요청에 실패했습니다.';
+    let message = tr("Google Calendar 요청에 실패했습니다.");
     try {
       const body = await response.json() as { detail?: string };
-      if (body.detail) message = body.detail;
+      if (body.detail) message = localizeApiDetail(body.detail, message);
     } catch {
       // Preserve the status-based fallback for empty upstream responses.
     }

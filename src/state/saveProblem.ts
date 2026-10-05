@@ -1,4 +1,5 @@
 import { PlannerApiError } from '../api/plannerApi';
+import { tr } from '../i18n';
 
 export interface PlannerSaveProblem {
   status: 400;
@@ -47,19 +48,19 @@ const dynamicMessages: Array<[string, string]> = [
 const safeMessage = (value: unknown): string | null => {
   if (typeof value !== 'string' || value.length > 2000) return null;
   const text = value.trim();
-  if (details.has(text)) return text;
-  for (const [prefix, message] of dynamicMessages) if (text.startsWith(prefix)) return message;
-  if (['must not be blank', 'must not be empty', '공백일 수 없습니다', '비어 있을 수 없습니다'].includes(text)) return '비워 둘 수 없습니다.';
-  if (['must not be null', '널이어서는 안됩니다'].includes(text)) return '값을 입력해 주세요.';
+  if (details.has(text)) return tr(text);
+  for (const [prefix, message] of dynamicMessages) if (text.startsWith(prefix)) return tr(message);
+  if (['must not be blank', 'must not be empty', '공백일 수 없습니다', '비어 있을 수 없습니다'].includes(text)) return tr('비워 둘 수 없습니다.');
+  if (['must not be null', '널이어서는 안됩니다'].includes(text)) return tr('값을 입력해 주세요.');
   const bound = text.match(/^must be (greater than or equal to|less than or equal to|greater than|less than) (-?\d{1,10}(?:\.\d{1,6})?)$/);
   if (bound) {
     const relation: Record<string, string> = { 'greater than or equal to': '이상', 'less than or equal to': '이하', 'greater than': '초과', 'less than': '미만' };
-    return `${bound[2]} ${relation[bound[1]]} 값을 입력해 주세요.`;
+    return tr('{{value}} {{relation}} 값을 입력해 주세요.', { value: bound[2], relation: tr(relation[bound[1]]) });
   }
   const size = text.match(/^size must be between (\d{1,10}) and (\d{1,10})$/);
-  if (size) return `길이 또는 개수를 ${size[1]}–${size[2]} 범위로 맞춰 주세요.`;
+  if (size) return tr('길이 또는 개수를 {{min}}–{{max}} 범위로 맞춰 주세요.', { min: size[1], max: size[2] });
   const digits = text.match(/^numeric value out of bounds \(<(\d{1,2}) digits>\.<(\d{1,2}) digits> expected\)$/);
-  if (digits) return `정수 ${digits[1]}자리, 소수 ${digits[2]}자리 이내로 입력해 주세요.`;
+  if (digits) return tr('정수 {{integer}}자리, 소수 {{decimal}}자리 이내로 입력해 주세요.', { integer: digits[1], decimal: digits[2] });
   return null;
 };
 
@@ -70,7 +71,7 @@ const safeField = (value: unknown): { field: string; label: string } | null => {
   return { field: value, label: parts.map((part) => {
     const name = part.replace(/\[\d*\]/, '');
     const index = part.match(/\[(\d+)\]/)?.[1];
-    return fields[name] + (index === undefined ? '' : ` ${Number(index) + 1}번째`);
+    return tr(fields[name]) + (index === undefined ? '' : ` ${tr('{{index}}번째', { index: Number(index) + 1 })}`);
   }).join(' · ') };
 };
 
@@ -86,13 +87,13 @@ export function plannerSaveProblem(error: unknown, localStored: boolean): Planne
     if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
     const item = value as Record<string, unknown>;
     const field = safeField(item.field);
-    return field ? [{ ...field, message: safeMessage(item.message) ?? '이 항목의 입력값을 확인해 주세요.' }] : [];
+    return field ? [{ ...field, message: safeMessage(item.message) ?? tr('이 항목의 입력값을 확인해 주세요.') }] : [];
   });
   return {
     status: 400, kind, code,
     detail: kind === 'precondition'
-      ? '입력값의 문제가 아닙니다. 서버가 저장 버전 정보를 확인하지 못했습니다. 할 일이나 일정 내용을 바꾸지 말고 다시 저장해 주세요. 반복되면 앱 버전과 동기화 상태 확인이 필요합니다.'
-      : safeMessage(problem?.detail) ?? '서버가 저장할 내용을 받아들이지 못했습니다. 입력값을 확인해 주세요.',
+      ? tr('입력값의 문제가 아닙니다. 서버가 저장 버전 정보를 확인하지 못했습니다. 할 일이나 일정 내용을 바꾸지 말고 다시 저장해 주세요. 반복되면 앱 버전과 동기화 상태 확인이 필요합니다.')
+      : safeMessage(problem?.detail) ?? tr('서버가 저장할 내용을 받아들이지 못했습니다. 입력값을 확인해 주세요.'),
     errors, additionalErrors: Math.max(0, rawErrors.length - errors.length), localStored
   };
 }

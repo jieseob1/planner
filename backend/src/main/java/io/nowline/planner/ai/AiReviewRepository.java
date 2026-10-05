@@ -15,7 +15,7 @@ import java.util.*;
 @Repository
 public class AiReviewRepository {
     public static final String POLICY = "2026-09-08";
-    public static final String PROMPT = "evidence-only-v1";
+    public static final String PROMPT = "evidence-only-i18n-v2";
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     public AiReviewRepository(JdbcTemplate jdbc, ObjectMapper json) { this.jdbc = jdbc; this.json = json; }

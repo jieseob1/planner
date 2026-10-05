@@ -1,3 +1,4 @@
+import { tr, useLocale } from '../i18n';
 import {
   lazy,
   Suspense,
@@ -59,7 +60,7 @@ const POINTER_MOVE_THRESHOLD = 5;
 const TOUCH_SCROLL_THRESHOLD = 8;
 const TOUCH_LONG_PRESS_MS = 350;
 const MOBILE_BLOCK_CONTROL_SIZE = 44;
-const PLACEMENT_CONFLICT_MESSAGE = '다른 일정과 겹쳐 배치하지 못했습니다.';
+const placementConflictMessage = () => tr("다른 일정과 겹쳐 배치하지 못했습니다.");
 
 export type TimelineCreateKind = 'todo' | 'event';
 
@@ -160,7 +161,7 @@ const rangesEqual = (left: DayMinuteRange, right: DayMinuteRange) => (
 );
 
 const describeRange = (range: DayMinuteRange) => `${formatClock(range.startMinutes)}–${formatClock(range.endMinutes)}`;
-const beforeMidnightMessage = (minutes: number) => `${formatMinutes(minutes)} 일정은 자정 전에 끝나야 합니다.`;
+const beforeMidnightMessage = (minutes: number) => tr("{{v0}} 일정은 자정 전에 끝나야 합니다.", { v0: formatMinutes(minutes) });
 const taskPlacementDuration = (task: Task) => Math.max(
   MIN_BLOCK_DURATION_MINUTES,
   task.estimateMinutes || DEFAULT_BLOCK_DURATION_MINUTES
@@ -249,6 +250,7 @@ function BlockActionPanel({
   onScheduleTaskAgain,
   onStartTask
 }: BlockActionPanelProps) {
+  useLocale();
   const originalRange = rangeFromBlock(block);
   const panelRef = useRef<HTMLElement>(null);
   const titleComposingRef = useRef(false);
@@ -264,21 +266,21 @@ function BlockActionPanel({
 
   const commit = (range: DayMinuteRange, date?: string, title?: string) => {
     if (date !== undefined && !isLocalDate(date)) {
-      setError('올바른 날짜를 선택하세요.');
+      setError(tr("올바른 날짜를 선택하세요."));
       return;
     }
     const normalizedTitle = title?.trim();
     if (title !== undefined && !normalizedTitle) {
-      setError('일정 제목을 입력하세요.');
+      setError(tr("일정 제목을 입력하세요."));
       return;
     }
     const titleChanged = normalizedTitle !== undefined && normalizedTitle !== block.title;
     if (rangesEqual(range, originalRange) && (!date || date === block.date) && !titleChanged) {
-      setError('변경할 제목, 시간이나 날짜를 입력하세요.');
+      setError(tr("변경할 제목, 시간이나 날짜를 입력하세요."));
       return;
     }
     if (!onCommit(range, date, normalizedTitle)) {
-      setError('시간이 겹치거나 범위를 벗어났습니다.');
+      setError(tr("시간이 겹치거나 범위를 벗어났습니다."));
     }
   };
 
@@ -288,7 +290,7 @@ function BlockActionPanel({
     const startMinutes = parseClockInput(startValue);
     const endMinutes = parseClockInput(endValue, true);
     if (startMinutes === null || endMinutes === null || endMinutes - startMinutes < 15) {
-      setError('15분 이상의 시간 범위를 입력하세요.');
+      setError(tr("15분 이상의 시간 범위를 입력하세요."));
       return;
     }
     const startChanged = startMinutes !== originalRange.startMinutes;
@@ -300,11 +302,11 @@ function BlockActionPanel({
       || (endChanged && !movesWholeBlock && endMinutes % TIMELINE_SNAP_MINUTES !== 0)
     );
     if (changedBoundaryIsOffGrid) {
-      setError('시간은 15분 단위로 입력하세요.');
+      setError(tr("시간은 15분 단위로 입력하세요."));
       return;
     }
     if (!isLocalDate(dateValue)) {
-      setError('올바른 날짜를 선택하세요.');
+      setError(tr("올바른 날짜를 선택하세요."));
       return;
     }
     commit(
@@ -316,36 +318,36 @@ function BlockActionPanel({
 
   return (
     <div className="today-direct-block-panel-layer">
-      <button className="today-direct-block-panel__backdrop" type="button" aria-label="블록 작업 닫기" onClick={onClose} />
-      <section ref={panelRef} className="today-direct-block-panel" role="dialog" aria-label={`${block.title} 블록 작업`} aria-modal="true" tabIndex={-1}>
+      <button className="today-direct-block-panel__backdrop" type="button" aria-label={tr("블록 작업 닫기")} onClick={onClose} />
+      <section ref={panelRef} className="today-direct-block-panel" role="dialog" aria-label={tr("{{v0}} 블록 작업", { v0: block.title })} aria-modal="true" tabIndex={-1}>
         <header>
           <div>
-            <span className="today-direct-kicker">{block.external ? 'GOOGLE CALENDAR' : block.taskId ? 'TODO 시간 블록' : '독립 일정'}</span>
+            <span className="today-direct-kicker">{block.external ? 'GOOGLE CALENDAR' : block.taskId ? tr("TODO 시간 블록") : tr("독립 일정")}</span>
             <h3>{block.title}</h3>
             <p><Clock3 size={14} aria-hidden="true" /> {describeRange(originalRange)} · {formatMinutes(block.durationMinutes)}</p>
           </div>
-          <button type="button" aria-label="블록 작업 닫기" onClick={onClose}><X /></button>
+          <button type="button" aria-label={tr("블록 작업 닫기")} onClick={onClose}><X /></button>
         </header>
 
         {block.external ? (
           <div className="today-direct-readonly">
             <LockKeyhole aria-hidden="true" />
-            <div><strong>Google Calendar 읽기 전용 일정</strong><p>이동·변경·삭제는 Google Calendar에서 관리하세요.</p></div>
+            <div><strong>{tr("Google Calendar 읽기 전용 일정")}</strong><p>{tr("이동·변경·삭제는 Google Calendar에서 관리하세요.")}</p></div>
           </div>
         ) : (
           <>
             {task && onUpdateTask && <form onSubmit={event => {
               event.preventDefault();
               if (!validSubtasks(subtasks)) return;
-              setSubtaskNotice(onUpdateTask(task.id, { subtasks }) ? '변경을 적용했습니다. 상단의 서버 저장 상태를 확인하세요.' : '적용하지 못했습니다. 입력과 동기화 상태를 확인해 주세요.');
+              setSubtaskNotice(onUpdateTask(task.id, { subtasks }) ? tr("변경을 적용했습니다. 상단의 서버 저장 상태를 확인하세요.") : tr("적용하지 못했습니다. 입력과 동기화 상태를 확인해 주세요."));
             }}>
               <SubtaskEditor value={subtasks} onChange={items => { setSubtasks(items); setSubtaskNotice(''); }} />
-              <div className="subtask-panel-save"><button className="button button--primary button--small" type="submit" disabled={!validSubtasks(subtasks)}>하위 할 일 저장</button></div>
+              <div className="subtask-panel-save"><button className="button button--primary button--small" type="submit" disabled={!validSubtasks(subtasks)}>{tr("하위 할 일 저장")}</button></div>
               {subtaskNotice && <p role="status" className="field-help">{subtaskNotice}</p>}
             </form>}
-            <div className="today-direct-block-quick-actions" aria-label="15분 단위 시간 조정">
-              <button type="button" disabled={originalRange.startMinutes === 0} onClick={() => commit(moveRange(originalRange, originalRange.startMinutes - 15))}><ChevronUp />15분 앞당기기</button>
-              <button type="button" disabled={originalRange.endMinutes === DAY_END_MINUTES} onClick={() => commit(moveRange(originalRange, originalRange.startMinutes + 15))}><ChevronUp className="is-down" />15분 미루기</button>
+            <div className="today-direct-block-quick-actions" aria-label={tr("15분 단위 시간 조정")}>
+              <button type="button" disabled={originalRange.startMinutes === 0} onClick={() => commit(moveRange(originalRange, originalRange.startMinutes - 15))}><ChevronUp />{tr("15분 앞당기기")}</button>
+              <button type="button" disabled={originalRange.endMinutes === DAY_END_MINUTES} onClick={() => commit(moveRange(originalRange, originalRange.startMinutes + 15))}><ChevronUp className="is-down" />{tr("15분 미루기")}</button>
               <button
                 type="button"
                 disabled={originalRange.endMinutes === DAY_END_MINUTES}
@@ -353,7 +355,7 @@ function BlockActionPanel({
                   startMinutes: originalRange.startMinutes,
                   endMinutes: Math.min(DAY_END_MINUTES, originalRange.endMinutes + 15)
                 })}
-              >+ 15분 늘리기</button>
+              >{tr("+ 15분 늘리기")}</button>
               <button
                 type="button"
                 disabled={block.durationMinutes <= MIN_BLOCK_DURATION_MINUTES}
@@ -364,12 +366,12 @@ function BlockActionPanel({
                     originalRange.endMinutes - 15
                   )
                 })}
-              >− 15분 줄이기</button>
+              >{tr("− 15분 줄이기")}</button>
             </div>
 
             <form className="today-direct-time-form" onSubmit={submitDirectTime}>
                 <label className="today-direct-time-form__date">
-                  <span>{task ? '할 일 제목' : '일정 제목'}</span>
+                  <span>{task ? tr("할 일 제목") : tr("일정 제목")}</span>
                   <input
                     value={titleValue}
                     onChange={(event) => setTitleValue(event.target.value)}
@@ -380,17 +382,17 @@ function BlockActionPanel({
                         event.preventDefault();
                       }
                     }}
-                    aria-label={task ? '할 일 제목' : '일정 제목'}
+                    aria-label={task ? tr("할 일 제목") : tr("일정 제목")}
                     maxLength={500}
                     required
                   />
                 </label>
-              {task && <p className="today-direct-time-form__date field-help">제목은 같은 할 일의 모든 일정에 반영됩니다. 시간·날짜는 이 일정만 바뀝니다.</p>}
-              <label><span>시작</span><input value={startValue} inputMode="numeric" onChange={(event) => setStartValue(event.target.value)} aria-label="시작 시간" /></label>
+              {task && <p className="today-direct-time-form__date field-help">{tr("제목은 같은 할 일의 모든 일정에 반영됩니다. 시간·날짜는 이 일정만 바뀝니다.")}</p>}
+              <label><span>{tr("시작")}</span><input value={startValue} inputMode="numeric" onChange={(event) => setStartValue(event.target.value)} aria-label={tr("시작 시간")} /></label>
               <span aria-hidden="true">→</span>
-              <label><span>종료</span><input value={endValue} inputMode="numeric" onChange={(event) => setEndValue(event.target.value)} aria-label="종료 시간" /></label>
-              <label className="today-direct-time-form__date"><span>날짜</span><input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value)} aria-label="다른 날짜로 이동" required /></label>
-              <button type="submit"><Check />변경 저장</button>
+              <label><span>{tr("종료")}</span><input value={endValue} inputMode="numeric" onChange={(event) => setEndValue(event.target.value)} aria-label={tr("종료 시간")} /></label>
+              <label className="today-direct-time-form__date"><span>{tr("날짜")}</span><input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value)} aria-label={tr("다른 날짜로 이동")} required /></label>
+              <button type="submit"><Check />{tr("변경 저장")}</button>
             </form>
 
             {task && (
@@ -398,16 +400,16 @@ function BlockActionPanel({
                 <button type="button" disabled={timerBusy} onClick={() => { onStartTask(task.id); onClose(); }}>
                   {ownsTimer && !timerPaused ? <Pause /> : <Play />}
                   {timerBusy
-                    ? timerPaused ? '다른 할 일 일시정지 중' : '다른 할 일 실행 중'
-                    : ownsTimer ? timerPaused ? '타이머 계속' : '타이머 멈춤' : '타이머 시작'}
+                    ? timerPaused ? tr("다른 할 일 일시정지 중") : tr("다른 할 일 실행 중")
+                    : ownsTimer ? timerPaused ? tr("타이머 계속") : tr("타이머 멈춤") : tr("타이머 시작")}
                 </button>
-                <button type="button" onClick={() => { onCompleteTask(task.id); onClose(); }}><CircleCheck />{task.status === 'done' ? '완료 취소' : '할 일 완료'}</button>
-                {onEditTask && <button type="button" onClick={() => { onClose(); onEditTask(task); }}>할 일 상세 수정·삭제</button>}
-                <button type="button" onClick={() => { onScheduleTaskAgain(task); onClose(); }}><Calendar />같은 할 일 다시 배치</button>
+                <button type="button" onClick={() => { onCompleteTask(task.id); onClose(); }}><CircleCheck />{task.status === 'done' ? tr("완료 취소") : tr("할 일 완료")}</button>
+                {onEditTask && <button type="button" onClick={() => { onClose(); onEditTask(task); }}>{tr("할 일 상세 수정·삭제")}</button>}
+                <button type="button" onClick={() => { onScheduleTaskAgain(task); onClose(); }}><Calendar />{tr("같은 할 일 다시 배치")}</button>
               </div>
             )}
 
-            <button className="today-direct-remove-block" type="button" onClick={onRemove}><Trash2 />시간표에서 빼기</button>
+            <button className="today-direct-remove-block" type="button" onClick={onRemove}><Trash2 />{tr("시간표에서 빼기")}</button>
           </>
         )}
         {error && <p className="today-direct-panel-error" role="alert">{error}</p>}
@@ -439,6 +441,7 @@ export function DayTimeline({
   onStartTask,
   onUpdateBlock
 }: DayTimelineProps) {
+  useLocale();
   const gridRef = useRef<HTMLDivElement>(null);
   const inlineEditorRef = useRef<HTMLFormElement>(null);
   const inlineInputRef = useRef<HTMLInputElement>(null);
@@ -561,13 +564,13 @@ export function DayTimeline({
   };
 
   const conflictMessage = (conflict: ConflictPreview) => (
-    `${describeRange(conflict.range)} · ${conflict.overlapMinutes}분 겹침 · ${conflict.block.title}`
+    tr("{{v0}} · {{v1}}분 겹침 · {{v2}}", { v0: describeRange(conflict.range), v1: conflict.overlapMinutes, v2: conflict.block.title })
   );
 
   const startInlineCreate = (range: DayMinuteRange) => {
     const conflict = conflictForRange(range);
     if (conflict) {
-      setFeedback(`${conflictMessage(conflict)} — 빈 시간을 선택하세요.`);
+      setFeedback(tr("{{v0}} — 빈 시간을 선택하세요.", { v0: conflictMessage(conflict) }));
       return;
     }
     setFeedback('');
@@ -582,17 +585,17 @@ export function DayTimeline({
     if (startMinutes === null || endMinutes === null || startMinutes >= DAY_END_MINUTES
       || endMinutes - startMinutes < MIN_BLOCK_DURATION_MINUTES
       || startMinutes % TIMELINE_SNAP_MINUTES || endMinutes % TIMELINE_SNAP_MINUTES) {
-      setFeedback('시작·종료를 15분 단위로 입력하세요. 종료는 시작보다 15분 이상 늦어야 합니다. 자정은 24:00입니다.');
+      setFeedback(tr("시작·종료를 15분 단위로 입력하세요. 종료는 시작보다 15분 이상 늦어야 합니다. 자정은 24:00입니다."));
       return;
     }
     const range = { startMinutes, endMinutes };
     const conflict = conflictForRange(range);
-    if (conflict) return setFeedback(`${conflictMessage(conflict)} — 저장하지 않았습니다.`);
+    if (conflict) return setFeedback(tr("{{v0}} — 저장하지 않았습니다.", { v0: conflictMessage(conflict) }));
     const input: TimelineCreateInput = { kind: inlineDraft.kind, range, title: inlineDraft.title.trim() };
-    if (!onCreate(input)) return setFeedback('시간이 겹쳐 저장하지 못했습니다.');
+    if (!onCreate(input)) return setFeedback(tr("시간이 겹쳐 저장하지 못했습니다."));
     focusAfterCreateRef.current = { startMinutes: input.range.startMinutes, title: input.title };
     setInlineDraft(null);
-    setFeedback(`${input.title}, ${describeRange(input.range)}에 추가했습니다.`);
+    setFeedback(tr("{{v0}}, {{v1}}에 추가했습니다.", { v0: input.title, v1: describeRange(input.range) }));
   };
 
   const handleInlineKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -813,14 +816,14 @@ export function DayTimeline({
         }
         const conflict = conflictForRange(targetRange);
         if (conflict) {
-          setFeedback(`${conflictMessage(conflict)} — ${draggingTask.title}은 배치하지 않았습니다.`);
+          setFeedback(tr("{{v0}} — {{v1}}은 배치하지 않았습니다.", { v0: conflictMessage(conflict), v1: draggingTask.title }));
           return;
         }
         if (!onScheduleTask(draggingTask, targetRange)) {
-          setFeedback(PLACEMENT_CONFLICT_MESSAGE);
+          setFeedback(placementConflictMessage());
           return;
         }
-        setFeedback(`${draggingTask.title}, ${describeRange(targetRange)}에 추가 배치했습니다.`);
+        setFeedback(tr("{{v0}}, {{v1}}에 추가 배치했습니다.", { v0: draggingTask.title, v1: describeRange(targetRange) }));
         onDragTaskEnd();
         return;
       }
@@ -834,14 +837,14 @@ export function DayTimeline({
     }
     const conflict = conflictForRange(draft.range, draft.block.id);
     if (conflict) {
-      setFeedback(`${conflictMessage(conflict)} — 원래 시간으로 돌아갔습니다.`);
+      setFeedback(tr("{{v0}} — 원래 시간으로 돌아갔습니다.", { v0: conflictMessage(conflict) }));
       return;
     }
     if (!onUpdateBlock(draft.block, draft.range)) {
-      setFeedback('시간이 겹쳐 원래대로 돌아갔습니다.');
+      setFeedback(tr("시간이 겹쳐 원래대로 돌아갔습니다."));
       return;
     }
-    setFeedback(`${draft.block.title}, ${describeRange(draft.range)}로 변경했습니다.`);
+    setFeedback(tr("{{v0}}, {{v1}}로 변경했습니다.", { v0: draft.block.title, v1: describeRange(draft.range) }));
   };
 
   const cancelPointer = () => {
@@ -874,11 +877,11 @@ export function DayTimeline({
     }
     const conflict = conflictForRange(dropRange);
     if (conflict) {
-      setFeedback(`${conflictMessage(conflict)} — ${draggingTask.title}은 배치하지 않았습니다.`);
+      setFeedback(tr("{{v0}} — {{v1}}은 배치하지 않았습니다.", { v0: conflictMessage(conflict), v1: draggingTask.title }));
     } else if (!onScheduleTask(draggingTask, dropRange)) {
-      setFeedback(PLACEMENT_CONFLICT_MESSAGE);
+      setFeedback(placementConflictMessage());
     } else {
-      setFeedback(`${draggingTask.title}, ${describeRange(dropRange)}에 배치했습니다.`);
+      setFeedback(tr("{{v0}}, {{v1}}에 배치했습니다.", { v0: draggingTask.title, v1: describeRange(dropRange) }));
     }
     setDropRange(null);
     onDragTaskEnd();
@@ -890,7 +893,7 @@ export function DayTimeline({
     const startMinutes = parseClockInput(placementTime);
     const durationMinutes = taskPlacementDuration(draggingTask);
     if (startMinutes === null || startMinutes % TIMELINE_SNAP_MINUTES !== 0) {
-      setFeedback('시작은 15분 단위로 입력하세요.');
+      setFeedback(tr("시작은 15분 단위로 입력하세요."));
       return;
     }
     const range = { startMinutes, endMinutes: startMinutes + durationMinutes };
@@ -900,14 +903,14 @@ export function DayTimeline({
     }
     const conflict = conflictForRange(range);
     if (conflict) {
-      setFeedback(`${conflictMessage(conflict)} — 빈 시간을 다시 선택하세요.`);
+      setFeedback(tr("{{v0}} — 빈 시간을 다시 선택하세요.", { v0: conflictMessage(conflict) }));
       return;
     }
     if (!onScheduleTask(draggingTask, range)) {
-      setFeedback(PLACEMENT_CONFLICT_MESSAGE);
+      setFeedback(placementConflictMessage());
       return;
     }
-    setFeedback(`${draggingTask.title}, ${describeRange(range)}에 추가 배치했습니다.`);
+    setFeedback(tr("{{v0}}, {{v1}}에 추가 배치했습니다.", { v0: draggingTask.title, v1: describeRange(range) }));
     onDragTaskEnd();
   };
 
@@ -915,7 +918,7 @@ export function DayTimeline({
     event.preventDefault();
     const startMinutes = parseClockInput(keyboardCreateTime);
     if (startMinutes === null || startMinutes % TIMELINE_SNAP_MINUTES !== 0) {
-      setFeedback('시작은 15분 단위로 입력하세요.');
+      setFeedback(tr("시작은 15분 단위로 입력하세요."));
       return;
     }
     startInlineCreate(createDefaultRange(startMinutes));
@@ -926,13 +929,13 @@ export function DayTimeline({
     if (targetDate === date && occupancyChanged) {
       const conflict = conflictForRange(range, block.id);
       if (conflict) {
-        setFeedback(`${conflictMessage(conflict)} — 변경하지 않았습니다.`);
+        setFeedback(tr("{{v0}} — 변경하지 않았습니다.", { v0: conflictMessage(conflict) }));
         return false;
       }
     }
     const saved = onUpdateBlock(block, range, targetDate, title);
     if (saved) {
-      setFeedback(`${title ?? block.title}, ${targetDate} ${describeRange(range)}로 변경했습니다.`);
+      setFeedback(tr("{{v0}}, {{v1}} {{v2}}로 변경했습니다.", { v0: title ?? block.title, v1: targetDate, v2: describeRange(range) }));
       setActiveBlockId(null);
     }
     return saved;
@@ -952,39 +955,39 @@ export function DayTimeline({
   return (
     <div className={`today-direct-timeline${layout === 'week' ? ' is-week-column' : ''}`}>
       <div className="today-direct-timeline__instructions" id={`today-direct-instructions-${date}`}>
-        <span><GripHorizontal aria-hidden="true" /> {mobile ? '눌러 수정 · 15분 단위 조절' : '드래그로 이동 · 15분 단위 조절'}</span>
-        <span><LockKeyhole aria-hidden="true" /> Google 읽기 전용</span>
+        <span><GripHorizontal aria-hidden="true" /> {mobile ? tr("눌러 수정 · 15분 단위 조절") : tr("드래그로 이동 · 15분 단위 조절")}</span>
+        <span><LockKeyhole aria-hidden="true" /> {' '}{tr("Google 읽기 전용")}</span>
         {draggingTask && (
           <form className="today-direct-placement-mode" onSubmit={submitPlacementTime}>
-            <span aria-live="polite"><Calendar aria-hidden="true" /><strong>{draggingTask.title}</strong> 배치할 빈 시간을 선택하세요.</span>
+            <span aria-live="polite"><Calendar aria-hidden="true" /><strong>{draggingTask.title}</strong> {' '}{tr("배치할 빈 시간을 선택하세요.")}</span>
             <label>
-              <span>시작</span>
+              <span>{tr("시작")}</span>
               <input
                 ref={placementTimeRef}
                 type="time"
                 step={TIMELINE_SNAP_MINUTES * 60}
                 value={placementTime}
-                aria-label={`${draggingTask.title} 배치 시작 시간`}
+                aria-label={tr("{{v0}} 배치 시작 시간", { v0: draggingTask.title })}
                 onChange={(event) => setPlacementTime(event.target.value)}
               />
             </label>
-            <button type="submit"><Check aria-hidden="true" />이 시간에 배치</button>
-            <button type="button" onClick={onDragTaskEnd}>취소</button>
+            <button type="submit"><Check aria-hidden="true" />{tr("이 시간에 배치")}</button>
+            <button type="button" onClick={onDragTaskEnd}>{tr("취소")}</button>
           </form>
         )}
         {!draggingTask && (
           <form className="today-direct-keyboard-create" onSubmit={submitKeyboardCreate}>
             <label>
-              <span>시작 시간</span>
+              <span>{tr("시작 시간")}</span>
               <input
                 type="time"
                 step={TIMELINE_SNAP_MINUTES * 60}
                 value={keyboardCreateTime}
-                aria-label="키보드 일정 시작 시간"
+                aria-label={tr("키보드 일정 시작 시간")}
                 onChange={(event) => setKeyboardCreateTime(event.target.value)}
               />
             </label>
-            <button type="submit"><Calendar aria-hidden="true" />이 시간에 일정 추가</button>
+            <button type="submit"><Calendar aria-hidden="true" />{tr("이 시간에 일정 추가")}</button>
           </form>
         )}
       </div>
@@ -995,7 +998,7 @@ export function DayTimeline({
           data-day={day}
           style={{ height: `${DAY_TIMELINE_HEIGHT}px` }}
           aria-describedby={layout === 'day' ? `today-direct-instructions-${date}` : undefined}
-          aria-label="00시부터 24시까지 15분 단위 시간표. 빈 시간을 누르거나 드래그해 일정을 만듭니다."
+          aria-label={tr("00시부터 24시까지 15분 단위 시간표. 빈 시간을 누르거나 드래그해 일정을 만듭니다.")}
           onPointerDown={beginGridPointer}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -1031,7 +1034,7 @@ export function DayTimeline({
                 '--lane-left': `${lane.index / lane.count * 100}%`,
                 '--lane-width': `calc(${100 / lane.count}% - ${lane.count > 1 ? 2 : 0}px)`
               } as CSSProperties;
-              const label = `${block.title}, ${formatClock(range.startMinutes)}부터 ${formatClock(range.endMinutes)}까지, ${block.external ? 'Google Calendar 읽기 전용 일정' : block.taskId ? '할 일 시간 블록' : '독립 일정'}`;
+              const label = tr("{{v0}}, {{v1}}부터 {{v2}}까지, {{v3}}", { v0: block.title, v1: formatClock(range.startMinutes), v2: formatClock(range.endMinutes), v3: block.external ? tr("Google Calendar 읽기 전용 일정") : block.taskId ? tr("taskTimeBlock") : tr("독립 일정") });
               return (
                 <div key={block.id} className={wrapperClass} style={{ ...laneStyle, top: `${geometry.topPx + 1}px`, height: `${Math.max(14, geometry.heightPx - 2)}px` }}>
                   <article
@@ -1050,13 +1053,13 @@ export function DayTimeline({
                   >
                     <span className="today-direct-block__kind">
                       {block.external ? <LockKeyhole /> : block.taskId ? <CircleCheck /> : <Calendar />}
-                      {block.external ? 'Google · 읽기 전용' : block.taskId ? '할 일' : '독립 일정'}
+                      {block.external ? tr("Google · 읽기 전용") : block.taskId ? tr("할 일") : tr("독립 일정")}
                       {task && block.durationMinutes >= 60 && <SubtaskProgress items={task.subtasks} />}
                     </span>
                     <strong>{task?.pinned && <Star size={12} fill="currentColor" aria-label="Top 3" />}{block.title}</strong>
                     <span className="today-direct-block__time">
                       {describeRange(range)}
-                      {runningTaskId !== null && runningTaskId === block.taskId && <em> · {timerPaused ? '일시정지' : '실행 중'}</em>}
+                      {runningTaskId !== null && runningTaskId === block.taskId && <em> · {timerPaused ? tr("일시정지") : tr("실행 중")}</em>}
                     </span>
                   </article>
                   {!mobile && !block.external && lane.count <= 2 && (
@@ -1064,16 +1067,16 @@ export function DayTimeline({
                       <button
                         className="today-direct-resize-handle is-top"
                         type="button"
-                        aria-label={`${block.title} 시작 시간 조절`}
-                      title="시작 시간 조절"
+                        aria-label={tr("{{v0}} 시작 시간 조절", { v0: block.title })}
+                      title={tr("시작 시간 조절")}
                       onClick={(event) => { if (event.detail === 0) setActiveBlockId(block.id); }}
                       onPointerDown={(event) => beginResizePointer(event, block, 'resize-top')}
                       ><GripHorizontal aria-hidden="true" /></button>
                       <button
                         className="today-direct-resize-handle is-bottom"
                         type="button"
-                        aria-label={`${block.title} 종료 시간 조절`}
-                      title="종료 시간 조절"
+                        aria-label={tr("{{v0}} 종료 시간 조절", { v0: block.title })}
+                      title={tr("종료 시간 조절")}
                       onClick={(event) => { if (event.detail === 0) setActiveBlockId(block.id); }}
                       onPointerDown={(event) => beginResizePointer(event, block, 'resize-bottom')}
                       ><GripHorizontal aria-hidden="true" /></button>
@@ -1085,7 +1088,7 @@ export function DayTimeline({
           </div>
 
           {mobile && !draggingTask && (
-            <div className="today-direct-mobile-block-controls" aria-label="모바일 일정 조작">
+            <div className="today-direct-mobile-block-controls" aria-label={tr("모바일 일정 조작")}>
               {mobileBlockControls.map(({ blocks: controlBlocks, topPx }) => {
                 const block = controlBlocks[0];
                 const isGroup = controlBlocks.length > 1;
@@ -1095,8 +1098,8 @@ export function DayTimeline({
                 const groupStart = Math.min(...controlBlocks.map((item) => item.startMinutes));
                 const groupEnd = Math.max(...controlBlocks.map((item) => item.startMinutes + item.durationMinutes));
                 const label = isGroup
-                  ? `${formatClock(groupStart)}–${formatClock(groupEnd)} 일정 ${controlBlocks.length}개 선택`
-                  : block.external ? `${block.title} 읽기 전용 일정 보기` : `${block.title} 빠른 조작`;
+                  ? tr("{{v0}}–{{v1}} 일정 {{v2}}개 선택", { v0: formatClock(groupStart), v1: formatClock(groupEnd), v2: controlBlocks.length })
+                  : block.external ? tr("{{v0}} 읽기 전용 일정 보기", { v0: block.title }) : tr("{{v0}} 빠른 조작", { v0: block.title });
                 return (
                   <button
                     key={controlBlocks.map((item) => item.id).join(':')}
@@ -1120,13 +1123,13 @@ export function DayTimeline({
 
           {previewRange && (
             <div className={`today-direct-draft-block${previewConflict ? ' is-conflict' : ''}`} style={{ top: `${getBlockGeometry(previewRange, DAY_TIMELINE_HEIGHT).topPx + 1}px`, height: `${Math.max(14, getBlockGeometry(previewRange, DAY_TIMELINE_HEIGHT).heightPx - 2)}px` }}>
-              <strong>{inlineDraft ? inlineDraft.title || '제목 입력' : draggingTask?.title ?? '새 일정'}</strong>
+              <strong>{inlineDraft ? inlineDraft.title || tr("제목 입력") : draggingTask?.title ?? tr("새 일정")}</strong>
               <span>{describeRange(previewRange)}</span>
             </div>
           )}
 
           {inlineDraft && (
-            <Modal title="새 일정" description={`${date} · 제목과 시작·종료 시간을 정하세요.`} onClose={() => setInlineDraft(null)} className="timeline-create-modal">
+            <Modal title={tr("새 일정")} description={tr("{{v0}} · 제목과 시작·종료 시간을 정하세요.", { v0: date })} onClose={() => setInlineDraft(null)} className="timeline-create-modal">
             <form
               className="timeline-create-form"
               ref={inlineEditorRef}
@@ -1135,8 +1138,8 @@ export function DayTimeline({
                 if (!inlineComposingRef.current) saveInline();
               }}
             >
-              <select value={inlineDraft.kind} onChange={(event) => setInlineDraft((current) => current ? { ...current, kind: event.target.value as TimelineCreateKind } : current)} aria-label="생성 유형">
-                <option value="todo">할 일</option><option value="event">독립 일정</option>
+              <select value={inlineDraft.kind} onChange={(event) => setInlineDraft((current) => current ? { ...current, kind: event.target.value as TimelineCreateKind } : current)} aria-label={tr("생성 유형")}>
+                <option value="todo">{tr("할 일")}</option><option value="event">{tr("독립 일정")}</option>
               </select>
               <input
                 ref={inlineInputRef}
@@ -1146,28 +1149,28 @@ export function DayTimeline({
                 onCompositionStart={() => { inlineComposingRef.current = true; }}
                 onCompositionEnd={() => { inlineComposingRef.current = false; }}
                 onKeyDown={handleInlineKeyDown}
-                placeholder="무엇을 할까요?"
-                aria-label="새 일정 제목"
+                placeholder={tr("무엇을 할까요?")}
+                aria-label={tr("새 일정 제목")}
                 autoComplete="off"
                 maxLength={500}
               />
-              <time>{inlineRange ? describeRange(inlineRange) : '시작·종료 시간을 확인해 주세요'}</time>
+              <time>{inlineRange ? describeRange(inlineRange) : tr("시작·종료 시간을 확인해 주세요")}</time>
               <div className="timeline-create-times">
-                <label>시작<input aria-label="새 일정 시작 시간" inputMode="numeric" placeholder="09:00" value={inlineDraft.start} onChange={event => setInlineDraft(current => current ? { ...current, start: event.target.value } : current)} /></label>
-                <label>종료<input aria-label="새 일정 종료 시간" inputMode="numeric" placeholder="10:00" value={inlineDraft.end} onChange={event => setInlineDraft(current => current ? { ...current, end: event.target.value } : current)} /></label>
+                <label>{tr("시작")}<input aria-label={tr("새 일정 시작 시간")} inputMode="numeric" placeholder="09:00" value={inlineDraft.start} onChange={event => setInlineDraft(current => current ? { ...current, start: event.target.value } : current)} /></label>
+                <label>{tr("종료")}<input aria-label={tr("새 일정 종료 시간")} inputMode="numeric" placeholder="10:00" value={inlineDraft.end} onChange={event => setInlineDraft(current => current ? { ...current, end: event.target.value } : current)} /></label>
               </div>
-              <p className="field-help">15분 단위 · 자정에 끝나는 일정은 24:00으로 입력하세요.</p>
+              <p className="field-help">{tr("15분 단위 · 자정에 끝나는 일정은 24:00으로 입력하세요.")}</p>
               {feedback && <p className="form-error" role="alert">{feedback}</p>}
               <div className="modal__actions">
-                <button type="button" className="button button--secondary" aria-label="새 일정 취소" onClick={() => setInlineDraft(null)}>취소</button>
-                <button type="submit" className="button button--primary" disabled={!inlineDraft.title.trim()} aria-label="새 일정 저장"><Check />저장</button>
+                <button type="button" className="button button--secondary" aria-label={tr("새 일정 취소")} onClick={() => setInlineDraft(null)}>{tr("취소")}</button>
+                <button type="submit" className="button button--primary" disabled={!inlineDraft.title.trim()} aria-label={tr("새 일정 저장")}><Check />{tr("저장")}</button>
               </div>
             </form>
             </Modal>
           )}
 
           {currentMinute !== null && currentMinute >= 0 && currentMinute <= DAY_END_MINUTES && (
-            <div className="today-direct-now" aria-label={`현재 시각 ${formatClock(currentMinute)}`} style={{ top: `${getBlockGeometry({ startMinutes: currentMinute, endMinutes: currentMinute }, DAY_TIMELINE_HEIGHT).topPx}px` }}>
+            <div className="today-direct-now" aria-label={tr("현재 시각 {{v0}}", { v0: formatClock(currentMinute) })} style={{ top: `${getBlockGeometry({ startMinutes: currentMinute, endMinutes: currentMinute }, DAY_TIMELINE_HEIGHT).topPx}px` }}>
               <time>{formatClock(currentMinute)}</time><span />
             </div>
           )}
@@ -1181,16 +1184,16 @@ export function DayTimeline({
         </div>
       </div>
 
-      <div className="today-direct-timeline__legend" aria-label="일정 구분">
-        <span><i className="is-todo" />할 일 블록</span><span><i className="is-event" />독립 일정</span><span><LockKeyhole />Google 읽기 전용</span>
+      <div className="today-direct-timeline__legend" aria-label={tr("일정 구분")}>
+        <span><i className="is-todo" />{tr("할 일 블록")}</span><span><i className="is-event" />{tr("독립 일정")}</span><span><LockKeyhole />{' '}{tr("Google 읽기 전용")}</span>
       </div>
-      {!inlineDraft && <p className="today-direct-live-feedback" role={feedback.includes('겹') ? 'alert' : 'status'} aria-live="polite">{feedback}</p>}
+      {!inlineDraft && <p className="today-direct-live-feedback" role={feedback.includes(tr("겹")) ? 'alert' : 'status'} aria-live="polite">{feedback}</p>}
 
       {mobilePickerBlocks.length > 0 && (
         <Suspense fallback={(
           <div className="today-direct-block-panel-layer" role="status" aria-live="polite">
             <span className="today-direct-block-panel__backdrop" aria-hidden="true" />
-            <span className="today-direct-block-panel">일정 목록 여는 중…</span>
+            <span className="today-direct-block-panel">{tr("일정 목록 여는 중…")}</span>
           </div>
         )}>
           <MobileBlockPicker

@@ -1,3 +1,6 @@
+import { useLocale, tr, getIntlLocale, getLanguage } from '../i18n';
+import { formatDateRange } from '../i18n/format';
+import { LanguageSelector } from '../i18n/LanguageSelector';
 import {
   useEffect,
   useMemo,
@@ -130,14 +133,14 @@ function useCompactLayout() {
   return isCompact;
 }
 
-const formatDateLabel = (date: string) => {
+const formatDateLabel = (date: string, compact = false) => {
   const parsed = parseLocalDate(date);
   if (!parsed) return date;
-  return new Intl.DateTimeFormat('ko-KR', {
+  return new Intl.DateTimeFormat(getIntlLocale(), {
     year: 'numeric',
-    month: 'long',
+    month: compact ? 'short' : 'long',
     day: 'numeric',
-    weekday: 'long'
+    weekday: compact ? undefined : 'long'
   }).format(parsed);
 };
 
@@ -196,6 +199,7 @@ function TodoPanel({
   onScheduleNext,
   onStart
 }: TodoPanelProps) {
+  useLocale();
   const [title, setTitle] = useState('');
   const [list, setList] = useState<'day' | 'inbox'>('day');
   const visibleTasks = list === 'day' ? unscheduledTasks : inboxTasks;
@@ -223,15 +227,15 @@ function TodoPanel({
     <div className={mobile ? 'today-direct-todos is-mobile' : 'today-direct-todos'}>
       <header className="today-direct-todos__header">
         <div>
-          <span className="today-direct-kicker">하나씩, 가볍게</span>
-          <h2>{canRecordManualTime ? '오늘 할 일' : '이 날짜의 할 일'}</h2>
+          <span className="today-direct-kicker">{tr("하나씩, 가볍게")}</span>
+          <h2>{canRecordManualTime ? tr("오늘 할 일") : tr("이 날짜의 할 일")}</h2>
         </div>
-        <strong aria-label={`${canRecordManualTime ? '오늘 할 일' : '이 날짜의 할 일'} ${unscheduledTasks.length}개`}>{unscheduledTasks.filter(task => task.status === 'done').length}/{unscheduledTasks.length}</strong>
+        <strong aria-label={tr("{{v0}} {{v1}}개", { v0: canRecordManualTime ? tr('오늘 할 일') : tr('이 날짜의 할 일'), v1: unscheduledTasks.length })}>{unscheduledTasks.filter(task => task.status === 'done').length}/{unscheduledTasks.length}</strong>
       </header>
 
       <form className="today-direct-quick-add" onSubmit={submit}>
         <Plus size={17} aria-hidden="true" />
-        <label className="sr-only" htmlFor="quick-capture">빠른 메모</label>
+        <label className="sr-only" htmlFor="quick-capture">{tr("빠른 메모")}</label>
         <input
           id="quick-capture"
           value={title}
@@ -239,16 +243,16 @@ function TodoPanel({
           onCompositionStart={() => { composingRef.current = true; }}
           onCompositionEnd={() => { composingRef.current = false; }}
           onKeyDown={handleKeyDown}
-          placeholder={list === 'inbox' ? '나중에 할 일 추가' : '이 날짜에 할 일 추가'}
+          placeholder={list === 'inbox' ? tr("나중에 할 일 추가") : tr("이 날짜에 할 일 추가")}
           maxLength={500}
           autoComplete="off"
         />
-        <button type="submit" disabled={!title.trim()}>추가</button>
+        <button type="submit" disabled={!title.trim()}>{tr("추가")}</button>
       </form>
 
-      <div className="today-task-filters" aria-label="할 일 목록 선택">
-        <button type="button" aria-pressed={list === 'day'} onClick={() => setList('day')}>선택한 날짜 <span>{unscheduledTasks.length}</span></button>
-        <button type="button" aria-pressed={list === 'inbox'} onClick={() => setList('inbox')}>나중에 <span>{inboxTasks.length}</span></button>
+      <div className="today-task-filters" aria-label={tr("할 일 목록 선택")}>
+        <button type="button" aria-pressed={list === 'day'} onClick={() => setList('day')}>{tr("선택한 날짜")}{' '}<span>{unscheduledTasks.length}</span></button>
+        <button type="button" aria-pressed={list === 'inbox'} onClick={() => setList('inbox')}>{tr("나중에")}{' '}<span>{inboxTasks.length}</span></button>
       </div>
 
       {visibleTasks.length > 0 ? (
@@ -258,9 +262,9 @@ function TodoPanel({
             const isDone = task.status === 'done';
             const isRunning = runningTaskId === task.id;
             const isPaused = isRunning && timerPaused;
-            const timerAction = isRunning ? (isPaused ? '계속' : '멈춤') : '시작';
-            const otherTimerStatus = timerPaused ? '다른 할 일 일시정지 중' : '다른 할 일 실행 중';
-            const timerLabel = isRunning ? `타이머 ${timerAction}` : runningTaskId ? otherTimerStatus : '타이머 시작';
+            const timerAction = isRunning ? (isPaused ? tr("계속") : tr("멈춤")) : tr("시작");
+            const otherTimerStatus = timerPaused ? tr("다른 할 일 일시정지 중") : tr("다른 할 일 실행 중");
+            const timerLabel = isRunning ? tr("타이머 {{v0}}", { v0: timerAction }) : runningTaskId ? otherTimerStatus : tr("타이머 시작");
             return (
               <li
                 key={task.id}
@@ -270,24 +274,24 @@ function TodoPanel({
                 onDragEnd={onDragEnd}
               >
                 <GripVertical className="today-direct-todo__grip" size={16} aria-hidden="true" />
-                <button className="today-direct-todo__check" type="button" aria-pressed={isDone} aria-label={`${task.title} ${isDone ? '완료 취소' : '완료 처리'}`} title={isDone ? '완료 취소' : '완료'} onClick={() => onComplete(task.id)}>
+                <button className="today-direct-todo__check" type="button" aria-pressed={isDone} aria-label={`${task.title} ${isDone ? tr("완료 취소") : tr("완료 처리")}`} title={isDone ? tr("완료 취소") : tr("완료")} onClick={() => onComplete(task.id)}>
                   <Check size={14} aria-hidden="true" />
                 </button>
                 <div className="today-direct-todo__copy">
-                  <button className="today-direct-todo__edit" type="button" title="할 일 수정" aria-label={`${task.title} 수정`} onClick={() => onEdit(task)}>
+                  <button className="today-direct-todo__edit" type="button" title={tr("할 일 수정")} aria-label={tr("{{v0}} 수정", { v0: task.title })} onClick={() => onEdit(task)}>
                     {task.pinned && <Star size={13} fill="currentColor" aria-label="Top 3" />}
                     <span>{task.title}</span>
                     <SubtaskProgress items={task.subtasks} />
                   </button>
                   <small>
-                    <Clock3 size={13} aria-hidden="true" /> {isDone ? '완료' : taskBlocks.length ? taskBlocks.map(block => `${formatClock(block.startMinutes)}–${formatClock(block.startMinutes + block.durationMinutes)}`).join(' · ') : list === 'inbox' ? '날짜 미정' : `시간 미정 · 예상 ${formatMinutes(task.estimateMinutes)}`}
+                    <Clock3 size={13} aria-hidden="true" /> {isDone ? tr("완료") : taskBlocks.length ? taskBlocks.map(block => `${formatClock(block.startMinutes)}–${formatClock(block.startMinutes + block.durationMinutes)}`).join(' · ') : list === 'inbox' ? tr("날짜 미정") : tr("시간 미정 · 예상 {{v0}}", { v0: formatMinutes(task.estimateMinutes) })}
                   </small>
                 </div>
                 <div className="today-task-actions">
-                <button className="today-direct-todo__schedule" type="button" disabled={isDone} aria-label={`${task.title} 시간 지정`} onClick={() => onScheduleNext(task)}>
-                  <Clock3 size={15} aria-hidden="true" /><span>{taskBlocks.length ? '시간 수정' : '시간 지정'}</span>
+                <button className="today-direct-todo__schedule" type="button" disabled={isDone} aria-label={tr("{{v0}} 시간 지정", { v0: task.title })} onClick={() => onScheduleNext(task)}>
+                  <Clock3 size={15} aria-hidden="true" /><span>{taskBlocks.length ? tr("시간 수정") : tr("시간 지정")}</span>
                 </button>
-                <button className="today-direct-todo__schedule" type="button" aria-label={`${task.title} 날짜 변경`} onClick={() => onPostpone(task)}><CalendarDays size={15} /><span>날짜 변경</span></button>
+                <button className="today-direct-todo__schedule" type="button" aria-label={tr("{{v0}} 날짜 변경", { v0: task.title })} onClick={() => onPostpone(task)}><CalendarDays size={15} /><span>{tr("날짜 변경")}</span></button>
                 <button
                   className="today-direct-todo__start"
                   type="button"
@@ -297,7 +301,7 @@ function TodoPanel({
                   onClick={() => onStart(task.id)}
                 >
                   {isRunning && !isPaused ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                  <span>{isRunning ? timerAction : runningTaskId ? timerPaused ? '일시정지 중' : '실행 중' : '시작'}</span>
+                  <span>{isRunning ? timerAction : runningTaskId ? timerPaused ? tr("일시정지 중") : tr("실행 중") : tr("시작")}</span>
                 </button>
                 </div>
               </li>
@@ -305,39 +309,39 @@ function TodoPanel({
           })}
         </ul>
       ) : (
-        <p className="today-direct-todos__empty">{list === 'inbox' ? '날짜가 정해지지 않은 할 일이 없어요.' : '위에 할 일을 적어보세요. 시간은 나중에 정해도 괜찮아요.'}</p>
+        <p className="today-direct-todos__empty">{list === 'inbox' ? tr("날짜가 정해지지 않은 할 일이 없어요.") : tr("위에 할 일을 적어보세요. 시간은 나중에 정해도 괜찮아요.")}</p>
       )}
 
-      <p className="today-direct-todos__hint">체크하면 완료. 시간을 정하면 같은 할 일이 시간표에도 표시돼요.</p>
+      <p className="today-direct-todos__hint">{tr("체크하면 완료. 시간을 정하면 같은 할 일이 시간표에도 표시돼요.")}</p>
 
       {completedTasks.length > 0 && (
         <details className="today-direct-utility">
-          <summary>완료·취소한 할 일 ({completedTasks.length})</summary>
-          <p className="field-help">전체 기간의 할 일입니다. 눌러서 수정하거나 다시 열 수 있습니다.</p>
+          <summary>{tr("완료·취소한 할 일 (")}{completedTasks.length})</summary>
+          <p className="field-help">{tr("전체 기간의 할 일입니다. 눌러서 수정하거나 다시 열 수 있습니다.")}</p>
           <ul className="today-direct-completed-list">{completedTasks.map((task) => (
-            <li key={task.id}><button type="button" onClick={() => onEdit(task)} aria-label={`${task.title} 수정`}><span>{task.title}</span><small>{task.status === 'done' ? '완료' : '취소'} · 수정</small></button></li>
+            <li key={task.id}><button type="button" onClick={() => onEdit(task)} aria-label={tr("{{v0}} 수정", { v0: task.title })}><span>{task.title}</span><small>{task.status === 'done' ? tr("완료") : tr("취소")} {' '}{tr("· 수정")}</small></button></li>
           ))}</ul>
         </details>
       )}
 
       <details className="today-direct-utility">
-        <summary><StickyNote size={15} /> 이전 기기 메모</summary>
-        <p>기존 메모에는 계정·날짜 정보가 없습니다. 자동으로 회고에 옮기지 않습니다. 새 메모는 아래 하루 마무리에 남겨주세요.</p>
-        <button type="button" onClick={() => onMemoChange(loadTodayMemo())}>이 기기의 이전 메모 확인</button>
-        {memo && <textarea value={memo} readOnly aria-label="이전 기기 메모 (읽기 전용)" />}
+        <summary><StickyNote size={15} /> {' '}{tr("이전 기기 메모")}</summary>
+        <p>{tr("기존 메모에는 계정·날짜 정보가 없습니다. 자동으로 회고에 옮기지 않습니다. 새 메모는 아래 하루 마무리에 남겨주세요.")}</p>
+        <button type="button" onClick={() => onMemoChange(loadTodayMemo())}>{tr("이 기기의 이전 메모 확인")}</button>
+        {memo && <textarea value={memo} readOnly aria-label={tr("이전 기기 메모 (읽기 전용)")} />}
       </details>
 
       {canRecordManualTime && activeTasks.length > 0 && (
         <details className="today-direct-utility">
-          <summary><TimerReset size={15} /> 수동으로 시간 기록</summary>
+          <summary><TimerReset size={15} /> {' '}{tr("수동으로 시간 기록")}</summary>
           <div className="today-direct-manual-time">
-            <select value={manualTaskId || activeTasks[0].id} onChange={(event) => onManualTaskChange(event.target.value)} aria-label="시간을 기록할 할 일">
+            <select value={manualTaskId || activeTasks[0].id} onChange={(event) => onManualTaskChange(event.target.value)} aria-label={tr("시간을 기록할 할 일")}>
               {activeTasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
             </select>
-            <select value={manualMinutes} onChange={(event) => onManualMinutesChange(event.target.value)} aria-label="기록할 시간">
-              {[10, 15, 25, 40, 60, 90].map((minutes) => <option key={minutes} value={minutes}>{minutes}분</option>)}
+            <select value={manualMinutes} onChange={(event) => onManualMinutesChange(event.target.value)} aria-label={tr("기록할 시간")}>
+              {[10, 15, 25, 40, 60, 90].map((minutes) => <option key={minutes} value={minutes}>{minutes}{tr("분")}</option>)}
             </select>
-            <button type="button" onClick={onRecordManualTime}>기록</button>
+            <button type="button" onClick={onRecordManualTime}>{tr("기록")}{' '}</button>
           </div>
         </details>
       )}
@@ -346,6 +350,7 @@ function TodoPanel({
 }
 
 export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) {
+  useLocale();
   const { timeZone } = useTimeZone();
   const {
     tasks,
@@ -501,7 +506,7 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
       weekOffset: getWeekOffsetForDate(date, new Date(), timeZone)
     });
     if (!saved && taskId) removeTask(taskId);
-    if (saved) { setSelectedDate(date); showNotice(`${formatClock(input.range.startMinutes)}–${formatClock(input.range.endMinutes)}에 ${input.title.trim()}을 추가했습니다.`); }
+    if (saved) { setSelectedDate(date); showNotice(tr("{{v0}}–{{v1}}에 {{v2}}을 추가했습니다.", { v0: formatClock(input.range.startMinutes), v1: formatClock(input.range.endMinutes), v2: input.title.trim() })); }
     return saved;
   };
 
@@ -517,7 +522,7 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
       date,
       weekOffset: getWeekOffsetForDate(date, new Date(), timeZone)
     });
-    if (saved) { setSelectedDate(date); showNotice(`${task.title}을 ${formatClock(range.startMinutes)}에 배치했습니다.`); }
+    if (saved) { setSelectedDate(date); showNotice(tr("{{v0}}을 {{v1}}에 배치했습니다.", { v0: task.title, v1: formatClock(range.startMinutes) })); }
     return saved;
   };
 
@@ -535,7 +540,7 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
       date,
       weekOffset: getWeekOffsetForDate(date, new Date(), timeZone)
     });
-    if (saved) showNotice(`${nextTitle}을 ${formatClock(range.startMinutes)}–${formatClock(range.endMinutes)}로 변경했습니다.`);
+    if (saved) showNotice(tr("{{v0}}을 {{v1}}–{{v2}}로 변경했습니다.", { v0: nextTitle, v1: formatClock(range.startMinutes), v2: formatClock(range.endMinutes) }));
     return saved;
   };
 
@@ -555,13 +560,13 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
       if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
       setRemovedBlock(null);
-      showNotice('실행 취소 시간이 지났거나 일정·동기화 변경으로 복원할 수 없습니다.');
+      showNotice(tr("실행 취소 시간이 지났거나 일정·동기화 변경으로 복원할 수 없습니다."));
       return;
     }
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
     undoTimerRef.current = null;
     setRemovedBlock(null);
-    showNotice(`${removedBlock.title} 일정을 같은 시간으로 복원했습니다.`);
+    showNotice(tr("{{v0}} 일정을 같은 시간으로 복원했습니다.", { v0: removedBlock.title }));
   };
 
   const findAvailableRange = (task: Task): DayMinuteRange | null => {
@@ -589,8 +594,8 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
 
   const addUnscheduledTask = (title: string, later = false) => {
     const taskId = addTask({ title, outcomeId: null, estimateMinutes: 30, plannedDate: later ? 'later' : selectedDate });
-    if (taskId) showNotice(later ? `${title.trim()}을 나중에 목록에 추가했습니다.` : `${title.trim()}을 선택한 날짜에 추가했습니다. 시간은 아직 미정입니다.`);
-    else showNotice('추가하지 못했습니다. 입력은 유지되며 저장 상태를 확인해야 합니다.');
+    if (taskId) showNotice(later ? tr("{{v0}}을 나중에 목록에 추가했습니다.", { v0: title.trim() }) : tr("{{v0}}을 선택한 날짜에 추가했습니다. 시간은 아직 미정입니다.", { v0: title.trim() }));
+    else showNotice(tr("추가하지 못했습니다. 입력은 유지되며 저장 상태를 확인해야 합니다."));
     return Boolean(taskId);
   };
 
@@ -612,16 +617,16 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
     const saved = saveTimeBlock({ id: value.blockId, taskId: scheduleTask.id, title: value.title,
       taskPatch: { ...value.taskPatch, plannedDate: value.date ?? selectedDate },
       day: value.day, date: value.date, startMinutes: value.startMinutes, durationMinutes: value.durationMinutes });
-    if (!saved) { setScheduleError('다른 일정과 겹치거나 저장할 수 없는 값입니다. 시간을 확인해 주세요.'); return; }
+    if (!saved) { setScheduleError(tr("다른 일정과 겹치거나 저장할 수 없는 값입니다. 시간을 확인해 주세요.")); return; }
     setScheduleTask(null);
     setSelectedDate(value.date ?? selectedDate);
-    showNotice('할 일과 시간표에 같은 일정이 반영됐습니다.');
+    showNotice(tr("할 일과 시간표에 같은 일정이 반영됐습니다."));
   };
   const moveTaskDate = (date: string | null) => {
     if (!dateTask) return;
-    if (!rescheduleTask(dateTask.id, selectedDate, date)) { setDateError('옮길 날짜에 겹치는 일정이 있거나 타이머가 실행 중입니다. 시간표를 확인해 주세요.'); return; }
+    if (!rescheduleTask(dateTask.id, selectedDate, date)) { setDateError(tr("옮길 날짜에 겹치는 일정이 있거나 타이머가 실행 중입니다. 시간표를 확인해 주세요.")); return; }
     setDateTask(null);
-    showNotice(date ? `${dateTask.title}을 ${date}로 옮겼습니다.` : '나중에 목록으로 옮기고 이 날짜의 시간 배치를 해제했습니다.');
+    showNotice(date ? tr("{{v0}}을 {{v1}}로 옮겼습니다.", { v0: dateTask.title, v1: date }) : tr("나중에 목록으로 옮기고 이 날짜의 시간 배치를 해제했습니다."));
   };
 
   const beginTaskDrag = (event: DragEvent<HTMLLIElement>, task: Task) => {
@@ -633,7 +638,7 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
 
   const beginTaskPlacement = (task: Task) => {
     setDraggingTask(task);
-    showNotice(`${task.title}을 다시 배치할 빈 시간을 선택하세요.`);
+    showNotice(tr("{{v0}}을 다시 배치할 빈 시간을 선택하세요.", { v0: task.title }));
   };
 
   const startOrToggleTask = (taskId: string) => {
@@ -646,7 +651,7 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
     const minutes = Number(manualMinutes);
     if (!task || !Number.isFinite(minutes) || minutes <= 0) return;
     const entryId = addManualTime(task.id, minutes);
-    setManualNotice({ entryId, label: `${task.title}에 ${minutes}분을 기록했습니다.` });
+    setManualNotice({ entryId, label: tr("{{v0}}에 {{v1}}분을 기록했습니다.", { v0: task.title, v1: minutes }) });
     window.setTimeout(() => setManualNotice((current) => current?.entryId === entryId ? null : current), 5000);
   };
 
@@ -671,27 +676,27 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
     const original = calendarDraft.block;
     if (original) {
       const current = timeBlocks.find(block => block.id === original.id);
-      if (!current || current.external) { setCalendarError('다른 기기에서 이 일정을 삭제하거나 변경했습니다. 입력은 유지됩니다.'); return; }
+      if (!current || current.external) { setCalendarError(tr("다른 기기에서 이 일정을 삭제하거나 변경했습니다. 입력은 유지됩니다.")); return; }
       const rangeChanged = date !== original.date || startMinutes !== original.startMinutes || durationMinutes !== original.durationMinutes;
       const remoteRangeChanged = current.date !== original.date || current.startMinutes !== original.startMinutes || current.durationMinutes !== original.durationMinutes;
       if (rangeChanged && remoteRangeChanged && (current.date !== date || current.startMinutes !== startMinutes || current.durationMinutes !== durationMinutes)) {
-        setCalendarError('다른 기기에서 같은 일정의 시간이 바뀌었습니다. 입력은 유지되며 최신 시간을 확인해야 합니다.'); return;
+        setCalendarError(tr("다른 기기에서 같은 일정의 시간이 바뀌었습니다. 입력은 유지되며 최신 시간을 확인해야 합니다.")); return;
       }
       if (!rangeChanged) { date = current.date; startMinutes = current.startMinutes; durationMinutes = current.durationMinutes; }
       if (!original.taskId) {
         if (title !== original.title && current.title !== original.title && title !== current.title) {
-          setCalendarError('다른 기기에서 같은 제목을 바꿨습니다. 입력은 유지됩니다.'); return;
+          setCalendarError(tr("다른 기기에서 같은 제목을 바꿨습니다. 입력은 유지됩니다.")); return;
         }
         if (title === original.title) title = current.title;
       }
     }
     const range = { startMinutes, endMinutes: startMinutes + durationMinutes };
     const conflict = rangeConflicts(range, value.blockId, date);
-    if (conflict) { setCalendarError(`${conflict.title}과 시간이 겹칩니다. 다른 시간을 선택하세요.`); return; }
+    if (conflict) { setCalendarError(tr("{{v0}}과 시간이 겹칩니다. 다른 시간을 선택하세요.", { v0: conflict.title })); return; }
     let taskId = value.taskId;
     if (value.mode === 'new-task') {
       taskId = addTask({ title: value.title, outcomeId: value.outcomeId, estimateMinutes: value.durationMinutes, plannedDate: date, subtasks: value.subtasks });
-      if (!taskId) { setCalendarError('할 일을 만들지 못했습니다. 입력 내용을 확인하세요.'); return; }
+      if (!taskId) { setCalendarError(tr("할 일을 만들지 못했습니다. 입력 내용을 확인하세요.")); return; }
     }
     const linkedTask = tasks.find(task => task.id === taskId);
     const saved = saveTimeBlock({ id: value.blockId, taskId, title, date, day: getDayKeyForDate(date), startMinutes,
@@ -699,9 +704,9 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
       ...(taskId ? { taskPatch: { ...value.taskPatch, ...(!linkedTask?.plannedDate || linkedTask.plannedDate === 'later' ? { plannedDate: date } : {}) } } : {}) });
     if (!saved) {
       if (value.mode === 'new-task' && taskId) removeTask(taskId);
-      setCalendarError('저장하지 못했습니다. 일정과 동기화 상태를 확인하세요.'); return;
+      setCalendarError(tr("저장하지 못했습니다. 일정과 동기화 상태를 확인하세요.")); return;
     }
-    setCalendarDraft(null); setSelectedDate(date); showNotice('할 일과 달력에 반영했습니다.');
+    setCalendarDraft(null); setSelectedDate(date); showNotice(tr("할 일과 달력에 반영했습니다."));
   };
 
   const navigateCalendar = (direction: number) => setSelectedDate(date => calendarView === 'month'
@@ -748,20 +753,21 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
     <div className={`today-direct-page planning-workspace is-${calendarView}-view`}>
       <header className="today-direct-header">
         <div className="today-direct-header__date">
-          <span className="today-direct-kicker">할 일과 시간 계획</span>
-          <h1>{calendarView === 'week' ? `${selectedWeekDays[0].month}월 ${selectedWeekDays[0].date}일 – ${selectedWeekDays[6].month}월 ${selectedWeekDays[6].date}일` : formatDateLabel(selectedDate)}</h1>
+          <span className="today-direct-kicker">{tr("할 일과 시간 계획")}</span>
+          <h1 title={formatDateLabel(selectedDate)}>{calendarView === 'week' ? formatDateRange(selectedWeekDays[0].isoDate, selectedWeekDays[6].isoDate) : formatDateLabel(selectedDate, isCompact && getLanguage() !== 'ko')}</h1>
         </div>
         <div className="today-direct-header__controls">
-          <button type="button" aria-label={calendarView === 'day' ? '이전 날짜' : calendarView === 'week' ? '이전 주' : '이전 달'} onClick={() => navigateCalendar(-1)}><ChevronLeft /></button>
-          <button type="button" onClick={() => setSelectedDate(todayDate)} disabled={selectedDate === todayDate}>오늘</button>
-          <button type="button" aria-label={calendarView === 'day' ? '다음 날짜' : calendarView === 'week' ? '다음 주' : '다음 달'} onClick={() => navigateCalendar(1)}><ChevronRight /></button>
+          <button type="button" aria-label={calendarView === 'day' ? tr("이전 날짜") : calendarView === 'week' ? tr("이전 주") : tr("이전 달")} onClick={() => navigateCalendar(-1)}><ChevronLeft /></button>
+          <button type="button" onClick={() => setSelectedDate(todayDate)} disabled={selectedDate === todayDate}>{tr("오늘")}</button>
+          <button type="button" aria-label={calendarView === 'day' ? tr("다음 날짜") : calendarView === 'week' ? tr("다음 주") : tr("다음 달")} onClick={() => navigateCalendar(1)}><ChevronRight /></button>
         </div>
         <div className="today-direct-header__status">
-          <span>{plannedMinutes > 0 ? `${formatMinutes(plannedMinutes)} 계획` : '계획 없음'}</span>
-          <span>기록 {formatTimer(loggedSeconds)}</span>
+          <LanguageSelector />
+          <span>{plannedMinutes > 0 ? tr("{{v0}} 계획", { v0: formatMinutes(plannedMinutes) }) : tr("계획 없음")}</span>
+          <span>{tr("기록")}{' '}{formatTimer(loggedSeconds)}</span>
           <SaveStatus />
         </div>
-        {calendarView === 'day' && <nav className="today-direct-week" aria-label="선택한 주">
+        {calendarView === 'day' && <nav className="today-direct-week" aria-label={tr("선택한 주")}>
           {selectedWeekDays.map((day) => (
             <button key={day.isoDate} type="button" className={day.isoDate === selectedDate ? 'is-selected' : day.isoDate === todayDate ? 'is-today' : ''} aria-current={day.isoDate === selectedDate ? 'date' : undefined} onClick={() => setSelectedDate(day.isoDate)}>
               <small>{day.short}</small><strong>{day.date}</strong>
@@ -771,34 +777,34 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
       </header>
 
       {timer && runningTask && (
-        <section className={`today-direct-timer${timer.paused ? ' is-paused' : ''}`} aria-label={timer.paused ? '현재 일시정지됨' : '현재 실행 중'}>
-          <span><span className="today-direct-timer__pulse" /> {timer.paused ? '일시정지' : '지금 실행 중'}</span>
+        <section className={`today-direct-timer${timer.paused ? ' is-paused' : ''}`} aria-label={timer.paused ? tr("현재 일시정지됨") : tr("현재 실행 중")}>
+          <span><span className="today-direct-timer__pulse" /> {timer.paused ? tr("일시정지") : tr("지금 실행 중")}</span>
           <strong title={runningTask.title}>{runningTask.title}</strong>
           <time>{formatTimer(elapsed)}</time>
-          <button type="button" onClick={toggleTimer}>{timer.paused ? <Play /> : <Pause />}{timer.paused ? '계속' : '멈춤'}</button>
-          <button type="button" onClick={() => setFinishOpen(true)}><Square />종료</button>
+          <button type="button" onClick={toggleTimer}>{timer.paused ? <Play /> : <Pause />}{timer.paused ? tr("계속") : tr("멈춤")}</button>
+          <button type="button" onClick={() => setFinishOpen(true)}><Square />{tr("종료")}</button>
         </section>
       )}
 
       <div className="today-direct-workspace">
-        {isCompact && <div className="today-mobile-views" aria-label="오늘 보기 선택">
-          <button type="button" aria-pressed={mobileView === 'tasks'} onClick={() => setMobileView('tasks')}>할 일 <span>{unscheduledTasks.length}</span></button>
-          <button type="button" aria-pressed={mobileView === 'timeline'} onClick={() => setMobileView('timeline')}>시간표 <span>{selectedBlocks.length}</span></button>
+        {isCompact && <div className="today-mobile-views" aria-label={tr("오늘 보기 선택")}>
+          <button type="button" aria-pressed={mobileView === 'tasks'} onClick={() => setMobileView('tasks')}>{tr("할 일")}{' '}<span>{unscheduledTasks.length}</span></button>
+          <button type="button" aria-pressed={mobileView === 'timeline'} onClick={() => setMobileView('timeline')}>{tr("시간표")}{' '}<span>{selectedBlocks.length}</span></button>
         </div>}
-        <aside className="today-direct-sidebar" aria-label="선택한 날짜의 할 일" hidden={isCompact && mobileView !== 'tasks'}>{todoPanel}
-          <details className="planning-goals"><summary>목표와 하루 마무리</summary><TodayGoalStrip date={selectedDate} /><TodayReview date={selectedDate} /></details>
+        <aside className="today-direct-sidebar" aria-label={tr("선택한 날짜의 할 일")} hidden={isCompact && mobileView !== 'tasks'}>{todoPanel}
+          <details className="planning-goals"><summary>{tr("목표와 하루 마무리")}</summary><TodayGoalStrip date={selectedDate} /><TodayReview date={selectedDate} /></details>
         </aside>
-        <section className="today-direct-timeline-column" hidden={isCompact && mobileView !== 'timeline'} aria-label={`${formatDateLabel(selectedDate)} 24시간 시간표`}>
+        <section className="today-direct-timeline-column" hidden={isCompact && mobileView !== 'timeline'} aria-label={tr("{{v0}} 24시간 시간표", { v0: formatDateLabel(selectedDate) })}>
           <div className="today-direct-timeline-heading">
             <div>
-              <h2>{calendarView === 'day' ? '일간 시간표' : calendarView === 'week' ? '주간 시간표' : '월간 일정'}</h2>
-              <p>빈 시간을 누르면 추가, 일정을 누르면 수정합니다.</p>
+              <h2>{calendarView === 'day' ? tr("일간 시간표") : calendarView === 'week' ? tr("주간 시간표") : tr("월간 일정")}</h2>
+              <p>{tr("빈 시간을 누르면 추가, 일정을 누르면 수정합니다.")}</p>
             </div>
             <div className="planning-calendar-tools">
-              <div className="planning-view-switch" role="group" aria-label="일정 보기 방식">
-                {(['day', 'week', 'month'] as const).map((view, index) => <button key={view} type="button" aria-pressed={calendarView === view} onClick={() => setCalendarView(view)}>{['일간', '주간', '월간'][index]}</button>)}
+              <div className="planning-view-switch" role="group" aria-label={tr("일정 보기 방식")}>
+                {(['day', 'week', 'month'] as const).map((view, index) => <button key={view} type="button" aria-pressed={calendarView === view} onClick={() => setCalendarView(view)}>{[tr("일간"), tr("주간"), tr("월간")][index]}</button>)}
               </div>
-              <button type="button" className="planning-add-event" onClick={() => openCalendarEditor(selectedDate)}><Plus size={18} />일정 추가</button>
+              <button type="button" className="planning-add-event" onClick={() => openCalendarEditor(selectedDate)}><Plus size={18} />{tr("일정 추가")}</button>
             </div>
           </div>
           {calendarView === 'day' ? <DayTimeline
@@ -823,11 +829,11 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
         initialDurationMinutes={calendarDraft.block?.durationMinutes ?? 30} error={calendarError} onSave={saveCalendarEditor} onClose={() => setCalendarDraft(null)}
         onDelete={calendarDraft.block ? () => { removeBlockFromSchedule(calendarDraft.block!); setCalendarDraft(null); } : undefined} />}
 
-      {removedBlock && <div className="today-direct-snackbar" role="status"><span>시간표에서 제거했습니다.</span><button type="button" onClick={undoRemoveBlock}>실행 취소</button></div>}
-      {completedNotice && <div className="today-direct-snackbar" role="status"><span>{completedNotice.title} · {completedNotice.status === 'done' ? '다시 열었습니다' : '완료했습니다'}</span><button type="button" onClick={() => { updateTask(completedNotice.taskId, { status: completedNotice.status }); setCompletedNotice(null); }}>완료 실행 취소</button><button type="button" aria-label="완료 안내 닫기" onClick={() => setCompletedNotice(null)}><X size={16} /></button></div>}
+      {removedBlock && <div className="today-direct-snackbar" role="status"><span>{tr("시간표에서 제거했습니다.")}</span><button type="button" onClick={undoRemoveBlock}>{tr("실행 취소")}</button></div>}
+      {completedNotice && <div className="today-direct-snackbar" role="status"><span>{completedNotice.title} · {completedNotice.status === 'done' ? tr("다시 열었습니다") : tr("완료했습니다")}</span><button type="button" onClick={() => { updateTask(completedNotice.taskId, { status: completedNotice.status }); setCompletedNotice(null); }}>{tr("완료 실행 취소")}</button><button type="button" aria-label={tr("완료 안내 닫기")} onClick={() => setCompletedNotice(null)}><X size={16} /></button></div>}
       {notice && <div className="toast" role="status"><Check size={15} /> {notice}</div>}
       {manualNotice && (
-        <div className="toast toast--action" role="status"><span><TimerReset size={16} /> {manualNotice.label}</span><button type="button" onClick={() => { removeTimeEntry(manualNotice.entryId); setManualNotice(null); }}>실행 취소</button></div>
+        <div className="toast toast--action" role="status"><span><TimerReset size={16} /> {manualNotice.label}</span><button type="button" onClick={() => { removeTimeEntry(manualNotice.entryId); setManualNotice(null); }}>{tr("실행 취소")}</button></div>
       )}
 
       {editingTask && (
@@ -838,12 +844,12 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
           entryCount={timeEntries.filter((entry) => entry.taskId === editingTask.id).length}
           onSave={(input) => {
             const saved = updateTask(editingTask.id, input);
-            if (saved) showNotice('할 일을 수정했습니다.');
+            if (saved) showNotice(tr("할 일을 수정했습니다."));
             return saved;
           }}
           onDelete={() => {
             const removed = removeTask(editingTask.id);
-            if (removed) showNotice('할 일과 연결 기록을 삭제했습니다.');
+            if (removed) showNotice(tr("할 일과 연결 기록을 삭제했습니다."));
             return removed;
           }}
           onClose={() => setEditingTaskId(null)} />
@@ -857,26 +863,26 @@ export function TodayScreen({ mode = 'today' }: { mode?: 'today' | 'planner' }) 
         initialDurationMinutes={selectedBlocks.find(block => block.taskId === scheduleTask.id && !block.external)?.durationMinutes ?? Math.min(scheduleTask.estimateMinutes, 120)}
         error={scheduleError} onSave={saveTaskSchedule} onClose={() => setScheduleTask(null)} />}
 
-      {dateTask && <Modal title="언제 할 일인가요?" description={`${dateTask.title} · 이 날짜의 시간 블록도 함께 옮깁니다. 다른 날짜의 블록과 실행 기록은 유지됩니다.`} onClose={() => setDateTask(null)} className="task-date-sheet">
+      {dateTask && <Modal title={tr("언제 할 일인가요?")} description={tr("{{v0}} · 이 날짜의 시간 블록도 함께 옮깁니다. 다른 날짜의 블록과 실행 기록은 유지됩니다.", { v0: dateTask.title })} onClose={() => setDateTask(null)} className="task-date-sheet">
         <div className="task-date-shortcuts">
-          <button type="button" onClick={() => moveTaskDate(addLocalDateDays(selectedDate, 1))}>내일로 미루기</button>
-          <button type="button" onClick={() => { const day = parseLocalDate(selectedDate)?.getDay() ?? 0; moveTaskDate(addLocalDateDays(selectedDate, day === 1 ? 7 : (8 - day) % 7)); }}>다음 월요일</button>
-          <button type="button" onClick={() => moveTaskDate(null)}>나중에 · 시간 해제</button>
+          <button type="button" onClick={() => moveTaskDate(addLocalDateDays(selectedDate, 1))}>{tr("내일로 미루기")}</button>
+          <button type="button" onClick={() => { const day = parseLocalDate(selectedDate)?.getDay() ?? 0; moveTaskDate(addLocalDateDays(selectedDate, day === 1 ? 7 : (8 - day) % 7)); }}>{tr("다음 월요일")}</button>
+          <button type="button" onClick={() => moveTaskDate(null)}>{tr("나중에 · 시간 해제")}</button>
         </div>
         <form onSubmit={event => { event.preventDefault(); moveTaskDate(targetDate); }}>
-          <label className="field"><span className="field-label">날짜 선택</span><input aria-label="할 일 날짜" type="date" value={targetDate} onChange={event => setTargetDate(event.target.value)} required /></label>
+          <label className="field"><span className="field-label">{tr("날짜 선택")}</span><input aria-label={tr("할 일 날짜")} type="date" value={targetDate} onChange={event => setTargetDate(event.target.value)} required /></label>
           {dateError && <p className="form-error" role="alert">{dateError}</p>}
-          <div className="modal__actions"><button className="button button--secondary" type="button" onClick={() => setDateTask(null)}>취소</button><button className="button button--primary" type="submit">이 날짜로 이동</button></div>
+          <div className="modal__actions"><button className="button button--secondary" type="button" onClick={() => setDateTask(null)}>{tr("취소")}</button><button className="button button--primary" type="submit">{tr("이 날짜로 이동")}</button></div>
         </form>
       </Modal>}
 
       {finishOpen && timer && runningTask && (
-        <Modal title="이번 실행을 정리할까요?" description={`타이머 ${formatTimer(elapsed)}의 결과를 기록합니다.`} onClose={() => setFinishOpen(false)} className="finish-modal finish-panel">
-          <div className="finish-panel__elapsed" aria-label="종료할 실행 시간"><span>기록된 실행</span><strong>{formatTimer(elapsed)}</strong></div>
-          <label className="field"><span className="field-label">남길 근거 또는 한 줄 메모 <small>선택</small></span><textarea data-autofocus rows={3} value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder="예: 완료한 결과나 이어서 할 일" /></label>
+        <Modal title={tr("이번 실행을 정리할까요?")} description={tr("타이머 {{v0}}의 결과를 기록합니다.", { v0: formatTimer(elapsed) })} onClose={() => setFinishOpen(false)} className="finish-modal finish-panel">
+          <div className="finish-panel__elapsed" aria-label={tr("종료할 실행 시간")}><span>{tr("기록된 실행")}</span><strong>{formatTimer(elapsed)}</strong></div>
+          <label className="field"><span className="field-label">{tr("남길 근거 또는 한 줄 메모")}{' '}<small>{tr("선택")}</small></span><textarea data-autofocus rows={3} value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder={tr("예: 완료한 결과나 이어서 할 일")} /></label>
           <div className="finish-options">
-            <button className="finish-option" type="button" onClick={() => completeTimer('continue')}><Play size={20} /><span><strong>다음에도 이어서</strong><small>진행 중으로 유지합니다.</small></span></button>
-            <button className="finish-option finish-option--done" type="button" onClick={() => completeTimer('done')}><Check size={20} /><span><strong>이 작업은 완료</strong><small>완료 목록으로 옮깁니다.</small></span></button>
+            <button className="finish-option" type="button" onClick={() => completeTimer('continue')}><Play size={20} /><span><strong>{tr("다음에도 이어서")}</strong><small>{tr("진행 중으로 유지합니다.")}</small></span></button>
+            <button className="finish-option finish-option--done" type="button" onClick={() => completeTimer('done')}><Check size={20} /><span><strong>{tr("이 작업은 완료")}</strong><small>{tr("완료 목록으로 옮깁니다.")}</small></span></button>
           </div>
         </Modal>
       )}

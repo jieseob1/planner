@@ -1,0 +1,1374 @@
+0	Loading your plan…	Cargando tu plan…
+1	Accounts	Cuentas
+2	No registered accounts.	No hay cuentas registradas.
+3	Calendar connection issues	Problemas de conexión del calendario
+4	No calendar connection issues.	No hay problemas de conexión del calendario.
+5	Failed and retrying jobs	Trabajos fallidos y en reintento
+6	No failed or retrying jobs.	No hay trabajos fallidos ni en reintento.
+7	Audit log	Registro de auditoría
+8	No audit records.	No hay registros de auditoría.
+9	No record	Sin registro
+10	Connected	Conectado
+11	Pending	Pendiente
+12	Syncing	Sincronizando
+13	Reconnect required	Es necesario reconectar
+14	Error	Error
+15	Permanently failed	Fallo definitivo
+16	Active	Activo
+17	Trial	Prueba
+18	Payment needs attention	Revisar pago
+19	Canceled	Cancelado
+20	Expired	Caducado
+21	None	Ninguno
+22	No email	Sin correo electrónico
+23	No plan	Sin plan
+24	Joined	Registro
+25	Recent activity	Actividad reciente
+26	Calendar	Calendario
+27	Deletion request	Solicitud de eliminación
+28	Yes	Sí
+29	Account ID	ID de cuenta
+30	Error code	Código de error
+31	Last completed	Última finalización
+32	Status changed	Cambio de estado
+33	Awaiting retry	En espera de reintento
+34	Attempts	Intentos
+35	times	veces
+36	Available at	Disponible a partir de
+37	Job ID	ID de trabajo
+38	Revision	Revisión
+39	Event ID	ID de evento
+40	System operation	Operación del sistema
+41	Could not load the operations overview.	No se pudo cargar el resumen de operaciones.
+42	Could not load the list.	No se pudo cargar la lista.
+43	Checking administrator access…	Comprobando el acceso de administrador…
+44	Administrator access required	Se requiere acceso de administrador
+45	This account cannot access operations data. Sign in again if your permissions have changed.	Esta cuenta no puede acceder a los datos de operaciones. Vuelve a iniciar sesión si han cambiado tus permisos.
+46	Back to Today	Volver a Hoy
+47	Administration	Administración
+48	Could not verify access.	No se pudo verificar el acceso.
+49	Try again	Reintentar
+50	Total accounts	Total de cuentas
+51	Active in the last 7 days: {{v0}}	Activas en los últimos 7 días: {{v0}}
+52	Active plans	Planes activos
+53	Currently ACTIVE	Actualmente ACTIVE
+54	Calendar connections	Conexiones de calendario
+55	Connection issues: {{v0}}	Problemas de conexión: {{v0}}
+56	Permanently failed jobs	Trabajos con fallo definitivo
+57	Awaiting retry: {{v0}}	En espera de reintento: {{v0}}
+58	Operations overview	Resumen de operaciones
+59	See account and integration status in one place.	Consulta el estado de las cuentas y conexiones en un solo lugar.
+60	Refresh	Actualizar
+61	(new window)	(nueva ventana)
+62	Read-only · Account emails are partially masked. All times use this device’s time zone.	Solo lectura · Los correos están parcialmente ocultos. Las horas se muestran en la zona horaria de este dispositivo.
+63	Loading operations overview…	Cargando el resumen de operaciones…
+64	Queued jobs	Trabajos en cola
+65	· Running	· En ejecución
+66	· Failed notifications	· Notificaciones fallidas
+67	· Audit records in the last 24 hours	· Registros de auditoría de las últimas 24 horas
+68	Checked	Comprobado
+69	Operations category	Categoría de operaciones
+70	Newest first · 20 per page	Más recientes primero · 20 por página
+71	Reload list	Recargar lista
+72	Loading list…	Cargando la lista…
+73	No more records on this page.	No hay más registros en esta página.
+74	List pagination	Paginación de la lista
+75	Previous	Anterior
+76	Page	Página
+77	Next	Siguiente
+78	You have reached the query limit. Older records require a separate operations review.	Has llegado al límite de consulta. Los registros anteriores requieren una revisión de operaciones adicional.
+79	Your session has expired. Please sign in again.	Tu sesión ha caducado. Vuelve a iniciar sesión.
+80	Administrator access is required for this screen.	Esta pantalla requiere acceso de administrador.
+81	Could not load operations data. Please try again shortly.	No se pudieron cargar los datos de operaciones. Inténtalo de nuevo en unos momentos.
+82	The request failed.	La solicitud ha fallado.
+83	Could not export your account data.	No se pudieron exportar los datos de tu cuenta.
+84	Check your AI consent and account permissions.	Revisa tu consentimiento de IA y los permisos de tu cuenta.
+85	There are no records to analyze, or this range cannot be processed.	No hay registros para analizar o no se puede procesar este período.
+86	You have reached this month’s AI report or spending limit.	Has alcanzado el límite mensual de informes de IA o de gasto.
+87	The AI report service is not configured or is temporarily unavailable.	El servicio de informes de IA no está configurado o no está disponible temporalmente.
+88	Could not process the report request. Check its status before generating another.	No se pudo procesar la solicitud del informe. Revisa su estado antes de generar otro.
+89	The Google Calendar request failed.	La solicitud a Google Calendar ha fallado.
+90	Another tab or device edited this first. Your input is preserved. Compare it with the latest version.	Otra pestaña o dispositivo lo modificó antes. Tu texto se conserva. Compáralo con la última versión.
+91	Your session has expired. Save your input before signing in again.	Tu sesión ha caducado. Conserva tu texto antes de volver a iniciar sesión.
+92	Could not save. Your input is preserved; please try again.	No se pudo guardar. Tu texto se conserva; vuelve a intentarlo.
+93	Plan request failed ({{v0}})	La solicitud del plan ha fallado ({{v0}})
+94	Could not verify server validation details. Local changes are preserved.	No se pudieron verificar los detalles de validación del servidor. Los cambios locales se conservan.
+95	Could not start sign-in. Check your connection and try again.	No se pudo iniciar el acceso. Revisa tu conexión e inténtalo de nuevo.
+96	Explore the service	Descubrir el servicio
+97	Small steps add up here	Aquí cada pequeño paso cuenta
+98	Even big goals,	Incluso las grandes metas,
+99	start with one block today.	comienzan con un bloque hoy.
+100	Write a task and place it at a time that works for you.	Escribe una tarea y elige cuándo hacerla.
+101	Connect it to a goal whenever you need to.	Vincúlala a una meta cuando lo necesites.
+102	My day	Mi día
+103	Example screen	Pantalla de ejemplo
+104	Focus on what matters most	Centrarme en lo más importante
+105	Free time is part of my plan, too	El tiempo libre también forma parte de mi plan
+106	Take a short walk	Dar un paseo
+107	Tasks · Calendar · Goals in one place	Tareas · Calendario · Metas en un solo lugar
+108	Turn your plans	Convierte tus planes
+109	into action	 en acciones
+110	Start with today’s tasks.	Empieza con las tareas de hoy.
+111	Keep the same plan across web and mobile.	Continúa con el mismo plan en la web y el móvil.
+112	Opening the sign-in page…	Abriendo la página de acceso…
+113	Sign in and get started	Iniciar sesión y empezar
+114	New here? You can create an account on the next screen.	¿Es tu primera visita? Puedes crear una cuenta en la siguiente pantalla.
+115	Sign in securely with your account	Accede de forma segura con tu cuenta
+116	You can use the app without creating a goal.	Puedes usar la aplicación sin crear una meta.
+117	Manage your schedule and tasks your way.	Organiza tus horarios y tareas a tu manera.
+118	One step at a time, starting today.	Un paso cada vez, desde hoy.
+119	Sign-in legal information	Información legal de acceso
+120	Privacy policy	Política de privacidad
+121	Terms of service	Condiciones de uso
+122	Could not verify policy consent. ({{v0}})	No se pudo verificar el consentimiento de las políticas. ({{v0}})
+123	Production OIDC settings (VITE_OIDC_AUTHORITY, VITE_OIDC_CLIENT_ID) are required.	Se requiere la configuración OIDC de producción (VITE_OIDC_AUTHORITY, VITE_OIDC_CLIENT_ID).
+124	Could not initialize sign-in.	No se pudo inicializar el acceso.
+125	Could not verify policy consent.	No se pudo verificar el consentimiento de las políticas.
+126	Please check the sign-in provider settings.	Revisa la configuración del proveedor de acceso.
+127	Your sign-in information has expired. Please sign in again.	Tus datos de acceso han caducado. Vuelve a iniciar sesión.
+128	Could not save policy consent.	No se pudo guardar el consentimiento de las políticas.
+129	Checking your sign-in status…	Comprobando tu sesión…
+130	GOALS TO TODAY · A one-time check	GOALS TO TODAY · Una comprobación inicial
+131	Consent to manage your plans securely	Consentimiento para gestionar tus planes de forma segura
+132	We process only what is needed to store plans and activity records and connect Google Calendar and notifications.	Solo tratamos lo necesario para guardar planes y registros de actividad y conectar Google Calendar y las notificaciones.
+133	— I agree (required).	— Acepto (obligatorio).
+134	Agree and start	Aceptar y empezar
+135	Decline and sign out	No aceptar y cerrar sesión
+136	No authentication callback was received. Please sign in again.	No se recibió la respuesta de autenticación. Vuelve a iniciar sesión.
+137	Sign-in was canceled. Please try again.	Se canceló el acceso. Inténtalo de nuevo.
+138	Sign-in timed out. Please try again.	Se agotó el tiempo de acceso. Inténtalo de nuevo.
+139	Push notifications are not configured in this app build.	Las notificaciones push no están configuradas en esta versión de la aplicación.
+140	App notification permission was not granted.	No se concedió permiso para las notificaciones de la aplicación.
+141	Could not register app notifications. Please try again shortly.	No se pudieron registrar las notificaciones. Inténtalo de nuevo en unos momentos.
+142	Push token registration timed out.	Se agotó el tiempo de registro del token push.
+143	Sign-in information is required to register a notification device.	Se requieren datos de acceso para registrar un dispositivo de notificaciones.
+144	{{v0}} timed out	Se agotó el tiempo de {{v0}}
+145	Unregister server notification device	Dar de baja el dispositivo de notificaciones del servidor
+146	Could not unregister the server notification device: {{v0}}	No se pudo dar de baja el dispositivo de notificaciones del servidor: {{v0}}
+147	Unsubscribe this device from push notifications	Cancelar la suscripción push de este dispositivo
+148	Could not unsubscribe this device from push notifications: {{v0}}	No se pudo cancelar la suscripción push de este dispositivo: {{v0}}
+149	Other settings are still available. Reload just this section.	Puedes seguir usando los demás ajustes. Recarga solo esta sección.
+150	Sign in again	Volver a iniciar sesión
+151	Could not load your plan subscription.	No se pudo cargar tu suscripción.
+152	Could not load notification settings.	No se pudieron cargar los ajustes de notificaciones.
+153	Could not sign in again.	No se pudo volver a iniciar sesión.
+154	Notification times and time zone saved.	Se guardaron las horas de notificación y la zona horaria.
+155	Could not save notification settings.	No se pudieron guardar los ajustes de notificaciones.
+156	Browser notification permission was not granted.	No se concedió permiso para las notificaciones del navegador.
+157	You will receive plan notifications on this device.	Recibirás notificaciones de tus planes en este dispositivo.
+158	Could not enable notifications.	No se pudieron activar las notificaciones.
+159	Plan notifications on this device are off.	Se desactivaron las notificaciones de planes en este dispositivo.
+160	Could not disable notifications.	No se pudieron desactivar las notificaciones.
+161	You will receive plan notifications in this app.	Recibirás notificaciones de tus planes en esta aplicación.
+162	Could not enable app notifications.	No se pudieron activar las notificaciones de la aplicación.
+163	Plan notifications in this app are off.	Se desactivaron las notificaciones de planes en esta aplicación.
+164	Could not disable app notifications.	No se pudieron desactivar las notificaciones de la aplicación.
+165	Your account data export has started.	Se ha iniciado la exportación de los datos de tu cuenta.
+166	Could not delete your account.	No se pudo eliminar tu cuenta.
+167	Subscription	Suscripción
+168	Core planning and sync features are unlimited during the public beta.	Las funciones principales de planificación y sincronización son ilimitadas durante la beta pública.
+169	Free beta	Beta gratuita
+170	Checking your subscription…	Comprobando tu suscripción…
+171	Current status	Estado actual
+172	Active access	Acceso activo
+173	Paid subscription access	Acceso de suscripción de pago
+174	Beta access at no charge	Acceso gratuito a la beta
+175	You will not be charged automatically before paid plans launch. Pricing and transition dates will be announced separately.	No se te cobrará automáticamente antes de lanzar los planes de pago. Los precios y las fechas de transición se anunciarán por separado.
+176	No subscription information.	No hay información de suscripción.
+177	Plan reminders	Recordatorios de planes
+178	Receive reminders on registered devices for today’s plan and before your own time blocks start.	Recibe recordatorios en los dispositivos registrados para el plan de hoy y antes del inicio de tus bloques de tiempo.
+179	Loading notification settings…	Cargando los ajustes de notificaciones…
+180	Time zone	Zona horaria
+181	Today’s plan reminder	Recordatorio del plan de hoy
+182	Receive a daily plan reminder	Recibir un recordatorio diario del plan
+183	Time block reminder	Recordatorio de bloque de tiempo
+184	Start time	Hora de inicio
+185	{{v0}} minutes before	{{v0}} minutos antes
+186	Save reminder times	Guardar horas de recordatorio
+187	Turn off app notifications	Desactivar notificaciones de la aplicación
+188	Turn on app notifications	Activar notificaciones de la aplicación
+189	Turn off notifications on this device	Desactivar notificaciones en este dispositivo
+190	Turn on notifications on this device	Activar notificaciones en este dispositivo
+191	Background notifications can be enabled once production push credentials are configured.	Las notificaciones en segundo plano se podrán activar cuando se configuren las credenciales push de producción.
+192	No notification settings available.	No hay ajustes de notificaciones disponibles.
+193	My data	Mis datos
+194	Download your plans and history as JSON, or permanently delete your account data.	Descarga tus planes e historial en JSON o elimina los datos de tu cuenta de forma permanente.
+195	Export data	Exportar datos
+196	Delete account	Eliminar cuenta
+197	Account security	Seguridad de la cuenta
+198	Delete your account and all data?	¿Eliminar tu cuenta y todos tus datos?
+199	Plans, activity records, change history, calendar tokens and notification devices will be permanently deleted. We recommend exporting your data first.	Se eliminarán de forma permanente tus planes, registros de actividad, historial, tokens de calendario y dispositivos de notificaciones. Te recomendamos exportar tus datos antes.
+200	Sign in again to delete	Volver a iniciar sesión para eliminar
+201	Type DELETE to confirm	Escribe DELETE para confirmar
+202	Cancel	Cancelar
+203	Delete permanently	Eliminar permanentemente
+204	Queued	En cola
+205	Generating	Generando
+206	Complete	Completado
+207	Failed	Fallido
+208	Result needs verification	Revisar resultado
+209	Could not check the status. Please check again shortly.	No se pudo comprobar el estado. Vuelve a comprobarlo en unos momentos.
+210	Could not load AI settings. {{v0}}	No se pudieron cargar los ajustes de IA. {{v0}}
+211	This report link does not match the selected period.	El enlace del informe no corresponde al período seleccionado.
+212	Could not open the report link. {{v0}}	No se pudo abrir el enlace del informe. {{v0}}
+213	Could not load past reports. {{v0}}	No se pudieron cargar los informes anteriores. {{v0}}
+214	Automatic status checks stopped. {{v0}}	Se detuvo la comprobación automática del estado. {{v0}}
+215	Server status checked again. No new report was generated.	Se volvió a comprobar el estado del servidor. No se generó un informe nuevo.
+216	AI settings saved. Only scheduled reports will be generated automatically at the specified time.	Ajustes de IA guardados. Solo se generarán automáticamente los informes programados a la hora indicada.
+217	AI consent withdrawn and automatic generation disabled. Your own reflections are preserved.	Se retiró el consentimiento de IA y se desactivó la generación automática. Tus reflexiones se conservan.
+218	The response covers a different period, so the report was not displayed. Please check its status.	La respuesta corresponde a otro período, por lo que no se mostró el informe. Revisa su estado.
+219	Report request accepted. Previous versions are preserved.	Solicitud de informe aceptada. Se conservan las versiones anteriores.
+220	 Acceptance is uncertain. Check the status rather than generating again.	 No se sabe si fue aceptada. Comprueba el estado antes de volver a generar.
+221	AI period report	Informe de IA del período
+222	AI REVIEW · Optional	AI REVIEW · Opcional
+223	Weekly	Semanal
+224	Monthly	Mensual
+225	AI report	Informe de IA
+226	Find patterns and suggestions for your next experiment. Your own reflections and goals are not changed.	Encuentra patrones y sugerencias para tu próximo experimento. No se modifican tus reflexiones ni metas.
+227	Refresh status	Actualizar estado
+228	Checking AI settings and saved reports…	Comprobando los ajustes de IA y los informes guardados…
+229	The AI service is being prepared.	El servicio de IA está en preparación.
+230	Available once an operator configures the AI provider and spending limits. No data is sent to AI now; you can still write your own reflections.	Estará disponible cuando se configure el proveedor de IA y los límites de gasto. Ahora no se envían datos a la IA; puedes seguir escribiendo tus reflexiones.
+231	AI consent and automatic report settings	Consentimiento de IA y ajustes de informes automáticos
+232	The necessary task and goal titles, completion records, and planned and recorded time for the selected period are sent to\u0020	Los títulos de tareas y metas, registros de finalización y tiempos planificados y registrados necesarios del período seleccionado se envían a\u0020
+233	. Analysis may be incorrect and never changes your work automatically. Policy version\u0020	. El análisis puede ser incorrecto y nunca modifica tu trabajo automáticamente. Versión de la política\u0020
+234	I consent to sharing data externally for AI analysis (optional)	Acepto compartir datos con un proveedor externo para el análisis de IA (opcional)
+235	Also include my own written reflections (additional option)	Incluir también mis reflexiones escritas (opción adicional)
+236	Generate last week’s report every Monday	Generar el informe de la semana anterior cada lunes
+237	Generate last month’s report on the first day of each month	Generar el informe del mes anterior el primer día de cada mes
+238	Generation time	Hora de generación
+239	Time zone	Zona horaria
+240	Automatic generation starts after saving settings. Withdrawing consent also disables scheduled reports. Requests already sent externally cannot be recalled.	La generación automática comienza al guardar los ajustes. Retirar el consentimiento también desactiva los informes programados. No se pueden retirar las solicitudes ya enviadas al proveedor externo.
+241	Save AI settings	Guardar ajustes de IA
+242	Completed periods only · Monthly limit:\u0020	Solo períodos terminados · Límite mensual:\u0020
+243	 reports ·\u0020	 informes ·\u0020
+244	Generate new version	Generar nueva versión
+245	Generate AI report	Generar informe de IA
+246	This period has not ended. Choose last week or last month.	Este período aún no ha terminado. Elige la semana o el mes anterior.
+247	Select AI consent above and save settings to generate a report.	Acepta el consentimiento de IA y guarda los ajustes para generar un informe.
+248	Save your changed AI settings first.	Guarda primero los ajustes de IA modificados.
+249	The previous request’s acceptance must be checked. New generation is temporarily blocked to avoid duplicate costs. Refresh the status; contact an operator if it persists. Request ID:\u0020	Hay que comprobar la aceptación de la solicitud anterior. La generación está bloqueada temporalmente para evitar costes duplicados. Actualiza el estado; contacta con el operador si persiste. ID de solicitud:\u0020
+250	A request for this period has an uncertain result. Regeneration is blocked to avoid duplicate charges. An operator must verify the result.	Una solicitud de este período tiene un resultado incierto. Se bloquea la regeneración para evitar cobros duplicados. Un operador debe verificar el resultado.
+251	Automatic status checks stopped. The server job may still continue. Refreshing status does not create a new report.	Se detuvo la comprobación automática. El trabajo del servidor puede continuar. Actualizar el estado no crea un informe nuevo.
+252	Saved versions	Versiones guardadas
+253	Generating again never overwrites previous results or their evidence.	Volver a generar no sobrescribe los resultados anteriores ni sus pruebas.
+254	No AI report for this period yet. You can still manage your own reflections below.	Aún no hay informe de IA de este período. Puedes seguir gestionando tus reflexiones abajo.
+255	Evidence:\u0020	Pruebas:\u0020
+256	Unverified evidence	Pruebas no verificadas
+257	AI report version {{v0}}	Versión {{v0}} del informe de IA
+258	Version	Versión
+259	Link to this version	Enlace a esta versión
+260	The server is generating your report. The completed result is saved even if you close this page.	El servidor está generando tu informe. El resultado se guarda aunque cierres esta página.
+261	Generation failed. Error code:\u0020	La generación ha fallado. Código de error:\u0020
+262	Needs review	Revisar
+263	. Generating again is a separate request and may incur costs.	. Volver a generar es otra solicitud y puede tener costes.
+264	The external response could not be confirmed. There is no automatic retry. Error code:\u0020	No se pudo confirmar la respuesta externa. No habrá reintento automático. Código de error:\u0020
+265	This report was canceled. Your own reflections and completed reports are preserved.	Este informe se canceló. Se conservan tus reflexiones y los informes completados.
+266	What the records show	Lo que muestran los registros
+267	Ideas for the next period	Ideas para el próximo período
+268	These are AI suggestions. Check them against your situation and choose what to include in your next plan.	Son sugerencias de IA. Comprueba si encajan con tu situación y elige qué incorporar a tu próximo plan.
+269	View records and evidence used (	Ver los registros y pruebas utilizados (
+270	 items)	 elementos)
+271	· Collected at\u0020	· Recopilado a las\u0020
+272	Completed tasks	Tareas completadas
+273	 items	 elementos
+274	Planned time	Tiempo planificado
+275	 min	 min
+276	Recorded time	Tiempo registrado
+277	Undated	Sin fecha
+278	Input tokens {{v0}} · Output {{v1}}	Tokens de entrada {{v0}} · Salida {{v1}}
+279	Token usage unconfirmed	Uso de tokens no confirmado
+280	Cost unconfirmed	Coste no confirmado
+281	Estimated cost ${{v0}}	Coste estimado ${{v0}}
+282	Today	Hoy
+283	Today’s tasks	Tareas de hoy
+284	Schedule	Agenda
+285	Weekly and monthly schedule	Agenda semanal y mensual
+286	Goals	Metas
+287	Goals by period	Metas por período
+288	Reflect	Reflexión
+289	Records and reflections	Registros y reflexiones
+290	Administration	Administración
+291	Settings and connections	Ajustes y conexiones
+292	Plan archive	Archivo de planes
+293	Could not check the latest plan on the server. Please try again shortly.	No se pudo comprobar el último plan del servidor. Inténtalo de nuevo en unos momentos.
+294	You cannot safely reset the server plan while offline. Reconnect and try again.	No puedes reiniciar el plan del servidor de forma segura sin conexión. Conéctate e inténtalo de nuevo.
+295	Skip to content	Saltar al contenido
+296	Go to Goals to Today’s Today page	Ir a la página Hoy de Goals to Today
+297	Main navigation	Navegación principal
+298	Administration · Back office	Administración · Panel de gestión
+299	Back office	Panel de gestión
+300	Settings · Settings and connections	Ajustes · Ajustes y conexiones
+301	Settings	Ajustes
+302	Quick capture	Captura rápida
+303	Reset current plan	Reiniciar el plan actual
+304	Sign out	Cerrar sesión
+305	Mobile main navigation	Navegación principal del móvil
+306	Plan management	Gestión de planes
+307	Reset your current plan?	¿Reiniciar tu plan actual?
+308	Your current quarterly results, tasks, time records and legacy weekly reflections will be archived, then you will start a new plan. Period goals and dated reflections remain unchanged. This reset cannot be undone.	Se archivarán los resultados trimestrales, tareas, tiempos registrados y reflexiones semanales anteriores del plan actual y comenzarás un nuevo plan. Las metas por período y reflexiones por fecha se conservan. No se puede deshacer este reinicio.
+309	Resetting…	Reiniciando…
+310	Beta feedback\nType: {{v0}}\nTime zone: {{v1}}\n\nSteps to reproduce / Expected behavior / Actual behavior\n{{v2}}\n\nPlease remove personal data such as task titles, emails and tokens before posting publicly.	Comentarios de la beta\nTipo: {{v0}}\nZona horaria: {{v1}}\n\nPasos para reproducir / Comportamiento esperado / Comportamiento real\n{{v2}}\n\nElimina los datos personales, como títulos de tareas, correos y tokens, antes de publicarlo.
+311	Report a problem	Informar de un problema
+312	Copied. Check for personal data before pasting into the public issue page. Nothing has been sent yet.	Copiado. Revisa los datos personales antes de pegarlo en la página pública de incidencias. Aún no se ha enviado nada.
+313	Automatic copying is unavailable. Select and copy the report below manually.	No se pudo copiar automáticamente. Selecciona y copia el informe de abajo manualmente.
+314	BETA · Improving together	BETA · Mejoramos juntos
+315	Need help?	¿Necesitas ayuda?
+316	Just write a task to start. Place it on the timeline, reflect on your day and connect goals when you need them.	Empieza escribiendo una tarea. Ponla en el horario, reflexiona sobre tu día y vincula metas cuando lo necesites.
+317	Report a problem · Suggest an improvement	Informar de un problema · Sugerir una mejora
+318	Open back office	Abrir el panel de gestión
+319	Open Grafana	Abrir Grafana
+320	Beta feedback	Comentarios de la beta
+321	Share only what you have verified	Comparte solo lo que has comprobado
+322	Your text is not collected or sent automatically. GitHub issues are public, so do not include personal records or authentication information.	Tu texto no se recopila ni envía automáticamente. Las incidencias de GitHub son públicas; no incluyas registros personales ni datos de autenticación.
+323	Type	Tipo
+324	Usability improvement	Mejora de usabilidad
+325	Feature suggestion	Sugerencia de función
+326	What happened?	¿Qué ocurrió?
+327	Example: I changed the date in the monthly schedule and saved, but…	Ejemplo: cambié la fecha en la agenda mensual y guardé, pero…
+328	Review the text to copy	Revisar el texto que se copiará
+329	Report text	Texto del informe
+330	Close	Cerrar
+331	Copy report	Copiar informe
+332	Open public issue page	Abrir la página pública de incidencias
+333	Weekly time	Tiempo semanal
+334	{{v0}} {{v1}}% used	{{v0}} {{v1}}% utilizado
+335	Annual and quarterly direction	Orientación anual y trimestral
+336	Year, quarter, direction and end date	Año, trimestre, orientación y fecha de fin
+337	Outcomes and metrics	Resultados e indicadores
+338	Target, current value, evidence and decision	Objetivo, valor actual, pruebas y decisión
+339	Next action	Próxima acción
+340	Tasks, status, estimate and notes	Tareas, estado, estimación y notas
+341	Weekly time allocation	Distribución del tiempo semanal
+342	Planned and external calendar blocks	Bloques planificados y de calendarios externos
+343	Activity records	Registros de actividad
+344	Timer, manual time and completion evidence	Temporizador, tiempo manual y pruebas de finalización
+345	Current timer	Temporizador actual
+346	Running or paused session	Sesión en marcha o pausada
+347	Weekly reflection	Reflexión semanal
+348	Blockers, metric draft and next Top 3	Obstáculos, borrador de indicadores y próximos Top 3
+349	Displayed week	Semana mostrada
+350	The week open in Planner	La semana abierta en la agenda
+351	Data version	Versión de datos
+352	Snapshot format version	Versión del formato de instantánea
+353	Title	Título
+354	Notes	Notas
+355	Completion status	Estado de finalización
+356	Date	Fecha
+357	Time	Hora
+358	Subtasks	Subtareas
+359	Check	Marcar
+360	Estimated time	Tiempo estimado
+361	Order	Orden
+362	Metric history	Historial de indicadores
+363	Delete / Edit	Eliminar / Editar
+364	Only this item was changed on both sides. Other changes are preserved automatically.	Solo este elemento se modificó en ambos sitios. Los demás cambios se conservan automáticamente.
+365	Deleted	Eliminado
+366	Sync conflict	Conflicto de sincronización
+367	Compare device and server changes	Comparar los cambios del dispositivo y del servidor
+368	Both originals are preserved in this device’s conflict backup. Choose the version for each item, then merge.	Ambos originales se conservan en la copia de conflictos de este dispositivo. Elige una versión para cada elemento y combina los cambios.
+369	Device changes	Cambios del dispositivo
+370	Plan ended or deleted on server	Plan finalizado o eliminado en el servidor
+371	Server revision {{v0}}	Revisión del servidor {{v0}}
+372	Another device ended or deleted this plan. It will not be restored automatically. Follow the server state or save this device’s original as a new plan.	Otro dispositivo finalizó o eliminó este plan. No se restaurará automáticamente. Usa el estado del servidor o guarda el original de este dispositivo como un plan nuevo.
+373	There are records linked to deleted items or overlapping time blocks. Please select a complete original version.	Hay registros vinculados a elementos eliminados o bloques que se solapan. Selecciona una versión original completa.
+374	The unselected original is preserved in the device backup.	El original no seleccionado se conserva en la copia del dispositivo.
+375	Device version	Versión del dispositivo
+376	Server version	Versión del servidor
+377	Use entire server version	Usar toda la versión del servidor
+378	Keep entire device version	Conservar toda la versión del dispositivo
+379	Merge selected items	Combinar elementos seleccionados
+380	Could not schedule because it overlaps another event.	No se pudo programar porque se solapa con otro evento.
+381	{{v0}} must end before midnight.	{{v0}} debe terminar antes de medianoche.
+382	Choose a valid date.	Elige una fecha válida.
+383	Enter an event title.	Escribe el título del evento.
+384	Enter a new title, time or date.	Introduce un nuevo título, hora o fecha.
+385	The time overlaps or is out of range.	La hora se solapa o está fuera del intervalo.
+386	Enter a time range of at least 15 minutes.	Introduce un intervalo de al menos 15 minutos.
+387	Enter times in 15-minute increments.	Introduce las horas en intervalos de 15 minutos.
+388	Close block actions	Cerrar acciones del bloque
+389	{{v0}} block actions	Acciones del bloque {{v0}}
+390	Task time block	Bloque de tiempo de tarea
+391	Standalone event	Evento independiente
+392	Read-only Google Calendar event	Evento de Google Calendar de solo lectura
+393	Move, edit or delete this event in Google Calendar.	Mueve, modifica o elimina este evento en Google Calendar.
+394	Changes applied. Check the server save status above.	Cambios aplicados. Comprueba el estado de guardado del servidor arriba.
+395	Could not apply changes. Check your input and sync status.	No se pudieron aplicar los cambios. Revisa los datos y el estado de sincronización.
+396	Save subtasks	Guardar subtareas
+397	Adjust time in 15-minute steps	Ajustar en intervalos de 15 minutos
+398	Move 15 minutes earlier	Adelantar 15 minutos
+399	Move 15 minutes later	Retrasar 15 minutos
+400	+ Extend 15 minutes	+ Añadir 15 minutos
+401	− Shorten 15 minutes	− Quitar 15 minutos
+402	Task title	Título de la tarea
+403	Event title	Título del evento
+404	The title changes for all blocks of this task. Time and date changes affect only this event.	El título cambia en todos los bloques de esta tarea. Los cambios de hora y fecha solo afectan a este evento.
+405	Start	Inicio
+406	End	Fin
+407	End time	Hora de fin
+408	Move to another date	Mover a otra fecha
+409	Save changes	Guardar cambios
+410	Another task is paused	Otra tarea está pausada
+411	Another task is running	Otra tarea está en marcha
+412	Resume timer	Reanudar temporizador
+413	Pause timer	Pausar temporizador
+414	Start timer	Iniciar temporizador
+415	Mark incomplete	Marcar como pendiente
+416	Complete task	Completar tarea
+417	Edit or delete task details	Editar o eliminar detalles de la tarea
+418	Schedule this task again	Programar esta tarea de nuevo
+419	Remove from timeline	Quitar del horario
+420	{{v0}} · {{v1}} min overlap · {{v2}}	{{v0}} · Solapamiento de {{v1}} min · {{v2}}
+421	{{v0}} — Select free time.	{{v0}} — Selecciona un hueco libre.
+422	Enter start and end times in 15-minute increments. End must be at least 15 minutes after start. Midnight is 24:00.	Introduce el inicio y el fin en intervalos de 15 minutos. El fin debe ser al menos 15 minutos después del inicio. Medianoche es 24:00.
+423	{{v0}} — Not saved.	{{v0}} — No se guardó.
+424	Could not save because the times overlap.	No se pudo guardar porque las horas se solapan.
+425	Added {{v0}} at {{v1}}.	Se añadió {{v0}} a las {{v1}}.
+426	{{v0}} — {{v1}} was not scheduled.	{{v0}} — No se programó {{v1}}.
+427	Added another block for {{v0}} at {{v1}}.	Se añadió otro bloque para {{v0}} a las {{v1}}.
+428	{{v0}} — Returned to the original time.	{{v0}} — Se volvió a la hora original.
+429	Returned to the original time because of an overlap.	Se volvió a la hora original por un solapamiento.
+430	Changed {{v0}} to {{v1}}.	Se cambió {{v0}} a {{v1}}.
+431	Scheduled {{v0}} at {{v1}}.	Se programó {{v0}} a las {{v1}}.
+432	Enter the start time in 15-minute increments.	Introduce el inicio en intervalos de 15 minutos.
+433	{{v0}} — Select free time again.	{{v0}} — Vuelve a seleccionar un hueco libre.
+434	{{v0}} — Unchanged.	{{v0}} — Sin cambios.
+435	Changed {{v0}} to {{v1}} {{v2}}.	Se cambió {{v0}} a {{v1}} {{v2}}.
+436	Click to edit · 15-minute adjustments	Pulsa para editar · Ajustes de 15 minutos
+437	Drag to move · 15-minute adjustments	Arrastra para mover · Ajustes de 15 minutos
+438	Google read-only	Google, solo lectura
+439	Select free time to schedule.	Selecciona un hueco libre para programar.
+440	Start time for {{v0}}	Hora de inicio de {{v0}}
+441	Schedule at this time	Programar a esta hora
+442	Event start time for keyboard entry	Hora de inicio del evento con teclado
+443	Add event at this time	Añadir evento a esta hora
+444	Timeline from 00:00 to 24:00 in 15-minute intervals. Click or drag over free time to create an event.	Horario de 00:00 a 24:00 en intervalos de 15 minutos. Pulsa o arrastra un hueco libre para crear un evento.
+445	{{v0}}, from {{v1}} to {{v2}}, {{v3}}	{{v0}}, de {{v1}} a {{v2}}, {{v3}}
+446	Google · Read-only	Google · Solo lectura
+447	Tasks	Tareas
+448	Paused	Pausado
+449	Running	En marcha
+450	Adjust start time for {{v0}}	Ajustar el inicio de {{v0}}
+451	Adjust start time	Ajustar hora de inicio
+452	Adjust end time for {{v0}}	Ajustar el fin de {{v0}}
+453	Adjust end time	Ajustar hora de fin
+454	Mobile schedule actions	Acciones de agenda en el móvil
+455	Select {{v2}} events at {{v0}}–{{v1}}	Seleccionar {{v2}} eventos de {{v0}} a {{v1}}
+456	View read-only event {{v0}}	Ver el evento de solo lectura {{v0}}
+457	Quick actions for {{v0}}	Acciones rápidas de {{v0}}
+458	Enter title	Escribe un título
+459	New event	Nuevo evento
+460	{{v0}} · Enter a title, start and end time.	{{v0}} · Introduce el título y las horas de inicio y fin.
+461	Item type	Tipo de elemento
+462	What will you do?	¿Qué vas a hacer?
+463	New event title	Título del nuevo evento
+464	Please check the start and end times	Revisa las horas de inicio y fin
+465	New event start time	Inicio del nuevo evento
+466	New event end time	Fin del nuevo evento
+467	15-minute increments · Use 24:00 for events ending at midnight.	Intervalos de 15 minutos · Usa 24:00 si termina a medianoche.
+468	Cancel new event	Cancelar nuevo evento
+469	Save new event	Guardar nuevo evento
+470	Save	Guardar
+471	Current time {{v0}}	Hora actual {{v0}}
+472	Event type	Tipo de evento
+473	Task block	Bloque de tarea
+474	 overlaps	 solapamientos
+475	Opening event list…	Abriendo la lista de eventos…
+476	{{v0}} subgoals {{v1}}	Submetas de {{v0}}: {{v1}}
+477	Edit goal {{v0}}	Editar meta {{v0}}
+478	Goals ·\u0020	Metas ·\u0020
+479	Subgoals	Submetas
+480	 items · Measured separately	 elementos · Medidos por separado
+481	In progress	En progreso
+482	Not measured	Sin medir
+483	Progress for goal {{v0}}	Progreso de la meta {{v0}}
+484	Add a subgoal to {{v0}}	Añadir una submeta a {{v0}}
+485	Subgoals of {{v0}}	Submetas de {{v0}}
+486	Goal hierarchy	Jerarquía de metas
+487	Close event selection	Cerrar selección de eventos
+488	Select an event at this time	Seleccionar un evento a esta hora
+489	Overlapping or nearby events	Eventos solapados o cercanos
+490	Choose an event to work with	Elige un evento para gestionarlo
+491	Select {{v0}}, {{v1}}, {{v2}}	Seleccionar {{v0}}, {{v1}}, {{v2}}
+492	{{v0}}-{{v1}}-{{v2}}	{{v2}}/{{v1}}/{{v0}}
+493	Monthly calendar	Calendario mensual
+494	Year	Año
+495	Month	Mes
+496	Previous month	Mes anterior
+497	This month	Este mes
+498	Next month	Mes siguiente
+499	Select a date to see its events below. Click an event title to edit it.	Selecciona una fecha para ver los eventos abajo. Pulsa el título de un evento para editarlo.
+500	Select date	Seleccionar fecha
+501	{{v0}}{{v1}}, {{v2}} events	{{v0}}{{v1}}, {{v2}} eventos
+502	{{v0}} · External event · Read-only	{{v0}} · Evento externo · Solo lectura
+503	Edit event {{v0}} {{v1}} {{v2}}	Editar evento {{v0}} {{v1}} {{v2}}
+504	View all {{v1}} events for {{v0}}	Ver los {{v1}} eventos de {{v0}}
+505	 more	 más
+506	Add event for {{v0}}	Añadir evento para {{v0}}
+507	Add	Añadir
+508	Events on the selected date	Eventos de la fecha seleccionada
+509	{{v0}} events · In time order	{{v0}} eventos · Por hora
+510	No events yet. A break or an appointment is a good place to start.	Aún no hay eventos. Puedes empezar con un descanso o una cita.
+511	Add event	Añadir evento
+512	· External event · Edit in the original calendar	· Evento externo · Editar en el calendario original
+513	Edit event {{v0}}	Editar evento {{v0}}
+514	Edit	Editar
+515	Input saved on this device · Not yet saved on server	Texto guardado en este dispositivo · Aún no guardado en el servidor
+516	Device save failed · Do not close this screen	No se pudo guardar en el dispositivo · No cierres esta pantalla
+517	Compare with latest server version	Comparar con la última versión del servidor
+518	This record was deleted on the server.	Este registro se eliminó en el servidor.
+519	Server update: {{v0}}	Actualización del servidor: {{v0}}
+520	Your input remains in the editor above. After choosing below, press Save to confirm.	Tu texto sigue en el editor de arriba. Después de elegir abajo, pulsa Guardar para confirmar.
+521	Comparison complete · Use my input	Comparación completada · Usar mi texto
+522	Could not check the latest record. Keep your input and reload.	No se pudo comprobar el último registro. Conserva tu texto y recarga.
+523	Reload	Recargar
+524	Loading goals and reflections…	Cargando metas y reflexiones…
+525	Wrap up your day	Cierra tu día
+526	Reflect on this period	Reflexiona sobre este período
+527	Three lines are enough	Bastan tres líneas
+528	Everything is optional. You can write without updating goal metrics.	Todo es opcional. Puedes escribir sin actualizar los indicadores de las metas.
+529	What went well	Qué salió bien
+530	Leave a note about something that went well, however small.	Anota algo que salió bien, por pequeño que sea.
+531	What got in the way	Qué te frenó
+532	Did anything turn out differently from your plan?	¿Algo fue distinto de lo que habías planeado?
+533	One thing to change next time	Una cosa que cambiar la próxima vez
+534	Next time, I’ll try this.	La próxima vez probaré esto.
+535	Free notes	Notas libres
+536	Notes for this date or period	Notas de esta fecha o período
+537	Mark reflection complete	Marcar reflexión como completada
+538	Delete this reflection	Eliminar esta reflexión
+539	Delete only this period’s reflection? Tasks, events and goals will not be deleted.	¿Eliminar solo la reflexión de este período? No se eliminarán tareas, eventos ni metas.
+540	Confirm reflection deletion	Confirmar eliminación de la reflexión
+541	This reflection was deleted. You can write and save a new one.	Esta reflexión se eliminó. Puedes escribir y guardar otra.
+542	Last saved on server: {{v0}}	Último guardado en el servidor: {{v0}}
+543	Stored by the date you wrote it for.	Se guarda por la fecha a la que corresponde.
+544	Saving…	Guardando…
+545	Save record	Guardar registro
+546	Period type	Tipo de período
+547	Previous period	Período anterior
+548	Next period	Período siguiente
+549	Current period	Período actual
+550	Choose when to work	Elige cuándo trabajar
+551	Schedule “{{v0}}” on the calendar.	Programa «{{v0}}» en el calendario.
+552	Weekday	Día de la semana
+553	 from	 desde
+554	Add to plan	Añadir al plan
+555	Checking server	Comprobando servidor
+556	Device data loaded first	Se cargaron primero los datos del dispositivo
+557	Saved on server	Guardado en el servidor
+558	Saved	Guardado
+559	Saving to server	Guardando en el servidor
+560	Changes saved on device	Cambios guardados en el dispositivo
+561	Offline	Sin conexión
+562	Changes saved on this device	Cambios guardados en este dispositivo
+563	Server connection failed	Falló la conexión al servidor
+564	Device data safely preserved	Datos del dispositivo conservados de forma segura
+565	Server rejected save (400)	El servidor rechazó el guardado (400)
+566	Please check the content to save	Revisa el contenido que quieres guardar
+567	Server save conflict	Conflicto de guardado en el servidor
+568	Device changes preserved without overwriting	Cambios del dispositivo conservados sin sobrescribir
+569	Device save failed	No se pudo guardar en el dispositivo
+570	Please check browser storage	Revisa el almacenamiento del navegador
+571	Please check the save version information	Revisa la información de versión del guardado
+572	Your input is preserved. The save version information needs checking.	Tu texto se conserva. Hay que comprobar la versión del guardado.
+573	Changes remain on screen. Device storage also failed, so do not close this tab.	Los cambios siguen en pantalla. También falló el guardado local; no cierres esta pestaña.
+574	Changes are preserved on this device. Do not reset or sign out.	Los cambios se conservan en este dispositivo. No reinicies ni cierres sesión.
+575	Changes are preserved on this device. Edit the input without resetting.	Los cambios se conservan en este dispositivo. Corrige los datos sin reiniciar.
+576	Save version needs checking	Revisar versión del guardado
+577	View errors	Ver errores
+578	If the problem persists, include the error code below when reporting it.	Si el problema persiste, incluye el código de error de abajo al comunicarlo.
+579	Additional items to check:\u0020	Elementos adicionales que revisar:\u0020
+580	 items.	 elementos.
+581	Check later	Revisar después
+582	Review input	Revisar datos
+583	Save again	Volver a guardar
+584	Compare changes	Comparar cambios
+585	Subtasks	Subtareas
+586	Break the task into small steps. These are separate from the parent task’s completion and time records. Press Save after changes.	Divide la tarea en pasos pequeños. Son independientes de la finalización y los tiempos de la tarea principal. Pulsa Guardar tras modificarlos.
+587	Complete {{v0}}	Completar {{v0}}
+588	Title of subtask {{v0}}	Título de la subtarea {{v0}}
+589	Enter subtask	Escribe una subtarea
+590	Move subtask {{v0}} up	Subir subtarea {{v0}}
+591	Move subtask {{v0}} down	Bajar subtarea {{v0}}
+592	Delete subtask {{v0}}	Eliminar subtarea {{v0}}
+593	Add subtask	Añadir subtarea
+594	Undo last deletion	Deshacer última eliminación
+595	Maximum:\u0020	Máximo:\u0020
+596	 items.	 elementos.
+597	Another device edited the same item. Your input is preserved. Cancel, check the latest version and edit again.	Otro dispositivo modificó el mismo elemento. Tu texto se conserva. Cancela, revisa la última versión y vuelve a editar.
+598	Could not save. Check your input and sync status.	No se pudo guardar. Revisa los datos y el estado de sincronización.
+599	Delete this task?	¿Eliminar esta tarea?
+600	Edit task	Editar tarea
+601	Review what will be deleted.	Revisa lo que se eliminará.
+602	No goal is required. Title changes also appear in linked timeline blocks.	No necesitas una meta. Los cambios de título también aparecen en los bloques vinculados del horario.
+603	Linked events:\u0020	Eventos vinculados:\u0020
+604	; Activity records:\u0020	; Registros de actividad:\u0020
+605	. All will be deleted together. The running timer also ends. This cannot be undone.	. Se eliminarán juntos. También se detendrá el temporizador en marcha. No se puede deshacer.
+606	 items will also be deleted.	 elementos también se eliminarán.
+607	To remove only an event, use\u0020	Para quitar solo un evento, usa\u0020
+608	 on the timeline.	 en el horario.
+609	Back to editing	Volver a editar
+610	Could not delete. Check the sync status.	No se pudo eliminar. Revisa el estado de sincronización.
+611	Delete task and linked records	Eliminar tarea y registros vinculados
+612	Schedule time	Programar hora
+613	Change date	Cambiar fecha
+614	Link goal	Vincular meta
+615	Optional	Opcional
+616	No goal	Sin meta
+617	Estimated time (minutes)	Tiempo estimado (minutos)
+618	Status	Estado
+619	Changing the estimate does not change scheduled event lengths. Completed or canceled tasks can be reopened.	Cambiar la estimación no cambia la duración de los eventos programados. Puedes reabrir tareas completadas o canceladas.
+620	Delete task	Eliminar tarea
+621	Recording	Registrando
+622	Stopped	Detenido
+623	Incomplete	Pendiente
+624	Mark as incomplete	Marcar como pendiente
+625	Schedule {{v0}}	Programar {{v0}}
+626	Status:\u0020	Estado:\u0020
+627	 times carried over	 veces aplazada
+628	Edit {{v0}}	Editar {{v0}}
+629	Delete {{v0}}	Eliminar {{v0}}
+630	Continue	Continuar
+631	Another device changed the item you are editing. Your input is preserved. Check the latest version, then reopen it.	Otro dispositivo cambió el elemento que estás editando. Tu texto se conserva. Revisa la última versión y vuelve a abrirlo.
+632	Edit time	Editar hora
+633	Edit event	Editar evento
+634	Add task or event	Añadir tarea o evento
+635	Choose the start and end times, then save. The task list and timeline stay linked.	Elige las horas de inicio y fin y guarda. La lista de tareas y el horario permanecerán vinculados.
+636	Start with a task or event, even without a goal.	Empieza con una tarea o un evento, aunque no tengas una meta.
+637	Type of item to add	Tipo de elemento que añadir
+638	Existing task	Tarea existente
+639	New task	Nueva tarea
+640	Event only	Solo evento
+641	Select task	Seleccionar tarea
+642	Edit title, goal and subtasks	Editar título, meta y subtareas
+643	Example: Call to book a medical appointment	Ejemplo: llamar para pedir cita médica
+644	Example: Dentist appointment	Ejemplo: cita con el dentista
+645	Not linked	Sin vincular
+646	Title and goal changes also affect the original task. Time changes apply only to this event.	Los cambios de título y meta también afectan a la tarea original. Los de hora solo afectan a este evento.
+647	Event date	Fecha del evento
+648	You can move events to a different week or month.	Puedes mover eventos a otra semana o mes.
+649	Time range	Intervalo de tiempo
+650	Quick time selection	Selección rápida de hora
+651	My event	Mi evento
+652	Task and time	Tarea y hora
+653	Enter a title.	Escribe un título.
+654	Delete from schedule	Eliminar de la agenda
+655	Save time	Guardar hora
+656	Start without a goal if you like. Link period goals when you need them.	Puedes empezar sin una meta. Vincula metas por período cuando lo necesites.
+657	View period goals	Ver metas por período
+658	Day wrap-up ·\u0020	Cierre del día ·\u0020
+659	Weekly time calendar	Calendario de tiempo semanal
+660	View tasks for {{v0}}	Ver tareas de {{v0}}
+661	Day	Día
+662	Week	Semana
+663	Quarter	Trimestre
+664	Year	Año
+665	Please choose a valid date.	Elige una fecha válida.
+666	Monday	Lunes
+667	Tue	Mar
+668	Tuesday	Martes
+669	Wed	Mié
+670	Wednesday	Miércoles
+671	Thu	Jue
+672	Thursday	Jueves
+673	Fri	Vie
+674	Friday	Viernes
+675	Sat	Sáb
+676	Saturday	Sábado
+677	Sunday	Domingo
+678	{{v0}} min	{{v0}} min
+679	{{v0}} h	{{v0}} h
+680	{{v0}} h {{v1}} min	{{v0}} h {{v1}} min
+681	High	Alta
+682	Medium	Media
+683	Low	Baja
+684	Unknown	Sin confirmar
+685	On track	En buen camino
+686	You can continue with the current plan.	Puedes continuar con el plan actual.
+687	Metric update needed	Actualizar indicador
+688	The current value was checked a while ago. Check the latest value before deciding.	Hace tiempo que no se comprueba el valor actual. Consulta el último valor antes de decidir.
+689	Time risk	Riesgo de tiempo
+690	This quarter’s available time is less than the time needed to finish.	El tiempo disponible este trimestre es menor que el necesario para terminar.
+691	Progress stalled	Progreso estancado
+692	You spent time, but the outcome metric did not improve.	Dedicaste tiempo, pero el indicador del resultado no mejoró.
+693	No evidence	Sin pruebas
+694	There is no evidence to verify activity or results.	No hay pruebas para verificar la actividad o los resultados.
+695	Keep	Mantener
+696	Reduce scope	Reducir alcance
+697	Extend deadline	Ampliar plazo
+698	Stop	Detener
+699	{{v0}}/{{v1}}	{{v1}}/{{v0}}
+700	No check date	Sin fecha de revisión
+701	Update time unknown	Fecha de actualización desconocida
+702	Updated today	Actualizado hoy
+703	Updated {{v0}} days ago	Actualizado hace {{v0}} días
+704	No measurement	Sin medición
+705	Measurement needed	Medición necesaria
+706	Progress for {{v0}}	Progreso de {{v0}}
+707	Enter the annual direction, quarterly focus and deadline.	Introduce la orientación anual, el enfoque trimestral y el plazo.
+708	Enter a year from 1900 to 9999.	Introduce un año entre 1900 y 9999.
+709	Check the selected result’s name, unit, evidence, values and times.	Revisa el nombre, la unidad, las pruebas, los valores y los tiempos del resultado seleccionado.
+710	Check the input and try again.	Revisa los datos e inténtalo de nuevo.
+711	Annual and quarterly plan saved.	Plan anual y trimestral guardado.
+712	Enter the result name, measurement unit and evidence.	Introduce el nombre del resultado, la unidad de medida y las pruebas.
+713	Leave the current value empty or enter zero or more; target must be above zero and times cannot be negative.	Deja el valor actual vacío o introduce cero o más; el objetivo debe ser mayor que cero y los tiempos no pueden ser negativos.
+714	Could not save the result. Check the input.	No se pudo guardar el resultado. Revisa los datos.
+715	New quarterly result added.	Nuevo resultado trimestral añadido.
+716	Result management settings saved.	Ajustes de gestión del resultado guardados.
+717	Could not apply the request. Please try again.	No se pudo aplicar la solicitud. Inténtalo de nuevo.
+718	Delete	Eliminar
+719	{{v0}} linked tasks kept as standalone tasks.	Se conservaron {{v0}} tareas vinculadas como tareas independientes.
+720	Linked incomplete tasks canceled. Completed tasks, past events and activity records are preserved.	Se cancelaron las tareas vinculadas pendientes. Se conservan las tareas completadas, eventos pasados y registros de actividad.
+721	Result action: {{v0}}. {{v1}}	Acción del resultado: {{v0}}. {{v1}}
+722	Decision for {{v0}}: ‘{{v1}}’.	Decisión para {{v0}}: «{{v1}}».
+723	See results and decisions together.	Consulta resultados y decisiones juntos.
+724	Add quarterly results and keep tracking metrics, evidence and time invested.	Añade resultados trimestrales y sigue los indicadores, las pruebas y el tiempo dedicado.
+725	Add result	Añadir resultado
+726	Edit plan and results	Editar plan y resultados
+727	Edit plan	Editar plan
+728	Annual and quarterly plans	Planes anuales y trimestrales
+729	· Current quarter	· Trimestre actual
+730	 until	 hasta
+731	Quarter deadline	Plazo del trimestre
+732	Quarterly results	Resultados trimestrales
+733	Current / Target · Confidence · Actual / Planned time · Next check	Actual / Objetivo · Confianza · Tiempo real / Planificado · Próxima revisión
+734	Swipe the table sideways to see all columns.	Desliza la tabla lateralmente para ver todas las columnas.
+735	Result	Resultado
+736	Current / Target	Actual / Objetivo
+737	Confidence	Confianza
+738	Actual / Planned time	Tiempo real / Planificado
+739	Next check	Próxima revisión
+740	Edit result {{v0}}	Editar resultado {{v0}}
+741	Metric history	Historial de indicadores
+742	 records	 registros
+743	No metric updates recorded yet.	Aún no hay actualizaciones de indicadores registradas.
+744	Available	Disponible
+745	No quarterly results to manage.	No hay resultados trimestrales que gestionar.
+746	Add your first result	Añadir el primer resultado
+747	Decide on outdated metrics and time risks first.	Decide primero sobre los indicadores antiguos y los riesgos de tiempo.
+748	Decision	Decisión
+749	Decision ·\u0020	Decisión ·\u0020
+750	Evidence	Pruebas
+751	Change	Cambio
+752	Needed	Necesario
+753	h · Available\u0020	h · Disponible\u0020
+754	Decide on {{v0}}	Decidir sobre {{v0}}
+755	No warning signals need an immediate decision.	No hay señales de alerta que requieran una decisión inmediata.
+756	Edit the plan’s direction and current quarter settings. Results can be added and managed separately.	Edita la orientación del plan y los ajustes del trimestre actual. Los resultados se pueden añadir y gestionar por separado.
+757	Annual direction	Orientación anual
+758	Year	Año
+759	Quarterly focus	Enfoque trimestral
+760	Quarter deadline	Plazo trimestral
+761	Result to edit alongside the plan	Resultado que editar junto al plan
+762	Result to edit	Resultado que editar
+763	Result name	Nombre del resultado
+764	Target value	Valor objetivo
+765	Measurement unit	Unidad de medida
+766	Apply to plan	Aplicar al plan
+767	Manage result	Gestionar resultado
+768	Add quarterly result	Añadir resultado trimestral
+769	Manage metrics, evidence and time together under ‘{{v0}}’.	Gestiona los indicadores, las pruebas y el tiempo juntos en «{{v0}}».
+770	Current value	Valor actual
+771	Leave empty if not measured	Dejar vacío si no se ha medido
+772	Example: people, articles, dollars	Ejemplo: personas, artículos, euros
+773	Confidence in achievement	Confianza en lograrlo
+774	Time needed	Tiempo necesario
+775	Available time	Tiempo disponible
+776	Next check date	Fecha de próxima revisión
+777	Evidence for your assessment	Pruebas de tu evaluación
+778	Example: Dashboard checked on September 2	Ejemplo: panel consultado el 2 de septiembre
+779	Current management information for the selected result	Información de gestión actual del resultado seleccionado
+780	Linked tasks	Tareas vinculadas
+781	Actual time invested	Tiempo real dedicado
+782	Current decision	Decisión actual
+783	Not decided	Sin decidir
+784	Delete result	Eliminar resultado
+785	Save result	Guardar resultado
+786	Review linked tasks	Revisar tareas vinculadas
+787	Confirm deletion	Confirmar eliminación
+788	Confirm stopping	Confirmar detención
+789	Before removing or stopping the result, choose what to do with linked tasks.	Antes de eliminar o detener el resultado, elige qué hacer con las tareas vinculadas.
+790	 has parent result\u0020	 tiene como resultado principal\u0020
+791	.	.
+792	Linked tasks	Tareas vinculadas
+793	There are no additional linked tasks beyond those shown above.	No hay más tareas vinculadas aparte de las mostradas arriba.
+794	No linked tasks.	No hay tareas vinculadas.
+795	 and\u0020	 y\u0020
+796	How to handle linked tasks	Cómo gestionar las tareas vinculadas
+797	Unlink and keep tasks	Desvincular y conservar las tareas
+798	Keep tasks, events and activity records; remove only the result link.	Conserva las tareas, eventos y registros de actividad; elimina solo el vínculo con el resultado.
+799	Cancel linked incomplete tasks	Cancelar tareas vinculadas pendientes
+800	Cancel only incomplete tasks and future time blocks. Completed tasks, past events and activity records are preserved.	Cancela solo las tareas pendientes y los bloques futuros. Se conservan las tareas completadas, eventos pasados y registros de actividad.
+801	Choose how to handle tasks to continue.	Elige cómo gestionar las tareas para continuar.
+802	Back	Volver
+803	Delete as selected	Eliminar según lo elegido
+804	Stop as selected	Detener según lo elegido
+805	Define a result for this quarter	Define un resultado para este trimestre
+806	Choose a measurable result, such as “Publish 6 technical articles.”	Elige un resultado medible, como «Publicar 6 artículos técnicos».
+807	Schedule results in your weekly calendar	Programa los resultados en tu calendario semanal
+808	Compare the time needed with your availability and place the next action in a free slot this week.	Compara el tiempo necesario con el disponible y coloca la próxima acción en un hueco libre esta semana.
+809	Finish just one thing today	Termina una sola cosa hoy
+810	Today highlights the scheduled block you can start right now.	Hoy destaca el bloque programado que puedes empezar ahora.
+811	Long-term plans connect to today’s actions	Los planes a largo plazo se conectan con las acciones de hoy
+812	Tasks connect to your annual direction and quarterly results, so you remember why the work matters.	Las tareas se conectan con tu orientación anual y resultados trimestrales para recordar por qué importa tu trabajo.
+813	Run your plan, not just record it	Gestiona tu plan, no solo lo registres
+814	When time is short, planning shows it and helps you reduce scope, extend deadlines or stop.	Si falta tiempo, la planificación lo muestra y te ayuda a reducir el alcance, ampliar plazos o detenerte.
+815	Action and reflection form a loop	La acción y la reflexión forman un ciclo
+816	Carry completed and incomplete work and actual time into next week’s Top 3 and plan.	Incorpora el trabajo completado y pendiente y el tiempo real a los Top 3 y al plan de la próxima semana.
+817	Go to the top of Goals to Today’s landing page	Ir al inicio de la página de Goals to Today
+818	Landing page navigation	Navegación de la página de presentación
+819	How it works	Cómo funciona
+820	Core values	Valores principales
+821	Release status	Estado del lanzamiento
+822	Start the web app	Abrir la aplicación web
+823	Annual direction → Quarterly results → Weekly plan → Today’s action → Weekly reflection	Orientación anual → Resultados trimestrales → Plan semanal → Acción de hoy → Reflexión semanal
+824	Does today’s work connect to this year’s goals?	¿Lo que haces hoy se conecta con tus metas de este año?
+825	Turn a year-long goal	Convierte una meta anual
+826	into one action you can finish today.	 en una acción que puedas terminar hoy.
+827	Goals to Today places results on your weekly timeline and shows time shortages while you plan.	Goals to Today coloca los resultados en tu horario semanal y muestra la falta de tiempo mientras planificas.
+828	Explore product screens	Explorar las pantallas
+829	About the free beta	Acerca de la beta gratuita
+830	No automatic payments during beta	Sin pagos automáticos durante la beta
+831	No payment card required	Sin tarjeta de pago
+832	Data export and deletion supported	Exportación y eliminación de datos disponibles
+833	Real product screen examples	Ejemplos reales de pantallas del producto
+834	Goals to Today Today screen	Pantalla Hoy de Goals to Today
+835	See today’s most important task and when to start it on one screen.	Ve la tarea más importante de hoy y cuándo empezarla en una sola pantalla.
+836	Today’s most important task	La tarea más importante de hoy
+837	Finish backend portfolio › Deploy Redis Streams	Completar portfolio backend › Implementar Redis Streams
+838	Draw the incident recovery flow	Dibujar el flujo de recuperación de incidencias
+839	Estimated 1 h 30 min · Carried over 3 times	Estimación de 1 h 30 min · Aplazada 3 veces
+840	Start now	Empezar ahora
+841	Three choices make today’s work clear.	Tres decisiones aclaran el trabajo de hoy.
+842	Every task connects to a larger goal	Cada tarea se conecta con una meta mayor
+843	See the connection from annual direction to quarterly result to next action on each task row.	Ve la conexión entre orientación anual, resultado trimestral y próxima acción en cada fila de tarea.
+844	Goals to Today goals and metrics screen	Pantalla de metas e indicadores de Goals to Today
+845	See annual direction and quarterly results in cards.	Consulta la orientación anual y los resultados trimestrales en tarjetas.
+846	Time shortages show up while you plan	La falta de tiempo se detecta al planificar
+847	See excess hours as numbers, with options to reduce scope, extend or stop.	Ve el exceso de horas en cifras y opciones para reducir el alcance, ampliar o detener.
+848	Goals to Today weekly planning screen	Pantalla de planificación semanal de Goals to Today
+849	Weekly plan	Plan semanal
+850	Schedule by comparing needed and available time.	Programa comparando el tiempo necesario y el disponible.
+851	Reflection leads into next week’s plan	La reflexión lleva al plan de la próxima semana
+852	The Top 3 chosen in your weekly reflection become the starting point for next week’s plan.	Los Top 3 elegidos en la reflexión semanal son el punto de partida del plan de la próxima semana.
+853	Goals to Today weekly reflection screen	Pantalla de reflexión semanal de Goals to Today
+854	Decide the next action instead of just writing impressions.	Decide la próxima acción en lugar de escribir solo impresiones.
+855	Three things Goals to Today brings	Tres aportaciones de Goals to Today
+856	Tool comparison	Comparación de herramientas
+857	Different tools, different purposes	Distintas herramientas, distintos propósitos
+858	Notes capture ideas, task apps help finish today’s work, and calendars protect your time. Goals to Today connects long-term plans to today’s actions and carries their results into the next plan.	Las notas guardan ideas, las aplicaciones de tareas ayudan a terminar el trabajo y los calendarios protegen tu tiempo. Goals to Today conecta los planes a largo plazo con las acciones de hoy e incorpora sus resultados al siguiente plan.
+859	Start with this week’s first action	Empieza con la primera acción de esta semana
+860	Begin with one result, one next action and one time block.	Empieza con un resultado, una próxima acción y un bloque de tiempo.
+861	Available and upcoming features	Funciones disponibles y en preparación
+862	Web · PWA	Web · PWA
+863	Available	Disponible
+864	Account sign-in · Account deletion	Acceso a la cuenta · Eliminación de cuenta
+865	Available now	Disponible ahora
+866	Public Google Calendar integration	Conexión pública con Google Calendar
+867	Coming soon	En preparación
+868	Official iOS · Android apps	Aplicaciones oficiales iOS · Android
+869	Goals to Today · Beta	Goals to Today · Beta
+870	Service policies	Políticas del servicio
+871	Back to top	Volver arriba
+872	Effective September 1, 2026 · Policy version 2026-09-01	Vigente desde el 1 de septiembre de 2026 · Versión de la política 2026-09-01
+873	Goals to Today processes only the information needed to manage annual and quarterly plans as schedules and records. We do not track you for advertising or sell personal information.	Goals to Today trata únicamente la información necesaria para gestionar planes anuales y trimestrales mediante horarios y registros. No realizamos seguimiento publicitario ni vendemos información personal.
+874	Information processed and purposes	Información tratada y finalidades
+875	Sign-in identifiers, email and display name: account authentication and cross-device synchronization	Identificadores de acceso, correo y nombre visible: autenticación de la cuenta y sincronización entre dispositivos
+876	Goals, tasks, schedules, activity time, reflections and change history: providing the planning features requested by the user	Metas, tareas, horarios, tiempo de actividad, reflexiones e historial de cambios: proporcionar las funciones de planificación solicitadas
+877	Google Calendar OAuth tokens and event links: calendar synchronization enabled by the user. Tokens are encrypted on the server	Tokens OAuth de Google Calendar y vínculos de eventos: sincronización activada por el usuario. Los tokens se guardan cifrados en el servidor
+878	Web and app push tokens and notification history: reminders enabled by the user. Tokens are encrypted on the server	Tokens push web y de la aplicación e historial de notificaciones: recordatorios activados por el usuario. Los tokens se guardan cifrados en el servidor
+879	Short-lived rate-limit identifiers and error and performance logs: security, incident response and service reliability	Identificadores temporales de limitación de solicitudes y registros de errores y rendimiento: seguridad, respuesta a incidencias y fiabilidad del servicio
+880	External processors	Encargados externos del tratamiento
+881	We send only information needed for the relevant feature to your selected sign-in provider, Google Calendar API, Apple Push Notification service and Firebase Cloud Messaging. You can disconnect Google in Settings at any time.	Solo enviamos la información necesaria para cada función al proveedor de acceso elegido, Google Calendar API, Apple Push Notification service y Firebase Cloud Messaging. Puedes desconectar Google en Ajustes en cualquier momento.
+882	Retention and deletion	Conservación y eliminación
+883	Account data is retained while your account is active. Export a copy in Settings. Deleting your account removes plans, history, integration tokens and notification devices together. Data is separately protected for a legally required retention period only when such a requirement applies.	Los datos se conservan mientras mantengas tu cuenta. Puedes exportar una copia en Ajustes. Al eliminar la cuenta se eliminan conjuntamente planes, historial, tokens de conexión y dispositivos de notificaciones. Solo se conservarán datos por separado y protegidos cuando exista una obligación legal, durante el plazo exigido.
+884	Your rights and contact	Tus derechos y contacto
+885	You can export your data for review, disconnect integrations, disable notifications and delete your account in Settings. For further questions, use the\u0020	Puedes exportar los datos para consultarlos, desconectar servicios, desactivar notificaciones y eliminar la cuenta en Ajustes. Para otras consultas, usa el\u0020
+886	project contact page	canal de contacto del proyecto
+887	.	.
+888	Back to Goals to Today	Volver a Goals to Today
+889	Service	Servicio
+890	Goals to Today is a tool for managing goals, tasks, time blocks, activity records and reflections, with optional external calendar and notification connections.	Goals to Today es una herramienta para gestionar metas, tareas, bloques de tiempo, registros de actividad y reflexiones, con conexiones opcionales a calendarios externos y notificaciones.
+891	Accounts and user responsibilities	Cuentas y responsabilidades del usuario
+892	You must keep your account secure and store only lawful content. Automation, attacks or circumvention that infringe others’ rights or harm service stability are not permitted.	Debes proteger tu cuenta y guardar únicamente contenido lícito. No se permiten automatizaciones, ataques ni elusión de controles que vulneren derechos ajenos o dañen la estabilidad del servicio.
+893	Data and external integrations	Datos y conexiones externas
+894	You retain the rights to your saved content. Goals to Today cannot control outages or policy changes in external services such as Google Calendar. Check important events in the original service as well.	Conservas los derechos sobre tu contenido guardado. Goals to Today no controla las interrupciones ni cambios de políticas de servicios externos como Google Calendar. Comprueba también los eventos importantes en el servicio original.
+895	Changes, interruptions and liability	Cambios, interrupciones y responsabilidad
+896	Features may change or be temporarily suspended for security or operational reasons. Unless there is intent or gross negligence, liability for indirect damages is limited to the extent permitted by applicable law. Mandatory consumer rights are not restricted.	Las funciones pueden cambiar o suspenderse temporalmente por motivos de seguridad u operación. Salvo dolo o negligencia grave, la responsabilidad por daños indirectos se limita en la medida permitida por la legislación aplicable. No se restringen los derechos imperativos de los consumidores.
+897	Termination and contact	Cancelación y contacto
+898	You can delete your account in Settings at any time. For questions, use the\u0020	Puedes eliminar la cuenta en Ajustes en cualquier momento. Para consultas, usa el\u0020
+899	From {{v0}}	Desde las {{v0}}
+900	This evening	Esta tarde
+901	Tomorrow evening	Mañana por la tarde
+902	Tomorrow morning	Mañana por la mañana
+903	This morning	Esta mañana
+904	Next Saturday morning	El próximo sábado por la mañana
+905	Saturday morning	El sábado por la mañana
+906	Choose time	Elegir hora
+907	This week	Esta semana
+908	Next week	La próxima semana
+909	Choose a time	Elige una hora
+910	One sentence about the change you want	Una frase sobre el cambio que deseas
+911	Entering an action to start now	Escribiendo una acción para empezar
+912	Choose in the next step.	Elige en el siguiente paso.
+913	Task only, unscheduled · {{v0}}	Solo tarea, sin programar · {{v0}}
+914	Choose a time in the last step, or leave it unscheduled.	Elige una hora en el último paso o déjala sin programar.
+915	Choose a future time that ends before midnight.	Elige una hora futura que termine antes de medianoche.
+916	There is already an event at that time. Choose free time.	Ya hay un evento a esa hora. Elige un hueco libre.
+917	FIRST PLAN · About 3 minutes	PRIMER PLAN · Unos 3 minutos
+918	Step {{v0}} of 3	Paso {{v0}} de 3
+919	What would you like to change this quarter?	¿Qué quieres cambiar este trimestre?
+920	Create a first result, or start directly with tasks and calendar without a goal.	Crea un primer resultado o empieza directamente con tareas y calendario sin una meta.
+921	Result in one sentence	Resultado en una frase
+922	Example: Publish 6 technical articles	Ejemplo: publicar 6 artículos técnicos
+923	Examples	Ejemplos
+924	Publish one portfolio	Publicar un portfolio
+925	Earn $800 from a side project	Ganar 800 € con un proyecto paralelo
+926	Run 10 km in 55 minutes	Correr 10 km en 55 minutos
+927	What will you do first?	¿Qué harás primero?
+928	Write an action you can start in one sitting and finish within two hours.	Escribe una acción que puedas empezar de una vez y terminar en menos de dos horas.
+929	First next action	Primera acción
+930	Example: Choose the title and outline for my first article	Ejemplo: elegir el título y esquema del primer artículo
+931	Start with a verb and keep it small enough to do now.	Empieza con un verbo y hazla lo bastante pequeña para realizarla ahora.
+932	When will you start?	¿Cuándo empezarás?
+933	Choose a suggested time or set your own. If unsure, create just the task first.	Elige una hora sugerida o define la tuya. Si no lo sabes, crea primero solo la tarea.
+934	How to choose a time	Cómo elegir una hora
+935	Suggested time	Hora sugerida
+936	Choose myself	Elegir yo
+937	Decide later	Decidir después
+938	Suggested work times	Horas de trabajo sugeridas
+939	Time overlap · {{v0}} {{v1}}	Solapamiento · {{v0}} {{v1}}
+940	Create the first task without scheduling it. You can choose a time in Today or Schedule at any time.	Crea la primera tarea sin programarla. Puedes elegir una hora en Hoy o Agenda cuando quieras.
+941	No suggested time can fit this duration.	Ninguna hora sugerida admite esta duración.
+942	Start tasks and calendar without a goal	Empezar tareas y calendario sin una meta
+943	Create first action	Crear primera acción
+944	Plan preview	Vista previa del plan
+945	Create your first result and action; scheduling is optional.	Crea tu primer resultado y acción; programar una hora es opcional.
+946	Onboarding is a starting point. Refine your planning structure after your first action.	La introducción es un punto de partida. Afina la estructura del plan después de tu primera acción.
+947	01 · Quarterly result	01 · Resultado trimestral
+948	02 · Next action	02 · Próxima acción
+949	03 · Choose time	03 · Elegir hora
+950	A start time, not just a plan, leads to action.	Una hora de inicio, no solo un plan, lleva a la acción.
+951	Linked an existing task with the same name.	Se vinculó una tarea existente con el mismo nombre.
+952	Created an unscheduled task. Save the goal after the task finishes saving to the server.	Se creó una tarea sin programar. Guarda la meta cuando termine de guardarse la tarea en el servidor.
+953	Edit goal	Editar meta
+954	Add subgoal	Añadir submeta
+955	Add goal	Añadir meta
+956	Break {{v0}} into smaller results. Each goal’s progress is managed independently.	Divide {{v0}} en resultados pequeños. El progreso de cada meta se gestiona de forma independiente.
+957	Start with a title and period. Linking a parent goal or tasks is optional.	Empieza con un título y un período. Vincular una meta principal o tareas es opcional.
+958	Goal name	Nombre de la meta
+959	A result you want this period	Un resultado que deseas este período
+960	Period	Período
+961	Reference date	Fecha de referencia
+962	Measurement method	Método de medición
+963	Completion	Finalización
+964	Numeric measurement	Medición numérica
+965	I achieved this goal	He logrado esta meta
+966	Baseline	Valor inicial
+967	Current value (optional)	Valor actual (opcional)
+968	Unit	Unidad
+969	articles, times, kg…	artículos, veces, kg…
+970	Progress uses the change from baseline to target. Targets can decrease, too.	El progreso usa el cambio del valor inicial al objetivo. También puedes fijar objetivos decrecientes.
+971	Parent goal · Task links · Notes	Meta principal · Tareas vinculadas · Notas
+972	Parent goal (optional)	Meta principal (opcional)
+973	Link tasks (optional)	Vincular tareas (opcional)
+974	Completing a task does not automatically change goal metrics.	Completar una tarea no cambia automáticamente los indicadores de las metas.
+975	Tasks linked from past plans (can be unlinked)	Tareas vinculadas de planes anteriores (puedes desvincularlas)
+976	Create a task for this goal	Crear una tarea para esta meta
+977	Waiting for the linked task to save to the server. Resolve existing save errors first.	Esperando a que la tarea vinculada se guarde en el servidor. Resuelve primero los errores de guardado.
+978	Delete goal	Eliminar meta
+979	Save goal	Guardar meta
+980	Delete this goal? Tasks and events are kept. Unlink any subgoals first.	¿Eliminar esta meta? Las tareas y eventos se conservan. Desvincula primero las submetas.
+981	Start with any period. Goal links are optional.	Empieza con cualquier período. Vincular metas es opcional.
+982	Goals for this period	Metas de este período
+983	Linked parent and child goals are shown together. Completing a child does not automatically change its parent’s progress.	Se muestran juntas las metas principales y secundarias vinculadas. Completar una submeta no cambia automáticamente el progreso de la principal.
+984	Start with one small goal	Empieza con una meta pequeña
+985	You can use today’s tasks and timeline without goals.	Puedes usar las tareas de hoy y el horario sin metas.
+986	Add first goal	Añadir primera meta
+987	Legacy quarterly results and metrics	Resultados trimestrales e indicadores anteriores
+988	Existing metric history and task links are preserved. Annual direction text has not been converted into new goals automatically.	Se conservan el historial de indicadores y los vínculos con tareas. El texto de orientación anual no se ha convertido automáticamente en metas nuevas.
+989	Open legacy quarterly results	Abrir resultados trimestrales anteriores
+990	Review what you did and leave one thing to change next time.	Revisa lo que hiciste y anota una cosa que cambiar la próxima vez.
+991	Write reflection	Escribir reflexión
+992	Plan next period	Planificar el próximo período
+993	Period activity summary	Resumen de actividad del período
+994	How the totals are calculated	Cómo se calculan los totales
+995	Overlapping planned time is counted once and external calendar events are excluded. Recorded time is assigned to the recording date and may differ from actual work spanning midnight. Not recording time does not make goal progress 0%.	El tiempo planificado solapado se cuenta una vez y se excluyen los eventos externos. El tiempo registrado se atribuye a la fecha del registro y puede diferir del trabajo real que cruza medianoche. No registrar tiempo no hace que el progreso de una meta sea del 0 %.
+996	Reopened tasks are excluded. Recompleted tasks count on their latest completion date.	Se excluyen las tareas reabiertas. Las que se completan de nuevo cuentan en su última fecha de finalización.
+997	 past completed items have no completion date and are excluded from dated totals. Edited or deleted time records are recalculated from currently retained plans.	 elementos completados antiguos no tienen fecha de finalización y se excluyen de los totales por fecha. Los registros de tiempo modificados o eliminados se recalculan a partir de los planes conservados actualmente.
+998	Planned and recorded time by date	Tiempo planificado y registrado por fecha
+999	{{v0}} planned {{v1}} min	{{v0}} planificado {{v1}} min
+1000	{{v0}} recorded {{v1}} min	{{v0}} registrado {{v1}} min
+1001	Plan	Plan
+1002	Recorded	Registrado
+1003	How far have your goals progressed?	¿Cuánto han avanzado tus metas?
+1004	These goal measurements were captured when the reflection was first saved. They are preserved separately from later goal edits.	Estas mediciones se capturaron al guardar la reflexión por primera vez. Se conservan por separado de los cambios posteriores de las metas.
+1005	Current measurements of goals overlapping this period. They are captured when saving the reflection.	Mediciones actuales de las metas que coinciden con este período. Se guardan junto con la reflexión.
+1006	Separate from task counts and time.	Independiente del número de tareas y del tiempo.
+1007	You can write a reflection without linked goals.	Puedes escribir una reflexión sin metas vinculadas.
+1008	View goals	Ver metas
+1009	Past records	Registros anteriores
+1010	Short note	Nota breve
+1011	Draft	Borrador
+1012	No other reflections of this period type yet. Select a previous period to write one.	Aún no hay otras reflexiones de este tipo de período. Selecciona un período anterior para escribir una.
+1013	Legacy weekly reflection	Reflexión semanal anterior
+1014	Open legacy metrics, carry-over and Top 3 reflection	Abrir la reflexión anterior de indicadores, aplazamientos y Top 3
+1015	{{v0}} days	{{v0}} días
+1016	Unlinked tasks	Tareas sin vincular
+1017	Inbox	Bandeja
+1018	Personal event	Evento personal
+1019	Without a goal	Sin meta
+1020	{{v0}} — Step 1	{{v0}} — Paso 1
+1021	Overlaps {{v0}} {{v1}}.	Se solapa con {{v0}} {{v1}}.
+1022	Overlaps another event. Change the date or start time.	Se solapa con otro evento. Cambia la fecha o la hora de inicio.
+1023	Scheduled {{v0}} at {{v1}}.	Se programó {{v0}} a las {{v1}}.
+1024	Could not edit. Check your input and sync status.	No se pudo editar. Revisa los datos y el estado de sincronización.
+1025	Updated {{v0}}.	Se actualizó {{v0}}.
+1026	Could not create the task. Check your input.	No se pudo crear la tarea. Revisa los datos.
+1027	Added {{v0}} to tasks.	Se añadió {{v0}} a las tareas.
+1028	The date is outside the supported save range. Choose another date.	La fecha está fuera del intervalo admitido. Elige otra fecha.
+1029	Could not create the new task. Check your input.	No se pudo crear la nueva tarea. Revisa los datos.
+1030	Overlaps another event. Change the date or time.	Se solapa con otro evento. Cambia la fecha o la hora.
+1031	{{v3}} {{v0}} at {{v1}} {{v2}}.	{{v3}} {{v0}} a las {{v1}} {{v2}}.
+1032	Removed from schedule. The linked task remains.	Se quitó de la agenda. Se conserva la tarea vinculada.
+1033	{{v0}} was not scheduled because it overlaps another event.	No se programó {{v0}} porque se solapa con otro evento.
+1034	Weekly schedule · {{v0}}	Agenda semanal · {{v0}}
+1035	Monthly schedule	Agenda mensual
+1036	See this week’s tasks and events together.	Consulta las tareas y eventos de esta semana juntos.
+1037	See the whole month at a glance.	Consulta todo el mes de un vistazo.
+1038	Goals are optional. Tasks and standalone events save right away.	Las metas son opcionales. Las tareas y eventos independientes se guardan de inmediato.
+1039	Change week	Cambiar semana
+1040	Previous week	Semana anterior
+1041	Go to this week	Ir a esta semana
+1042	Calendar view	Vista de calendario
+1043	Next week’s Top 3 from your reflection are shown first.	Los Top 3 de la próxima semana elegidos en la reflexión se muestran primero.
+1044	Schedule time to complete the plan.	Programa el tiempo para completar el plan.
+1045	Weekly planning tools	Herramientas de planificación semanal
+1046	Planned / Available	Planificado / Disponible
+1047	 / {{v0}} h	 / {{v0}} h
+1048	Planned weekly capacity	Capacidad semanal planificada
+1049	Availability not set · Showing planned time only.	Disponibilidad no definida · Se muestra solo el tiempo planificado.
+1050	Goal results need\u0020	Los resultados de las metas necesitan\u0020
+1051	 hours	 horas
+1052	{{v0}} h over capacity · Reduce your priorities.	{{v0}} h por encima de la capacidad · Reduce tus prioridades.
+1053	The plan fits your current available time.	El plan cabe en tu tiempo disponible actual.
+1054	View goals	Ver metas
+1055	Start right away without a goal.	Empieza ahora sin una meta.
+1056	Manage ordinary tasks and personal events on the same screen.	Gestiona tareas normales y eventos personales en la misma pantalla.
+1057	Add task	Añadir tarea
+1058	Review {{v0}} carried-over tasks first.	Revisa primero las {{v0}} tareas aplazadas.
+1059	No carried-over tasks to review.	No hay tareas aplazadas que revisar.
+1060	Carried over	Aplazada
+1061	View Today	Ver Hoy
+1062	My tasks	Mis tareas
+1063	Choose a date, then click a task title to set its time.	Elige una fecha y pulsa el título de una tarea para programarla.
+1064	Drag to schedule, or click a title to choose a time.	Arrastra para programar o pulsa el título para elegir una hora.
+1065	Hide completed	Ocultar completadas
+1066	Show completed {{v0}}	Mostrar completadas {{v0}}
+1067	No tasks to show.	No hay tareas que mostrar.
+1068	Create a task below or view completed items.	Crea una tarea abajo o consulta las completadas.
+1069	Weekly results and time allocation	Resultados y distribución del tiempo semanal
+1070	7-day results / Time	Resultados de 7 días / Tiempo
+1071	Time block legend	Leyenda de bloques de tiempo
+1072	External event · Read-only	Evento externo · Solo lectura
+1073	Available to schedule	Disponible para programar
+1074	Swipe sideways to see plans for each weekday.	Desliza lateralmente para ver los planes de cada día.
+1075	7-day timeline by goal result	Horario de 7 días por resultado de meta
+1076	Category	Categoría
+1077	Tasks / Events	Tareas / Eventos
+1078	External event	Evento externo
+1079	Read-only	Solo lectura
+1080	Appointments, travel and breaks rather than tasks	Citas, desplazamientos y descansos, en lugar de tareas
+1081	Actual	Real
+1082	{{v0}} short	Faltan {{v0}}
+1083	Enough time allocated	Tiempo suficiente asignado
+1084	{{v0}}, {{v1}}, edit event	{{v0}}, {{v1}}, editar evento
+1085	Add a task or event on {{v0}} at {{v1}}	Añadir tarea o evento el {{v0}} a las {{v1}}
+1086	One more	Uno más
+1087	Time allocation by goal	Distribución del tiempo por meta
+1088	Allocation signals	Indicadores de distribución
+1089	This week’s assessment by result	Evaluación semanal por resultado
+1090	Enough	Suficiente
+1091	Caution	Atención
+1092	Insufficient	Insuficiente
+1093	Goals are optional. Just enter a title to save, like any task list.	Las metas son opcionales. Basta un título para guardar, como en una lista de tareas.
+1094	Example: Break the failure flow into three steps	Ejemplo: dividir el flujo de fallo en tres pasos
+1095	Not linked · Inbox	Sin vincular · Bandeja
+1096	Leave helpful links or a short note.	Añade enlaces útiles o una nota breve.
+1097	Linked time blocks and activity records will also be deleted.	También se eliminarán los bloques de tiempo y registros de actividad vinculados.
+1098	Deleted {{v0}}.	Se eliminó {{v0}}.
+1099	Goal planning · Task splitting · Carry-over tools	Planificación de metas · División de tareas · Herramientas de aplazamiento
+1100	Currently active	Actualmente activo
+1101	Archived	Archivado
+1102	Plan created	Plan creado
+1103	First plan created and activated	Primer plan creado y activado
+1104	Plan activated	Plan activado
+1105	Switched to active plan	Cambio al plan activo
+1106	Plan ended	Plan finalizado
+1107	Plan archived	Plan archivado
+1108	Plan restored	Plan restaurado
+1109	Plan content saved	Contenido del plan guardado
+1110	Active execution data cleared	Datos de ejecución activos borrados
+1111	Enter a plan name.	Escribe un nombre de plan.
+1112	Enter a year between 1900 and 9999.	Introduce un año entre 1900 y 9999.
+1113	Enter your direction for the year.	Introduce tu orientación para el año.
+1114	Enter your focus for this quarter.	Introduce tu enfoque para este trimestre.
+1115	Set measurement evidence in the new plan	Definir pruebas de medición en el nuevo plan
+1116	Start new plan	Empezar un plan nuevo
+1117	{{v0}} Q{{v1}} plan	Plan {{v0}}, T{{v1}}
+1118	Could not load the plan list.	No se pudo cargar la lista de planes.
+1119	Could not create the plan.	No se pudo crear el plan.
+1120	End the current plan? The execution screen cannot be edited until another plan is activated.	¿Finalizar el plan actual? No podrás editar la pantalla de ejecución hasta activar otro plan.
+1121	The plan was activated, but its content could not be loaded. Reload it here to avoid editing the previous plan.	El plan se activó, pero no se pudo cargar su contenido. Recárgalo aquí para evitar editar el plan anterior.
+1122	Could not change plan status.	No se pudo cambiar el estado del plan.
+1123	The active plan has not loaded yet. Check your connection and try again.	El plan activo aún no se ha cargado. Revisa la conexión e inténtalo de nuevo.
+1124	Could not load the active plan.	No se pudo cargar el plan activo.
+1125	Could not load change history.	No se pudo cargar el historial de cambios.
+1126	Annual and quarterly plans	Planes anuales y trimestrales
+1127	Track annual direction, quarterly actions and reasons for ending plans in history.	Conserva en el historial la orientación anual, las acciones trimestrales y los motivos para finalizar los planes.
+1128	New plan	Nuevo plan
+1129	Reload active plan	Recargar plan activo
+1130	Reload plan list	Recargar lista de planes
+1131	Loading plan list…	Cargando la lista de planes…
+1132	Plan list	Lista de planes
+1133	No saved plans yet	Aún no hay planes guardados
+1134	Start your annual direction and quarterly actions with a new plan.	Empieza tu orientación anual y acciones trimestrales con un nuevo plan.
+1135	Quarter · Last change	Trimestre · Último cambio
+1136	Created	Creado
+1137	Use this plan	Usar este plan
+1138	Restore	Restaurar
+1139	Change history	Historial de cambios
+1140	New annual and quarterly plan	Nuevo plan anual y trimestral
+1141	Optionally bring over only the goal structure. Tasks, schedules, time records and reflections start fresh.	Puedes importar solo la estructura de metas. Las tareas, horarios, registros de tiempo y reflexiones empiezan desde cero.
+1142	Plan name	Nombre del plan
+1143	Direction for the year	Orientación del año
+1144	Focus for this quarter	Enfoque de este trimestre
+1145	What to bring from the current plan	Qué importar del plan actual
+1146	Goal structure only	Solo estructura de metas
+1147	Empty plan	Plan vacío
+1148	Copies only result names, targets and estimated and available time. Current values, evidence, decisions and all activity are excluded.	Copia solo los nombres de resultados, objetivos y tiempos estimados y disponibles. Excluye los valores actuales, pruebas, decisiones y toda la actividad.
+1149	Start empty without results or activity records.	Empieza vacío, sin resultados ni registros de actividad.
+1150	Create draft	Crear borrador
+1151	Change history for {{v0}}	Historial de cambios de {{v0}}
+1152	Key status changes and save revisions recorded on the server.	Cambios principales de estado y revisiones de guardado registrados en el servidor.
+1153	Records are loading, or there is no change history yet.	Los registros se están cargando o aún no hay historial de cambios.
+1154	Not enough time	Faltó tiempo
+1155	More external events than expected	Más eventos externos de lo esperado
+1156	The task was too big	La tarea era demasiado grande
+1157	Break it into smaller next actions	Dividirla en acciones más pequeñas
+1158	The completion criteria were unclear	Los criterios de finalización no estaban claros
+1159	Define evidence and finish conditions first	Definir primero las pruebas y condiciones de finalización
+1160	No major blockers	No hubo grandes obstáculos
+1161	Keep the same approach next week	Mantener el mismo método la próxima semana
+1162	Confirmed no change during weekly review	Sin cambios confirmado en la revisión semanal
+1163	No change	Sin cambios
+1164	Next week’s priorities are ready.	Las prioridades de la próxima semana están listas.
+1165	Selected metrics, blockers and Top 3 were applied to the current plan.	Se aplicaron al plan actual los indicadores, obstáculos y Top 3 seleccionados.
+1166	Priority actions	Acciones prioritarias
+1167	Planned time	Tiempo planificado
+1168	Goal decisions	Decisiones de metas
+1169	Schedule next week	Programar la próxima semana
+1170	Review again	Revisar de nuevo
+1171	Close this week and choose the next.	Cierra esta semana y elige la siguiente.
+1172	Check changed metrics and your biggest blocker, then connect next week’s Top 3 to time slots.	Revisa los indicadores que cambiaron y el mayor obstáculo, y asigna horas a los Top 3 de la próxima semana.
+1173	Autosaved · 5 steps · About 5 minutes	Guardado automático · 5 pasos · Unos 5 minutos
+1174	Weekly summary and review progress	Resumen semanal y progreso de revisión
+1175	This week’s summary	Resumen de esta semana
+1176	Actual activity	Actividad real
+1177	Completed after working this week	Completadas después de trabajar esta semana
+1178	Current goal decisions	Decisiones de metas actuales
+1179	Weekly review progress	Progreso de revisión semanal
+1180	Check missing or outdated result metrics.	Revisa los indicadores de resultados que faltan o están desactualizados.
+1181	About 1 minute	Aproximadamente 1 minuto
+1182	Result to update	Resultado que actualizar
+1183	Currently verified value	Valor confirmado actual
+1184	Example: 24	Ejemplo: 24
+1185	Enter zero or a positive number.	Introduce cero o un número positivo.
+1186	Leave empty if unmeasured and check the actual value.	Déjalo vacío si no se ha medido y comprueba el valor real.
+1187	Verification evidence	Pruebas de verificación
+1188	Example: Payment dashboard checked on September 2	Ejemplo: panel de pagos consultado el 2 de septiembre
+1189	Enter the source or observation supporting this value.	Introduce la fuente u observación que respalda este valor.
+1190	Record where this value was checked.	Anota dónde se comprobó este valor.
+1191	Applied	Aplicado
+1192	Apply	Aplicar
+1193	No results to update.	No hay resultados que actualizar.
+1194	Record no change	Registrar sin cambios
+1195	Choose the one biggest blocker.	Elige el mayor obstáculo.
+1196	Biggest blocker	Mayor obstáculo
+1197	Use unfinished work as evidence for your next plan.	Usa el trabajo pendiente como base para tu próximo plan.
+1198	Scheduled next week	Programada para la próxima semana
+1199	Move to next week	Mover a la próxima semana
+1200	Split	Dividir
+1201	No carried-over tasks need a decision.	No hay tareas aplazadas que requieran una decisión.
+1202	Carried-over tasks	Tareas aplazadas
+1203	 are not scheduled next week yet. Finishing as is leaves them undecided.	 aún no están programadas para la próxima semana. Terminar así las deja sin decidir.
+1204	Choose up to 3 actions to give time to first.	Elige hasta 3 acciones a las que asignar tiempo primero.
+1205	About 2 minutes	Aproximadamente 2 minutos
+1206	No tasks in progress. You can finish the reflection without a Top 3.	No hay tareas en progreso. Puedes terminar la reflexión sin Top 3.
+1207	/3 selected	/3 seleccionadas
+1208	· Estimated\u0020	· Estimación\u0020
+1209	Apply these choices to the current plan and move to next week.	Aplica estas decisiones al plan actual y pasa a la próxima semana.
+1210	Last step	Último paso
+1211	All required choices are ready.	Todas las decisiones obligatorias están listas.
+1212	Complete the previous four steps first.	Completa primero los cuatro pasos anteriores.
+1213	Keep {{v0}} undecided carried-over tasks	Conservar {{v0}} tareas aplazadas sin decidir
+1214	Carry-over decisions complete	Decisiones de aplazamiento completadas
+1215	Result metrics · Blockers · {{v0}}	Indicadores de resultados · Obstáculos · {{v0}}
+1216	Complete weekly review	Completar revisión semanal
+1217	 · {{v0}} carried-over tasks left	 · {{v0}} tareas aplazadas restantes
+1218	Two-way — Apply changes from both Goals to Today and Google	Bidireccional — Aplicar los cambios de Goals to Today y Google
+1219	Import only — Show Google events in Goals to Today	Solo importar — Mostrar eventos de Google en Goals to Today
+1220	Export only — Create Goals to Today time blocks in Google	Solo exportar — Crear bloques de Goals to Today en Google
+1221	Not connected	Sin conexión
+1222	Awaiting sync	Esperando sincronización
+1223	Sync healthy	Sincronización correcta
+1224	Permission reconnection required	Es necesario volver a autorizar
+1225	Latest sync failed	Falló la última sincronización
+1226	Could not load integration status.	No se pudo cargar el estado de la conexión.
+1227	Google Calendar connected. Preparing the first sync.	Google Calendar conectado. Preparando la primera sincronización.
+1228	Could not start the Google connection.	No se pudo iniciar la conexión con Google.
+1229	Integration settings saved. Syncing again with the updated settings.	Ajustes de conexión guardados. Se sincronizará con los nuevos ajustes.
+1230	Could not save integration settings.	No se pudieron guardar los ajustes de conexión.
+1231	Sync requested. Changes from other devices are applied safely in order.	Sincronización solicitada. Los cambios de otros dispositivos se aplican de forma segura y en orden.
+1232	Could not request sync.	No se pudo solicitar la sincronización.
+1233	Delete the Google Calendar connection and stored integration tokens?	¿Eliminar la conexión con Google Calendar y los tokens guardados?
+1234	Google Calendar connection and stored tokens deleted.	Se eliminaron la conexión con Google Calendar y los tokens guardados.
+1235	Could not disconnect.	No se pudo desconectar.
+1236	Control your external calendar and sync direction to avoid entering events twice.	Controla el calendario externo y la dirección de sincronización para evitar duplicar eventos.
+1237	Calendar calculation settings	Ajustes de cálculo del calendario
+1238	Today, Schedule and activity records use the same IANA time zone for dates and weeks.	Hoy, Agenda y los registros de actividad usan la misma zona horaria IANA para fechas y semanas.
+1239	Using the device time zone temporarily while checking the account time zone.	Se usa temporalmente la zona horaria del dispositivo mientras se comprueba la de la cuenta.
+1240	Using account settings.	Se usan los ajustes de la cuenta.
+1241	Account settings could not load; using the device time zone.	No se pudieron cargar los ajustes de la cuenta; se usa la zona horaria del dispositivo.
+1242	Reload time zone	Recargar zona horaria
+1243	Events are processed using encrypted long-lived tokens and Google incremental sync tokens.	Los eventos se procesan con tokens de larga duración cifrados y tokens de sincronización incremental de Google.
+1244	Check status again	Volver a comprobar el estado
+1245	Checking integration status…	Comprobando el estado de la conexión…
+1246	Only the Google Calendar section failed to load. Other settings are still available.	Solo falló la sección de Google Calendar. Los demás ajustes siguen disponibles.
+1247	No Google Calendar status information.	No hay información del estado de Google Calendar.
+1248	Production Google OAuth credentials required	Se requieren credenciales OAuth de Google de producción
+1249	The Connect button becomes available once Client ID, Client Secret, token encryption key and HTTPS callback URL are configured on the server.	El botón Conectar estará disponible cuando se configuren en el servidor el Client ID, Client Secret, la clave de cifrado de tokens y la URL de respuesta HTTPS.
+1250	Reconnect Google permissions	Vuelve a autorizar Google
+1251	Existing events are not deleted. Refresh Google permissions to resume the paused sync.	No se eliminan los eventos existentes. Renueva los permisos de Google para reanudar la sincronización.
+1252	Reconnect Google permissions	Volver a autorizar Google
+1253	No calendar connected yet	Aún no hay un calendario conectado
+1254	Only event read and edit permissions are requested. You can delete the connection and stored tokens at any time.	Solo se solicitan permisos para consultar y editar eventos. Puedes eliminar la conexión y los tokens guardados cuando quieras.
+1255	Connect Google Calendar	Conectar Google Calendar
+1256	Connected account	Cuenta conectada
+1257	Google primary calendar	Calendario principal de Google
+1258	Last completed	Última finalización
+1259	Not yet	Aún no
+1260	Calendar to sync	Calendario que sincronizar
+1261	 · Primary	 · Principal
+1262	Sync direction	Dirección de sincronización
+1263	Latest error:\u0020	Último error:\u0020
+1264	Save settings	Guardar ajustes
+1265	Sync now	Sincronizar ahora
+1266	Disconnect	Desconectar
+1267	One thing at a time	Una cosa cada vez
+1268	Today’s tasks	Tareas de hoy
+1269	Tasks for this date	Tareas de esta fecha
+1270	{{v0}}: {{v1}} items	{{v0}}: {{v1}} elementos
+1271	Quick note	Nota rápida
+1272	Add a task for later	Añadir una tarea para después
+1273	Add task for this date	Añadir tarea para esta fecha
+1274	Select task list	Seleccionar lista de tareas
+1275	Selected date	Fecha seleccionada
+1276	Later	Después
+1277	Paused	Pausado
+1278	Timer {{v0}}	Temporizador {{v0}}
+1279	Mark complete	Marcar como completada
+1280	No date yet	Sin fecha
+1281	Unscheduled · Estimated {{v0}}	Sin programar · Estimación {{v0}}
+1282	Schedule time for {{v0}}	Programar hora de {{v0}}
+1283	Change date for {{v0}}	Cambiar fecha de {{v0}}
+1284	Paused	En pausa
+1285	No undated tasks.	No hay tareas sin fecha.
+1286	Write a task above. You can choose a time later.	Escribe una tarea arriba. Puedes elegir una hora después.
+1287	Check to complete. Choosing a time shows the same task on the timeline.	Marca para completar. Al elegir una hora, la misma tarea aparece en el horario.
+1288	Completed and canceled tasks (	Tareas completadas y canceladas (
+1289	Tasks from all dates. Click to edit or reopen.	Tareas de todas las fechas. Pulsa para editar o reabrir.
+1290	· Edit	· Editar
+1291	Previous device note	Nota anterior del dispositivo
+1292	Old notes have no account or date information. They are not moved into reflections automatically. Leave new notes in the day wrap-up below.	Las notas antiguas no tienen cuenta ni fecha. No se trasladan automáticamente a las reflexiones. Escribe las nuevas notas en el cierre del día de abajo.
+1293	View this device’s old note	Ver la nota anterior de este dispositivo
+1294	Previous device note (read-only)	Nota anterior del dispositivo (solo lectura)
+1295	Record time manually	Registrar tiempo manualmente
+1296	Task to record time for	Tarea para registrar tiempo
+1297	Time to record	Tiempo que registrar
+1298	Added {{v2}} at {{v0}}–{{v1}}.	Se añadió {{v2}} de {{v0}} a {{v1}}.
+1299	Scheduled {{v0}} at {{v1}}.	Se programó {{v0}} a las {{v1}}.
+1300	Changed {{v0}} to {{v1}}–{{v2}}.	Se cambió {{v0}} a {{v1}}–{{v2}}.
+1301	Undo has expired, or schedule or sync changes prevent restoring it.	La opción Deshacer ha caducado o los cambios de agenda o sincronización impiden restaurarlo.
+1302	Restored {{v0}} to the same time.	Se restauró {{v0}} a la misma hora.
+1303	Added {{v0}} to Later.	Se añadió {{v0}} a Después.
+1304	Added {{v0}} to the selected date. Its time is not set yet.	Se añadió {{v0}} a la fecha seleccionada. Aún no tiene hora.
+1305	Could not add. Your input is preserved; check save status.	No se pudo añadir. Tu texto se conserva; revisa el estado de guardado.
+1306	The time overlaps another event or cannot be saved. Please check it.	La hora se solapa con otro evento o no se puede guardar. Revísala.
+1307	The same event now appears in both the task list and timeline.	El mismo evento aparece ahora en la lista de tareas y en el horario.
+1308	The destination date has an overlapping event, or a timer is running. Check the timeline.	La fecha de destino tiene un evento solapado o hay un temporizador en marcha. Revisa el horario.
+1309	Moved {{v0}} to {{v1}}.	Se movió {{v0}} a {{v1}}.
+1310	Moved to Later and removed this date’s time allocation.	Se movió a Después y se quitó la programación horaria de esta fecha.
+1311	Choose free time to schedule {{v0}} again.	Elige un hueco libre para volver a programar {{v0}}.
+1312	Recorded {{v1}} min for {{v0}}.	Se registraron {{v1}} min para {{v0}}.
+1313	Another device deleted or changed this event. Your input is preserved.	Otro dispositivo eliminó o modificó este evento. Tu texto se conserva.
+1314	Another device changed this event’s time. Your input is preserved; check the latest time.	Otro dispositivo cambió la hora de este evento. Tu texto se conserva; revisa la última hora.
+1315	Another device changed the same title. Your input is preserved.	Otro dispositivo cambió el mismo título. Tu texto se conserva.
+1316	Overlaps {{v0}}. Choose another time.	Se solapa con {{v0}}. Elige otra hora.
+1317	Could not create the task. Please check your input.	No se pudo crear la tarea. Revisa los datos.
+1318	Could not save. Check the event and sync status.	No se pudo guardar. Revisa el evento y el estado de sincronización.
+1319	Applied to tasks and calendar.	Aplicado a las tareas y al calendario.
+1320	Tasks and time planning	Tareas y planificación del tiempo
+1321	{{v0}}/{{v1}} – {{v2}}/{{v3}}	{{v1}}/{{v0}} – {{v3}}/{{v2}}
+1322	Previous date	Fecha anterior
+1323	Next date	Fecha siguiente
+1324	{{v0}} planned	{{v0}} planificados
+1325	No plan	Sin plan
+1326	Selected week	Semana seleccionada
+1327	Currently paused	Actualmente pausado
+1328	Running now	En marcha ahora
+1329	Choose Today view	Elegir vista de Hoy
+1330	Timeline	Horario
+1331	Tasks for selected date	Tareas de la fecha seleccionada
+1332	Goals and day wrap-up	Metas y cierre del día
+1333	24-hour timeline for {{v0}}	Horario de 24 horas de {{v0}}
+1334	Daily timeline	Horario diario
+1335	Weekly timeline	Horario semanal
+1336	Monthly schedule	Agenda mensual
+1337	Click free time to add; click an event to edit.	Pulsa un hueco libre para añadir; pulsa un evento para editar.
+1338	Daily	Diaria
+1339	Removed from timeline.	Se quitó del horario.
+1340	Undo	Deshacer
+1341	Reopened	Reabierta
+1342	Completed	Completada
+1343	Undo completion	Deshacer finalización
+1344	Dismiss completion notice	Cerrar aviso de finalización
+1345	Task updated.	Tarea actualizada.
+1346	Task and linked records deleted.	Tarea y registros vinculados eliminados.
+1347	When is this task for?	¿Para cuándo es esta tarea?
+1348	{{v0}} · Time blocks on this date move with it. Blocks on other dates and activity records are kept.	{{v0}} · Los bloques de esta fecha se mueven con la tarea. Se conservan los bloques de otras fechas y los registros de actividad.
+1349	Postpone until tomorrow	Aplazar hasta mañana
+1350	Next Monday	El próximo lunes
+1351	Later · Remove time	Después · Quitar hora
+1352	Task date	Fecha de la tarea
+1353	Move to this date	Mover a esta fecha
+1354	Wrap up this session?	¿Terminar esta sesión?
+1355	Record the result of timer {{v0}}.	Registra el resultado del temporizador {{v0}}.
+1356	Time for the session to end	Tiempo de la sesión que finalizar
+1357	Recorded session	Sesión registrada
+1358	Evidence or a one-line note	Prueba o nota breve
+1359	Example: What you finished or what to continue next	Ejemplo: lo que terminaste o lo que continuar después
+1360	Continue next time	Continuar la próxima vez
+1361	Keep in progress.	Mantener en progreso.
+1362	This task is complete	Esta tarea está completada
+1363	Move to completed list.	Mover a la lista de completadas.
+1364	Could not load goals and reflections. Existing tasks and input are preserved.	No se pudieron cargar las metas y reflexiones. Se conservan las tareas y el texto existentes.
+1365	The screen or account changed. Please verify the save result.	Cambió la pantalla o la cuenta. Comprueba el resultado del guardado.
+1366	Deleted. Linked tasks and events are kept.	Eliminado. Se conservan las tareas y eventos vinculados.
+1367	Saved to server.	Guardado en el servidor.
+1368	Could not save. Your input is preserved.	No se pudo guardar. Tu texto se conserva.
+1369	Your input selected. Press Save to confirm.	Tu texto seleccionado. Pulsa Guardar para confirmar.
+1370	Could not load the account time zone.	No se pudo cargar la zona horaria de la cuenta.
+1371	The saved account time zone is invalid; using the device time zone.	La zona horaria de la cuenta no es válida; se usa la del dispositivo.
+1372	{{v0}} Using the device time zone temporarily.	{{v0}} Se usa temporalmente la zona horaria del dispositivo.
+1373	Loading account time zone…	Cargando la zona horaria de la cuenta…

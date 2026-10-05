@@ -27,7 +27,7 @@ try {
   run(['exec', '-i', name, '/opt/keycloak/bin/kcadm.sh', 'create', 'realms', '--config', '/tmp/theme-qa.config', '-f', '-'], JSON.stringify({
     realm: 'theme-qa', enabled: true, displayName: 'Goals to Today', loginTheme: 'goalstotoday', registrationAllowed: true,
     resetPasswordAllowed: true, rememberMe: true, registrationEmailAsUsername: true,
-    internationalizationEnabled: true, supportedLocales: ['ko', 'en'], defaultLocale: 'ko',
+    internationalizationEnabled: true, supportedLocales: ['ko', 'en', 'es'], defaultLocale: 'ko',
     clients: [{ clientId: 'theme-qa', enabled: true, publicClient: true, standardFlowEnabled: true, redirectUris: [`${base}/callback`] }],
   }));
   browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -64,6 +64,15 @@ try {
     englishAuth.searchParams.set('ui_locales', 'en');
     await page.goto(englishAuth.href);
     assert.equal(await page.locator('#kc-page-title').innerText(), 'Pick up where you left off');
+    const spanishAuth = new URL(auth);
+    spanishAuth.searchParams.set('ui_locales', 'es');
+    await page.goto(spanishAuth.href);
+    assert.equal(await page.locator('#kc-page-title').innerText(), 'Continúa donde lo dejaste');
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Spanish login overflow');
+    await page.locator('#kc-registration a').click();
+    await page.locator('#email').waitFor();
+    assert.equal(await page.locator('#kc-page-title').innerText(), 'Haz espacio para tu día');
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Spanish registration overflow');
     assert.deepEqual(errors, [], 'Login page JS errors');
     await page.close();
   }

@@ -1,3 +1,4 @@
+import { useLocale, tr } from '../i18n';
 import clsx from 'clsx';
 
 interface CapacityBarProps {
@@ -7,7 +8,8 @@ interface CapacityBarProps {
   label?: string;
 }
 
-export function CapacityBar({ used, total, compact = false, label = '주간 시간' }: CapacityBarProps) {
+export function CapacityBar({ used, total, compact = false, label = tr("주간 시간") }: CapacityBarProps) {
+  useLocale();
   const ratio = total > 0 ? used / total : 0;
   const percentage = Math.min(100, Math.round(ratio * 100));
   const state = ratio > 1 ? 'over' : ratio >= 0.85 ? 'tight' : 'good';
@@ -21,7 +23,7 @@ export function CapacityBar({ used, total, compact = false, label = '주간 시�
       <div
         className="capacity__track"
         role="progressbar"
-        aria-label={`${label} ${percentage}% 사용`}
+        aria-label={tr("{{v0}} {{v1}}% 사용", { v0: label, v1: percentage })}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percentage}
